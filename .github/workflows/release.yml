@@ -66,3 +66,16 @@ jobs:
             - 32-bit float color eyedropper and tone-mapping controls.
           releaseDraft: false
           prerelease: true
+
+      - name: Upload Standalone Release Binary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name || inputs.version }}"
+          $exePath = "src-tauri/target/release/cg-artist-file-browser.exe"
+          if (Test-Path $exePath) {
+            $standaloneName = "CG-Artist-File-Browser-${tag}-Standalone.exe"
+            Copy-Item $exePath $standaloneName
+            gh release upload $tag $standaloneName --clobber
+          }
