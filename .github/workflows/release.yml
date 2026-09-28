@@ -1,0 +1,68 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v1.0.0-beta)'
+        required: false
+        default: 'v1.0.0-beta'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri App & Publish Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name || inputs.version }}
+          releaseName: 'CG Artist File Browser ${{ github.ref_name || inputs.version }}'
+          releaseBody: |
+            ## CG Artist File Browser ${{ github.ref_name || inputs.version }}
+
+            ### What's New
+            - High-performance local 3D & HDR/EXR asset browser for CG artists.
+            - Full native drag-and-drop support (Windows Explorer -> App).
+            - Auto-switching viewports for 3D meshes, HDR/EXR panoramic maps, 2D images, video & audio.
+            - Dual-slot image comparison dock with NVIDIA iCAT-style interactive wipe curtain slider.
+            - 32-bit float color eyedropper and tone-mapping controls.
+          releaseDraft: false
+          prerelease: true

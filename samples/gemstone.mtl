@@ -1,0 +1,8 @@
+# Wavefront MTL
+newmtl EmeraldCrystal
+Ka 0.1 0.2 0.15
+Kd 0.0 0.9 0.6
+Ks 0.9 0.9 0.9
+Ns 200.0
+d 0.85
+illum 2

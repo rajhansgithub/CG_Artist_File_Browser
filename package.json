@@ -1,0 +1,90 @@
+{
+  "name": "cg-artist-file-browser",
+  "version": "1.0.0-beta",
+  "description": "High-Performance 3D & HDR/EXR File Browser and Inspector for CG & VFX Artists",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri.git"
+  },
+  "homepage": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri#readme",
+  "bugs": {
+    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/issues"
+  },
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:vite": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "electron .",
+    "dev": "concurrently -k \"vite\" \"cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "package:exe": "vite build && electron-builder --win portable",
+    "package:installer": "vite build && electron-builder --win nsis",
+    "package:all": "vite build && electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.cg.artistfilebrowser",
+    "productName": "CG Artist File Browser",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "scripts/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CG Artist File Browser",
+      "artifactName": "CG-Artist-File-Browser-Setup-1.0.0-Beta.exe"
+    },
+    "portable": {
+      "artifactName": "CG-Artist-File-Browser-1.0.0-Beta-Portable.exe"
+    }
+  },
+  "keywords": [
+    "3d",
+    "vfx",
+    "obj",
+    "fbx",
+    "abc",
+    "usd",
+    "hdr",
+    "exr",
+    "viewer",
+    "filebrowser",
+    "tauri"
+  ],
+  "author": "rajhansgithub",
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.0",
+    "@tauri-apps/plugin-dialog": "^2.8.0",
+    "@tauri-apps/plugin-opener": "^2.6.0",
+    "fflate": "^0.8.3",
+    "lucide-react": "^1.48.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.3.1"
+  }
+}
