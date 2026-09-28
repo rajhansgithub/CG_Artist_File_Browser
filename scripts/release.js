@@ -39,9 +39,9 @@ console.log(`✓ Updated package.json to ${cleanVersion}`);
 const tauriConfPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json');
 if (fs.existsSync(tauriConfPath)) {
   const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
-  tauriConf.version = cleanVersion;
+  tauriConf.version = cleanVersion.replace(/-.*$/, '');
   fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
-  console.log(`✓ Updated tauri.conf.json to ${cleanVersion}`);
+  console.log(`✓ Updated tauri.conf.json to ${tauriConf.version}`);
 }
 
 // 3. Update src-tauri/Cargo.toml
