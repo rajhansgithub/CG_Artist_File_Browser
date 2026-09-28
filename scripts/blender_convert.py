@@ -104,7 +104,11 @@ def import_file(filepath):
     if ext == '.abc':
         bpy.ops.wm.alembic_import(filepath=filepath, as_background_job=False)
     elif ext in ['.usd', '.usda', '.usdc', '.usdz']:
-        bpy.ops.wm.usd_import(filepath=filepath)
+        norm_path = os.path.normpath(filepath).replace('\\', '/')
+        try:
+            bpy.ops.wm.usd_import(filepath=norm_path)
+        except Exception:
+            bpy.ops.wm.usd_import(filepath=filepath)
     elif ext == '.obj':
         try:
             bpy.ops.wm.obj_import(filepath=filepath)
@@ -185,13 +189,20 @@ def main():
 
         if mode == "convert_glb" and output_path:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            bpy.ops.export_scene.gltf(
-                filepath=output_path,
-                export_format='GLB',
-                export_materials='EXPORT',
-                export_animations=True,
-                export_apply=True
-            )
+            try:
+                bpy.ops.export_scene.gltf(
+                    filepath=output_path,
+                    export_format='GLB',
+                    export_materials='EXPORT',
+                    export_animations=True,
+                    export_apply=True
+                )
+            except Exception:
+                bpy.ops.export_scene.gltf(
+                    filepath=output_path,
+                    export_format='GLB',
+                    export_materials='EXPORT'
+                )
             meta["outputPath"] = output_path
             print("RESULT_JSON:" + json.dumps(meta))
 
@@ -215,9 +226,15 @@ def main():
                         if obj.data.materials[i] is None:
                             obj.data.materials[i] = default_mat
             
-            # Configure Cycles or EEVEE
+            # Configure EEVEE, EEVEE-Next, or Workbench
             scene = bpy.context.scene
-            scene.render.engine = 'BLENDER_EEVEE_NEXT' if hasattr(bpy.types, 'RenderSettings') and 'BLENDER_EEVEE_NEXT' in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items else 'BLENDER_EEVEE'
+            engine_items = [item.identifier for item in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items] if hasattr(bpy.types, 'RenderSettings') else []
+            if 'BLENDER_EEVEE_NEXT' in engine_items:
+                scene.render.engine = 'BLENDER_EEVEE_NEXT'
+            elif 'BLENDER_EEVEE' in engine_items:
+                scene.render.engine = 'BLENDER_EEVEE'
+            elif 'BLENDER_WORKBENCH' in engine_items:
+                scene.render.engine = 'BLENDER_WORKBENCH'
             scene.render.resolution_x = 320
             scene.render.resolution_y = 160
             scene.render.film_transparent = False

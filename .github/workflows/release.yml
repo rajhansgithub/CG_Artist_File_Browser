@@ -58,14 +58,13 @@ jobs:
           releaseBody: |
             ## CG Artist File Browser ${{ github.ref_name || inputs.version }}
 
-            ### What's New
-            - High-performance local 3D & HDR/EXR asset browser for CG artists.
-            - Full native drag-and-drop support (Windows Explorer -> App).
-            - Auto-switching viewports for 3D meshes, HDR/EXR panoramic maps, 2D images, video & audio.
-            - Dual-slot image comparison dock with NVIDIA iCAT-style interactive wipe curtain slider.
-            - 32-bit float color eyedropper and tone-mapping controls.
+            ### What's New in this Release:
+            - **USD / USDA / USDC / USDZ 3D File Support**: Embedded background Blender conversion script directly into the native binary, eliminating missing script errors on all machines.
+            - **Multi-layer EXR Beauty Thumbnails**: Multi-layer EXR and multi-pass AOV files now auto-detect and render their Beauty / Combined pass thumbnails in the file grid.
+            - **3D Viewport Wireframe Fixed**: Completely overhauled wireframe rendering with full topology `WireframeGeometry`, dynamic `polygonOffset` on base materials to eliminate Z-fighting, and high-contrast cyan lines.
+            - **Native Drag & Drop & Snapshot Export**: Fully functional native drag & drop and PNG snapshot saving across all viewports.
           releaseDraft: false
-          prerelease: true
+          prerelease: false
 
       - name: Upload Standalone Release Binary
         env:

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { EXRLoader } from './exrLoaderExtended.js';
 import { TIFFLoader } from 'three/addons/loaders/TIFFLoader.js';
 import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { load3DModel } from './assetLoader.js';
@@ -78,16 +78,19 @@ function renderToneMappedThumbnail(parsed, targetW = 256, targetH = 128) {
   const w = parsed.width;
   const h = parsed.height;
   const data = parsed.data;
+  if (!data || w <= 0 || h <= 0) return null;
+
   const isHalf = data instanceof Uint16Array;
+  const numChannels = data.length >= w * h * 4 ? 4 : (data.length >= w * h * 3 ? 3 : 1);
 
   // Auto-exposure sampling: sample luminance across pixels to normalize middle gray ~0.18
   let sampleSum = 0;
   let sampleCount = 0;
   const step = Math.max(1, Math.floor((w * h) / 500));
-  for (let i = 0; i < w * h * 4; i += step * 4) {
+  for (let i = 0; i < w * h * numChannels; i += step * numChannels) {
     const r = toFloat(data[i], isHalf);
-    const g = toFloat(data[i + 1], isHalf);
-    const b = toFloat(data[i + 2], isHalf);
+    const g = numChannels >= 3 ? toFloat(data[i + 1], isHalf) : r;
+    const b = numChannels >= 3 ? toFloat(data[i + 2], isHalf) : r;
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     if (lum > 0.0001 && isFinite(lum)) {
       sampleSum += lum;
@@ -117,12 +120,13 @@ function renderToneMappedThumbnail(parsed, targetW = 256, targetH = 128) {
 
     for (let x = 0; x < targetW; x++) {
       const srcX = Math.floor((x / targetW) * w);
-      const srcIdx = (srcY * w + srcX) * 4;
+      const pixelIndex = srcY * w + srcX;
+      const srcIdx = pixelIndex * numChannels;
       const dstIdx = (y * targetW + x) * 4;
 
       const r = toFloat(data[srcIdx], isHalf) * exposureMult;
-      const g = toFloat(data[srcIdx + 1], isHalf) * exposureMult;
-      const b = toFloat(data[srcIdx + 2], isHalf) * exposureMult;
+      const g = (numChannels >= 3 ? toFloat(data[srcIdx + 1], isHalf) : r) * exposureMult;
+      const b = (numChannels >= 3 ? toFloat(data[srcIdx + 2], isHalf) : r) * exposureMult;
 
       out[dstIdx] = acesFilmic(r);
       out[dstIdx + 1] = acesFilmic(g);

@@ -467,17 +467,32 @@ fn set_blender_path(app: tauri::AppHandle, new_path: String) -> Result<BlenderSt
     }
 }
 
-// Helper: find blender_convert.py script
-fn find_convert_script() -> Option<PathBuf> {
+const BLENDER_CONVERT_SCRIPT: &str = include_str!("../../scripts/blender_convert.py");
+
+// Helper: find or deploy blender_convert.py script
+fn find_convert_script(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let relative = Path::new("scripts").join("blender_convert.py");
     if relative.exists() {
-        return Some(relative.canonicalize().unwrap_or(relative));
+        return Ok(relative.canonicalize().unwrap_or(relative));
     }
     let parent_rel = Path::new("..").join("scripts").join("blender_convert.py");
     if parent_rel.exists() {
-        return Some(parent_rel.canonicalize().unwrap_or(parent_rel));
+        return Ok(parent_rel.canonicalize().unwrap_or(parent_rel));
     }
-    None
+
+    // Deploy embedded script into cache_dir so it is ALWAYS available in installed / standalone builds
+    let cache_dir = get_cache_dir(app);
+    let script_path = cache_dir.join("blender_convert.py");
+    let needs_write = match fs::read_to_string(&script_path) {
+        Ok(content) => content != BLENDER_CONVERT_SCRIPT,
+        Err(_) => true,
+    };
+    if needs_write {
+        if let Err(e) = fs::write(&script_path, BLENDER_CONVERT_SCRIPT) {
+            return Err(format!("Failed to write embedded blender_convert.py: {}", e));
+        }
+    }
+    Ok(script_path)
 }
 
 // IPC: Convert asset to GLB using Blender
@@ -536,13 +551,13 @@ async fn convert_asset(app: tauri::AppHandle, file_path: String) -> ConvertResul
         };
     }
 
-    let script = match find_convert_script() {
-        Some(s) => s,
-        None => return ConvertResult {
+    let script = match find_convert_script(&app) {
+        Ok(s) => s,
+        Err(e) => return ConvertResult {
             success: false,
             glb_path: None,
             cached: false,
-            error: Some("blender_convert.py script not found.".into()),
+            error: Some(e),
             meta: None,
         },
     };
@@ -643,13 +658,13 @@ async fn render_thumbnail(app: tauri::AppHandle, file_path: String) -> ThumbResu
         };
     }
 
-    let script = match find_convert_script() {
-        Some(s) => s,
-        None => return ThumbResult {
+    let script = match find_convert_script(&app) {
+        Ok(s) => s,
+        Err(e) => return ThumbResult {
             success: false,
             thumbnail_path: None,
             cached: false,
-            error: Some("blender_convert.py not found.".into()),
+            error: Some(e),
         },
     };
 

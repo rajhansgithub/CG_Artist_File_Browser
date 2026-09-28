@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "CG Artist File Browser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.cg.artistfilebrowser",
   "build": {
     "frontendDist": "../dist",

@@ -253,6 +253,15 @@ export default function Viewport3D({
 
     // Clean previous model
     if (modelRef.current) {
+      modelRef.current.traverse((child) => {
+        if (child.userData.wireframeLine) {
+          child.userData.wireframeLine.geometry?.dispose();
+          child.userData.wireframeLine.material?.dispose();
+        }
+        if (child.userData.wireframeOccluderMat) child.userData.wireframeOccluderMat.dispose();
+        if (child.userData.normalsMat) child.userData.normalsMat.dispose();
+        if (child.userData.clayMat) child.userData.clayMat.dispose();
+      });
       sceneRef.current.remove(modelRef.current);
       modelRef.current = null;
     }
@@ -323,77 +332,94 @@ export default function Viewport3D({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Handle Render Style changes (Lit, Wireframe, Normals, Clay)
-  useEffect(() => {
-    if (!modelRef.current) return;
-
-    modelRef.current.traverse((child) => {
-      if (child.isMesh) {
-        if (!child.userData.origMaterial) {
-          child.userData.origMaterial = child.material;
-        }
-
-        if (renderMode === 'wireframe') {
-          // Dark silhouette occluder for pure wireframe mode
-          child.material = new THREE.MeshBasicMaterial({
-            color: 0x0c0c0c,
-            polygonOffset: true,
-            polygonOffsetFactor: 1,
-            polygonOffsetUnits: 1
-          });
-        } else if (renderMode === 'normals') {
-          child.material = new THREE.MeshNormalMaterial();
-        } else if (renderMode === 'clay') {
-          child.material = new THREE.MeshStandardMaterial({
-            color: 0xcccccc,
-            roughness: 0.6,
-            metalness: 0.05
-          });
-        } else {
-          // Lit / Standard or Wireframe Overlay
-          child.material = child.userData.origMaterial;
-          if (child.material) child.material.wireframe = false;
-        }
-      }
-    });
-  }, [renderMode]);
-
-  // Clean Quad Polygon Wireframe Geometry & Visibility (No diagonal slash cuts)
+  // Handle Render Style changes (Lit, Wireframe, Normals, Clay) & Wireframe Overlay
   useEffect(() => {
     if (!modelRef.current) return;
 
     const isWireframeActive = showWireframe || renderMode === 'wire_overlay' || renderMode === 'wireframe';
     const isPureWireframe = renderMode === 'wireframe';
 
+    const setMatPolygonOffset = (mat, enable) => {
+      if (!mat) return;
+      if (Array.isArray(mat)) {
+        mat.forEach((m) => setMatPolygonOffset(m, enable));
+        return;
+      }
+      mat.polygonOffset = enable;
+      mat.polygonOffsetFactor = enable ? 1 : 0;
+      mat.polygonOffsetUnits = enable ? 1 : 0;
+      mat.needsUpdate = true;
+    };
+
     modelRef.current.traverse((child) => {
       if (child.isMesh && child.geometry) {
-        // Build clean EdgesGeometry with 15-degree threshold to remove quad hypotenuse diagonals
+        if (!child.userData.origMaterial) {
+          child.userData.origMaterial = child.material;
+        }
+
+        // 1. Base surface shading according to renderMode
+        if (renderMode === 'wireframe') {
+          // Dark silhouette occluder for pure wireframe mode
+          if (!child.userData.wireframeOccluderMat) {
+            child.userData.wireframeOccluderMat = new THREE.MeshBasicMaterial({
+              color: 0x0c0c0c,
+              polygonOffset: true,
+              polygonOffsetFactor: 1,
+              polygonOffsetUnits: 1
+            });
+          }
+          child.material = child.userData.wireframeOccluderMat;
+        } else if (renderMode === 'normals') {
+          if (!child.userData.normalsMat) {
+            child.userData.normalsMat = new THREE.MeshNormalMaterial();
+          }
+          child.material = child.userData.normalsMat;
+          setMatPolygonOffset(child.material, isWireframeActive);
+        } else if (renderMode === 'clay') {
+          if (!child.userData.clayMat) {
+            child.userData.clayMat = new THREE.MeshStandardMaterial({
+              color: 0xd4d4d8,
+              roughness: 0.65,
+              metalness: 0.05
+            });
+          }
+          child.material = child.userData.clayMat;
+          setMatPolygonOffset(child.material, isWireframeActive);
+        } else {
+          // Lit / Standard or Wireframe Overlay
+          child.material = child.userData.origMaterial;
+          setMatPolygonOffset(child.material, isWireframeActive);
+        }
+
+        // 2. Wireframe Line Geometry & Visibility
         if (!child.userData.wireframeLine) {
           try {
-            const edges = new THREE.EdgesGeometry(child.geometry, 15);
+            const wireGeom = new THREE.WireframeGeometry(child.geometry);
             const lineMat = new THREE.LineBasicMaterial({
-              color: isPureWireframe ? 0x38bdf8 : 0x000000,
+              color: 0x38bdf8,
               transparent: true,
-              opacity: isPureWireframe ? 0.95 : 0.55,
-              depthTest: true
+              opacity: 0.85,
+              depthTest: true,
+              depthWrite: false
             });
-            const line = new THREE.LineSegments(edges, lineMat);
-            line.renderOrder = 2;
+            const line = new THREE.LineSegments(wireGeom, lineMat);
+            line.renderOrder = 10;
             child.add(line);
             child.userData.wireframeLine = line;
           } catch (e) {
-            console.warn('Failed to build clean quad wireframe edges:', e);
+            console.warn('Failed to build wireframe geometry:', e);
           }
         }
 
         if (child.userData.wireframeLine) {
           child.userData.wireframeLine.visible = isWireframeActive;
-          child.userData.wireframeLine.material.color.setHex(isPureWireframe ? 0x38bdf8 : 0x000000);
-          child.userData.wireframeLine.material.opacity = isPureWireframe ? 0.95 : 0.55;
+          child.userData.wireframeLine.material.color.setHex(0x38bdf8);
+          child.userData.wireframeLine.material.opacity = isPureWireframe ? 0.95 : 0.8;
+          child.userData.wireframeLine.material.needsUpdate = true;
         }
       }
     });
-  }, [showWireframe, renderMode, stats]);
+  }, [renderMode, showWireframe, stats]);
 
   // Grid visibility
   useEffect(() => {
@@ -470,9 +496,16 @@ export default function Viewport3D({
 
         {/* Wireframe Overlay Toggle */}
         <button
-          className={`hud-btn ${showWireframe ? 'active' : ''}`}
-          onClick={() => setShowWireframe(!showWireframe)}
-          title="Toggle Quad Polygon Wireframe Overlay"
+          className={`hud-btn ${showWireframe || renderMode === 'wire_overlay' || renderMode === 'wireframe' ? 'active' : ''}`}
+          onClick={() => {
+            if (renderMode === 'wireframe' || renderMode === 'wire_overlay') {
+              setRenderMode('lit');
+              setShowWireframe(false);
+            } else {
+              setShowWireframe(!showWireframe);
+            }
+          }}
+          title="Toggle Wireframe Overlay"
         >
           <Box size={14} />
           <span>Wireframe</span>
@@ -484,7 +517,13 @@ export default function Viewport3D({
         <select
           className="hud-btn"
           value={renderMode}
-          onChange={(e) => setRenderMode(e.target.value)}
+          onChange={(e) => {
+            const mode = e.target.value;
+            setRenderMode(mode);
+            if (mode === 'wire_overlay' || mode === 'wireframe') {
+              setShowWireframe(true);
+            }
+          }}
           style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
           title="Shading Mode"
         >
