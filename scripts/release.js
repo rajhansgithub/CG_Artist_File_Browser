@@ -64,7 +64,7 @@ console.log(`✓ Frontend build passed`);
 // 5. Git Commit, Tag & Push
 console.log(`\n📤 Publishing to GitHub...`);
 try {
-  execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml dist/ src/ scripts/ README.md', {
+  execSync('git add -A', {
     cwd: rootDir,
     stdio: 'inherit'
   });

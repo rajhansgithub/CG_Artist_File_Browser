@@ -16,7 +16,9 @@ import {
   Sparkles,
   Info,
   Sliders,
-  ChevronDown
+  ChevronDown,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 
 export default function Viewport3D({
@@ -39,6 +41,7 @@ export default function Viewport3D({
   const [stats, setStats] = useState(null);
 
   // Animation State
+  const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const [animations, setAnimations] = useState([]);
   const [currentAnimIndex, setCurrentAnimIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -412,13 +415,31 @@ export default function Viewport3D({
   };
 
   // Take Snapshot
-  const captureSnapshot = () => {
-    if (!rendererRef.current) return;
-    const dataUrl = rendererRef.current.domElement.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `${asset.name}_snapshot.png`;
-    a.click();
+  const captureSnapshot = async () => {
+    if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+    try {
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+      const dataUrl = rendererRef.current.domElement.toDataURL('image/png');
+      const baseName = asset?.name ? asset.name.replace(/\.[^/.]+$/, '') : 'model';
+      const defaultFilename = `${baseName}_snapshot.png`;
+
+      if (window.electronAPI?.saveImageFileDialog) {
+        const res = await window.electronAPI.saveImageFileDialog(defaultFilename, dataUrl);
+        if (res && res.success) {
+          setSnapshotFeedback(true);
+          setTimeout(() => setSnapshotFeedback(false), 2000);
+        }
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = defaultFilename;
+        a.click();
+        setSnapshotFeedback(true);
+        setTimeout(() => setSnapshotFeedback(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to capture 3D snapshot:', err);
+    }
   };
 
   return (
@@ -505,10 +526,25 @@ export default function Viewport3D({
         </button>
 
         {/* Screenshot */}
-        <button className="hud-btn" onClick={captureSnapshot} title="Capture Snapshot PNG">
-          <Camera size={14} />
-          <span>Snapshot</span>
+        <button
+          className={`hud-btn ${snapshotFeedback ? 'active' : ''}`}
+          onClick={captureSnapshot}
+          title="Capture Snapshot PNG"
+        >
+          {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
+          <span>{snapshotFeedback ? 'Saved!' : 'Snapshot'}</span>
         </button>
+
+        {onRevealInExplorer && (
+          <button
+            className="hud-btn"
+            onClick={() => onRevealInExplorer(asset.path)}
+            title="Reveal in Windows Explorer"
+          >
+            <ExternalLink size={13} />
+            <span>Explorer</span>
+          </button>
+        )}
 
         {onClose && (
           <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }}>

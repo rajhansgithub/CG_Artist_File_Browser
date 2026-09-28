@@ -21,7 +21,8 @@ export default function Sidebar({
   blenderStatus,
   onOpenSettings,
   onRefresh,
-  collapsed
+  collapsed,
+  onToggleFavorite
 }) {
   const folders = (folderItems || []).filter((item) => item.isDirectory);
   const starredFolders = (favorites || []).filter((item) => item.isDirectory);

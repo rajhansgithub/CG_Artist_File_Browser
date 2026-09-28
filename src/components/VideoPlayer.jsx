@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Camera,
+  Check,
   ExternalLink,
   Repeat,
   Sliders,
@@ -46,6 +47,7 @@ export default function VideoPlayer({
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [loopIn, setLoopIn] = useState(null);
   const [loopOut, setLoopOut] = useState(null);
+  const [snapshotFeedback, setSnapshotFeedback] = useState(false);
 
   // Guides & Safe Areas overlay
   const [guideMode, setGuideMode] = useState('none'); // 'none', 'safe_areas', 'cinematic_239', 'social_916'
@@ -177,20 +179,38 @@ export default function VideoPlayer({
   };
 
   // Capture uncompressed video snapshot frame (hotkey: S)
-  const captureSnapshot = () => {
+  const captureSnapshot = async () => {
     if (!videoRef.current) return;
-    const v = videoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth || 1920;
-    canvas.height = v.videoHeight || 1080;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    try {
+      const v = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = v.videoWidth || 1920;
+      canvas.height = v.videoHeight || 1080;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
 
-    const frameNum = Math.round(currentTime * fps);
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = `${asset.name.replace(/\.[^/.]+$/, '')}_frame_${frameNum}.png`;
-    a.click();
+      const frameNum = Math.round(currentTime * fps);
+      const dataUrl = canvas.toDataURL('image/png');
+      const baseName = asset?.name ? asset.name.replace(/\.[^/.]+$/, '') : 'video';
+      const defaultFilename = `${baseName}_frame_${frameNum}.png`;
+
+      if (window.electronAPI?.saveImageFileDialog) {
+        const res = await window.electronAPI.saveImageFileDialog(defaultFilename, dataUrl);
+        if (res && res.success) {
+          setSnapshotFeedback(true);
+          setTimeout(() => setSnapshotFeedback(false), 2000);
+        }
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = defaultFilename;
+        a.click();
+        setSnapshotFeedback(true);
+        setTimeout(() => setSnapshotFeedback(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to capture video frame grab:', err);
+    }
   };
 
   // Fullscreen
@@ -351,12 +371,12 @@ export default function VideoPlayer({
 
           {/* Snapshot PNG Frame Grab */}
           <button
-            className="filter-btn"
+            className={`filter-btn ${snapshotFeedback ? 'active' : ''}`}
             onClick={captureSnapshot}
             title="Export Frame as PNG (S key)"
           >
-            <Camera size={13} />
-            <span>Frame Grab</span>
+            {snapshotFeedback ? <Check size={13} color="#22c55e" /> : <Camera size={13} />}
+            <span>{snapshotFeedback ? 'Saved!' : 'Frame Grab'}</span>
           </button>
 
           {/* Reveal in Explorer */}

@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Info
+  Info,
+  Camera,
+  Check
 } from 'lucide-react';
 import { formatBytes } from '../utils/formatHelpers';
 
@@ -27,6 +29,7 @@ export default function ImageViewer({
   const [displaySrc, setDisplaySrc] = useState(null);
   const [isDecoding, setIsDecoding] = useState(false);
   const [decodeError, setDecodeError] = useState(null);
+  const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const containerRef = useRef(null);
 
   // List of all image and texture assets in current folder
@@ -290,6 +293,42 @@ export default function ImageViewer({
     ? window.electronAPI.toAssetUrl(asset?.path)
     : asset?.path;
 
+  const handleExportPng = async () => {
+    if (!displaySrc) return;
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || dimensions.width || 1920;
+        canvas.height = img.naturalHeight || dimensions.height || 1080;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        const baseName = asset?.name ? asset.name.replace(/\.[^/.]+$/, '') : 'image';
+        const defaultFilename = `${baseName}_export.png`;
+
+        if (window.electronAPI?.saveImageFileDialog) {
+          const res = await window.electronAPI.saveImageFileDialog(defaultFilename, dataUrl);
+          if (res && res.success) {
+            setSnapshotFeedback(true);
+            setTimeout(() => setSnapshotFeedback(false), 2000);
+          }
+        } else {
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = defaultFilename;
+          a.click();
+          setSnapshotFeedback(true);
+          setTimeout(() => setSnapshotFeedback(false), 2000);
+        }
+      };
+      img.src = displaySrc;
+    } catch (err) {
+      console.error('Failed to export image:', err);
+    }
+  };
+
   if (!asset) return null;
 
   return (
@@ -334,6 +373,16 @@ export default function ImageViewer({
         </button>
 
         <div className="hud-divider" />
+
+        <button
+          className={`hud-btn ${snapshotFeedback ? 'active' : ''}`}
+          onClick={handleExportPng}
+          disabled={!displaySrc}
+          title="Export as PNG"
+        >
+          {snapshotFeedback ? <Check size={13} color="#22c55e" /> : <Camera size={13} />}
+          <span>{snapshotFeedback ? 'Saved!' : 'Export PNG'}</span>
+        </button>
 
         <button className="hud-btn" onClick={() => onRevealInExplorer(asset.path)} title="Reveal in Windows Explorer">
           <ExternalLink size={13} />

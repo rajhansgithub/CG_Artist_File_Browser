@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc, isTauri } from '@tauri-apps/api/core';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { listen } from '@tauri-apps/api/event';
 
@@ -35,12 +35,34 @@ export function setupTauriBridge() {
     },
 
     openFolderDialog: async (defaultPath) => {
-      const selected = await openDialog({
-        directory: true,
-        multiple: false,
-        defaultPath: defaultPath || undefined,
-      });
-      return selected || null;
+      try {
+        const selected = await openDialog({
+          directory: true,
+          multiple: false,
+          defaultPath: defaultPath || undefined,
+        });
+        if (Array.isArray(selected)) return selected[0] || null;
+        return selected || null;
+      } catch (err) {
+        console.error('openFolderDialog error:', err);
+        return null;
+      }
+    },
+
+    openFileDialog: async (options = {}) => {
+      try {
+        const selected = await openDialog({
+          directory: false,
+          multiple: false,
+          filters: options.filters || undefined,
+          defaultPath: options.defaultPath || undefined,
+        });
+        if (Array.isArray(selected)) return selected[0] || null;
+        return selected || null;
+      } catch (err) {
+        console.error('openFileDialog error:', err);
+        return null;
+      }
     },
 
     showInFolder: async (filePath) => {
@@ -127,13 +149,47 @@ export function setupTauriBridge() {
       }
     },
 
+    // Snapshot & Image Export
+    saveImageFile: async (filePath, dataUrl) => {
+      try {
+        await invoke('save_image_file', { filePath, dataUrl });
+        return { success: true, path: filePath };
+      } catch (err) {
+        console.error('saveImageFile error:', err);
+        return { success: false, error: err?.toString() || 'Failed to save image file' };
+      }
+    },
+
+    saveImageFileDialog: async (defaultFilename, dataUrl) => {
+      try {
+        const chosenPath = await saveDialog({
+          defaultPath: defaultFilename,
+          filters: [
+            { name: 'PNG Image (*.png)', extensions: ['png'] },
+            { name: 'All Files (*.*)', extensions: ['*'] }
+          ],
+        });
+        if (!chosenPath) return { success: false, cancelled: true };
+        await invoke('save_image_file', { filePath: chosenPath, dataUrl });
+        return { success: true, path: chosenPath };
+      } catch (err) {
+        console.error('saveImageFileDialog error:', err);
+        return { success: false, error: err?.toString() || 'Failed to save image dialog' };
+      }
+    },
+
     // Blender 3D & Converter Integration
     getBlenderStatus: async () => {
       return await invoke('get_blender_status');
     },
 
     setBlenderPath: async (newPath) => {
-      return await invoke('set_blender_path', { newPath });
+      try {
+        const status = await invoke('set_blender_path', { newPath });
+        return { success: true, status };
+      } catch (err) {
+        return { success: false, error: err?.toString() || 'Failed to update Blender path' };
+      }
     },
 
     convertAsset: async (filePath) => {
@@ -159,7 +215,12 @@ export function setupTauriBridge() {
     },
 
     clearCache: async () => {
-      return await invoke('clear_cache');
+      try {
+        await invoke('clear_cache');
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err?.toString() || 'Failed to clear cache' };
+      }
     },
 
     saveThumbnail: async (filePath, dataUrl) => {

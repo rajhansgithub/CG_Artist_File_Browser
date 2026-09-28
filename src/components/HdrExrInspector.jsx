@@ -23,7 +23,8 @@ import {
   Unlock,
   Crosshair,
   BarChart3,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-react';
 
 const SPHERE_SIZES = {
@@ -105,6 +106,7 @@ export default function HdrExrInspector({
   const [probeData, setProbeData] = useState(null);
   const [isProbePinned, setIsProbePinned] = useState(false);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
+  const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const pinnedUvRef = useRef(null);
 
   // Real-Time Dynamic Range Luminance Histogram
@@ -956,12 +958,25 @@ export default function HdrExrInspector({
     isDraggingWipeRef.current = false;
   };
 
-  const copyProbeValues = () => {
+  const copyProbeValues = async () => {
     if (!probeData) return;
     const text = `R: ${probeData.rLin}, G: ${probeData.gLin}, B: ${probeData.bLin} (Lum: ${probeData.lumLin}, Hex: ${probeData.hex})`;
-    navigator.clipboard.writeText(text);
-    setCopiedFeedback(true);
-    setTimeout(() => setCopiedFeedback(false), 1500);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const input = document.createElement('textarea');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+      setCopiedFeedback(true);
+      setTimeout(() => setCopiedFeedback(false), 1500);
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+    }
   };
 
   const handleFitView = () => {
@@ -1013,13 +1028,33 @@ export default function HdrExrInspector({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, viewMode, textureInfo]);
 
-  const captureSnapshot = () => {
+  const captureSnapshot = async () => {
     if (!rendererRef.current) return;
-    const dataUrl = rendererRef.current.domElement.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `${asset.name}_tonemapped.png`;
-    a.click();
+    try {
+      if (sceneRef.current && cameraRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+      const dataUrl = rendererRef.current.domElement.toDataURL('image/png');
+      const baseName = asset?.name ? asset.name.replace(/\.[^/.]+$/, '') : 'hdri';
+      const defaultFilename = `${baseName}_tonemapped.png`;
+
+      if (window.electronAPI?.saveImageFileDialog) {
+        const res = await window.electronAPI.saveImageFileDialog(defaultFilename, dataUrl);
+        if (res && res.success) {
+          setSnapshotFeedback(true);
+          setTimeout(() => setSnapshotFeedback(false), 2000);
+        }
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = defaultFilename;
+        a.click();
+        setSnapshotFeedback(true);
+        setTimeout(() => setSnapshotFeedback(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to export tonemapped snapshot:', err);
+    }
   };
 
 
@@ -1209,10 +1244,25 @@ export default function HdrExrInspector({
         <div className="hud-divider" />
 
         {/* Snapshot */}
-        <button className="hud-btn" onClick={captureSnapshot} title="Export Tonemapped PNG">
-          <Camera size={14} />
-          <span>Export PNG</span>
+        <button
+          className={`hud-btn ${snapshotFeedback ? 'active' : ''}`}
+          onClick={captureSnapshot}
+          title="Export Tonemapped PNG"
+        >
+          {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
+          <span>{snapshotFeedback ? 'Saved!' : 'Export PNG'}</span>
         </button>
+
+        {onRevealInExplorer && (
+          <button
+            className="hud-btn"
+            onClick={() => onRevealInExplorer(asset.path)}
+            title="Reveal in Windows Explorer"
+          >
+            <ExternalLink size={13} />
+            <span>Explorer</span>
+          </button>
+        )}
 
         {onClose && (
           <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }}>

@@ -25,26 +25,51 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  const handleBrowseBlenderPath = async () => {
+    if (window.electronAPI?.openFileDialog) {
+      const filePath = await window.electronAPI.openFileDialog({
+        filters: [
+          { name: 'Blender Executable (blender.exe)', extensions: ['exe'] },
+          { name: 'All Executables (*.exe)', extensions: ['exe'] },
+          { name: 'All Files (*.*)', extensions: ['*'] }
+        ]
+      });
+      if (filePath) {
+        setBlenderPath(filePath);
+      }
+    }
+  };
+
   const handleSaveBlenderPath = async () => {
     if (!window.electronAPI) return;
     setSaving(true);
     setStatusMsg('');
-    const res = await window.electronAPI.setBlenderPath(blenderPath);
-    if (res.success) {
-      setStatusMsg('Blender path updated successfully!');
-      loadSettings();
-    } else {
-      setStatusMsg(`Error: ${res.error}`);
+    try {
+      const res = await window.electronAPI.setBlenderPath(blenderPath);
+      if (res && res.success) {
+        setStatusMsg('Blender path updated successfully!');
+        loadSettings();
+      } else {
+        setStatusMsg(`Error: ${res?.error || 'Path does not exist'}`);
+      }
+    } catch (err) {
+      setStatusMsg(`Error: ${err?.message || err}`);
     }
     setSaving(false);
   };
 
   const handleClearCache = async () => {
     if (!window.electronAPI) return;
-    const res = await window.electronAPI.clearCache();
-    if (res.success) {
-      setStatusMsg('Cache cleared successfully!');
-      loadSettings();
+    try {
+      const res = await window.electronAPI.clearCache();
+      if (res && (res.success || res === true)) {
+        setStatusMsg('Cache cleared successfully!');
+        loadSettings();
+      } else {
+        setStatusMsg(`Error: ${res?.error || 'Failed to clear cache'}`);
+      }
+    } catch (err) {
+      setStatusMsg(`Error: ${err?.message || err}`);
     }
   };
 
@@ -57,7 +82,7 @@ export default function SettingsModal({ isOpen, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Settings size={16} color="var(--text-main)" />
             <span>Studio Preferences & Configuration</span>
-            <span className="version-badge">BETA v1.0.1</span>
+            <span className="version-badge">v1.0.1</span>
           </div>
           <button
             className="icon-btn"
@@ -82,11 +107,19 @@ export default function SettingsModal({ isOpen, onClose }) {
               <input
                 type="text"
                 className="search-input"
-                style={{ paddingLeft: 12, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                style={{ paddingLeft: 12, fontFamily: 'var(--font-mono)', fontSize: 12, flex: 1 }}
                 placeholder="C:\Program Files\Blender Foundation\Blender\blender.exe"
                 value={blenderPath}
                 onChange={(e) => setBlenderPath(e.target.value)}
               />
+              <button
+                className="btn-secondary"
+                onClick={handleBrowseBlenderPath}
+                title="Browse for blender.exe"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                Browse...
+              </button>
               <button className="btn-primary" onClick={handleSaveBlenderPath} disabled={saving}>
                 Save
               </button>

@@ -400,10 +400,18 @@ fn show_in_folder(file_path: String) -> bool {
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("explorer")
-            .arg(format!("/select,{}", file_path))
-            .spawn()
-            .is_ok()
+        let win_path = file_path.replace('/', "\\");
+        if p.is_dir() {
+            Command::new("explorer")
+                .arg(&win_path)
+                .spawn()
+                .is_ok()
+        } else {
+            Command::new("explorer")
+                .arg(format!("/select,{}", win_path))
+                .spawn()
+                .is_ok()
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -421,8 +429,9 @@ fn open_external(file_path: String) -> bool {
 
     #[cfg(target_os = "windows")]
     {
+        let win_path = file_path.replace('/', "\\");
         Command::new("cmd")
-            .args(["/c", "start", "", &file_path])
+            .args(["/c", "start", "", &win_path])
             .spawn()
             .is_ok()
     }
@@ -779,6 +788,29 @@ fn save_thumbnail(
     Ok(thumb_path.to_string_lossy().to_string())
 }
 
+// IPC: Save image file from base64 data URL
+#[tauri::command]
+fn save_image_file(file_path: String, data_url: String) -> Result<bool, String> {
+    let p = Path::new(&file_path);
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let base64_str = if let Some(idx) = data_url.find(',') {
+        &data_url[idx + 1..]
+    } else {
+        &data_url
+    };
+
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_str)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
+
+    fs::write(p, bytes).map_err(|e| format!("File write error: {}", e))?;
+    Ok(true)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -809,7 +841,8 @@ pub fn run() {
             toggle_favorite,
             get_cache_stats,
             clear_cache,
-            save_thumbnail
+            save_thumbnail,
+            save_image_file
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

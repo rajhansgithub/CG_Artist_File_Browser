@@ -48,7 +48,7 @@ export default function Header({
           <Layers size={15} />
         </div>
         <span>CG ARTIST FILE BROWSER</span>
-        <span className="version-badge">BETA v1.1.2</span>
+        <span className="version-badge">v1.0.1</span>
 
         <button
           className="filter-btn"
