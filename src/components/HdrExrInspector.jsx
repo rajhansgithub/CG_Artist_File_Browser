@@ -101,6 +101,7 @@ export default function HdrExrInspector({
   const dragStartXRef = useRef(0);
   const startFovRef = useRef(60);
   const startDistRef = useRef(2.0);
+  const lastClickTimeRef = useRef(0);
 
   // Sidebar Visibility and Collapsible Sections State (Collapsed by default!)
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -228,6 +229,19 @@ export default function HdrExrInspector({
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controlsRef.current = controls;
+
+    const onCanvasDblClick = (e) => {
+      e.preventDefault();
+      if (cameraRef.current) {
+        cameraRef.current.fov = 60;
+        cameraRef.current.updateProjectionMatrix();
+        setCurrentFov(60);
+      }
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+    };
+    renderer.domElement.addEventListener('dblclick', onCanvasDblClick);
 
     // Custom shader for channel isolation, white balance, false color & split wipe
     const customMaterial = new THREE.ShaderMaterial({
@@ -486,6 +500,7 @@ export default function HdrExrInspector({
     animate();
 
     return () => {
+      renderer.domElement.removeEventListener('dblclick', onCanvasDblClick);
       resizeObserver.disconnect();
       cancelAnimationFrame(animId);
       renderer.dispose();
@@ -1012,21 +1027,67 @@ export default function HdrExrInspector({
     }
   };
 
+  const handleFitView = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    if (viewMode === 'flat') {
+      const aspect = textureInfo ? textureInfo.width / textureInfo.height : 2.0;
+      const fovRad = 60 * (Math.PI / 180);
+      cameraRef.current.fov = 60;
+      cameraRef.current.updateProjectionMatrix();
+      setCurrentFov(60);
+
+      const containerW = containerRef.current?.clientWidth || window.innerWidth;
+      const containerH = containerRef.current?.clientHeight || window.innerHeight;
+      const viewAspect = (containerW && containerH) ? containerW / containerH : 1.77;
+
+      const planeH = 2.0;
+      const planeW = 2.0 * aspect;
+
+      const distH = (planeH / 2) / Math.tan(fovRad / 2);
+      const distW = (planeW / 2) / (viewAspect * Math.tan(fovRad / 2));
+      const fitDist = Math.max(distH, distW) * 1.08;
+
+      cameraRef.current.position.set(0, 0, fitDist);
+      cameraRef.current.rotation.set(0, 0, 0);
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+    } else {
+      cameraRef.current.position.set(0, 0, 0.1);
+      cameraRef.current.rotation.set(0, 0, 0);
+      controlsRef.current.target.set(0, 0, -1);
+      cameraRef.current.fov = 60;
+      cameraRef.current.updateProjectionMatrix();
+      setCurrentFov(60);
+      controlsRef.current.update();
+    }
+  }, [viewMode, textureInfo]);
+
+  const resetZoom = useCallback(() => {
+    if (viewMode === 'pano') {
+      if (cameraRef.current) {
+        cameraRef.current.fov = 60;
+        cameraRef.current.updateProjectionMatrix();
+        setCurrentFov(60);
+      }
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+    } else {
+      handleFitView();
+    }
+  }, [viewMode, handleFitView]);
+
   const handlePointerDown = (e) => {
+    const now = Date.now();
+    const isQuickDoubleClick = (e.detail === 2) || (now - lastClickTimeRef.current < 400);
+    lastClickTimeRef.current = now;
+
     if (e.button === 0 && isZPressedRef.current) {
       e.preventDefault();
       e.stopPropagation();
-      if (e.detail === 2) {
-        // Double-click with Z resets zoom
-        if (viewMode === 'pano') {
-          if (cameraRef.current) {
-            cameraRef.current.fov = 60;
-            cameraRef.current.updateProjectionMatrix();
-            setCurrentFov(60);
-          }
-        } else {
-          handleFitView();
-        }
+      if (isQuickDoubleClick) {
+        resetZoom();
+        isDraggingZoomRef.current = false;
         return;
       }
       isDraggingZoomRef.current = true;
@@ -1036,11 +1097,28 @@ export default function HdrExrInspector({
       if (controlsRef.current) controlsRef.current.enabled = false;
       return;
     }
+
+    if (e.button === 0 && isQuickDoubleClick) {
+      if (!e.target.closest('.viewport-hud') && !e.target.closest('.hdr-controls-panel') && !e.target.closest('.pixel-probe-hud') && !e.target.closest('.hdr-inspector-sidebar')) {
+        e.preventDefault();
+        resetZoom();
+      }
+    }
+  };
+
+  const handleDoubleClick = (e) => {
+    if (e.target.closest('.viewport-hud') || e.target.closest('.hdr-controls-panel') || e.target.closest('.pixel-probe-hud') || e.target.closest('.hdr-inspector-sidebar')) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    resetZoom();
   };
 
   // Canvas click to pin / unpin eyedropper probe
   const handleCanvasClick = (e) => {
     if (isDraggingWipeRef.current || isZPressedRef.current || isDraggingZoomRef.current) return;
+    if (e.detail === 2) return;
     if (e.target.closest('.viewport-hud') || e.target.closest('.hdr-controls-panel') || e.target.closest('.pixel-probe-hud') || e.target.closest('.hdr-inspector-sidebar')) {
       return;
     }
@@ -1097,34 +1175,6 @@ export default function HdrExrInspector({
     }
   };
 
-  const handleFitView = () => {
-    if (!cameraRef.current || !controlsRef.current) return;
-    if (viewMode === 'flat') {
-      const aspect = textureInfo ? textureInfo.width / textureInfo.height : 2.0;
-      const fovRad = (cameraRef.current.fov || 60) * (Math.PI / 180);
-      const containerW = containerRef.current?.clientWidth || window.innerWidth;
-      const containerH = containerRef.current?.clientHeight || window.innerHeight;
-      const viewAspect = (containerW && containerH) ? containerW / containerH : 1.77;
-
-      const planeH = 2.0;
-      const planeW = 2.0 * aspect;
-
-      const distH = (planeH / 2) / Math.tan(fovRad / 2);
-      const distW = (planeW / 2) / (viewAspect * Math.tan(fovRad / 2));
-      const fitDist = Math.max(distH, distW) * 1.08;
-
-      cameraRef.current.position.set(0, 0, fitDist);
-      cameraRef.current.rotation.set(0, 0, 0);
-      controlsRef.current.target.set(0, 0, 0);
-      controlsRef.current.update();
-    } else {
-      cameraRef.current.position.set(0, 0, 0.1);
-      cameraRef.current.rotation.set(0, 0, 0);
-      controlsRef.current.target.set(0, 0, -1);
-      controlsRef.current.update();
-    }
-  };
-
   // Keyboard navigation & Z Zoom
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1136,17 +1186,9 @@ export default function HdrExrInspector({
         if (controlsRef.current) controlsRef.current.enabled = false;
       }
 
-      if (isZPressedRef.current && e.key === '0') {
+      if (e.key === '0') {
         e.preventDefault();
-        if (viewMode === 'pano') {
-          if (cameraRef.current) {
-            cameraRef.current.fov = 60;
-            cameraRef.current.updateProjectionMatrix();
-            setCurrentFov(60);
-          }
-        } else {
-          handleFitView();
-        }
+        resetZoom();
         return;
       }
 
@@ -1231,6 +1273,7 @@ export default function HdrExrInspector({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onClick={handleCanvasClick}
+      onDoubleClick={handleDoubleClick}
     >
       <div ref={containerRef} className="canvas-container" />
 
@@ -1242,7 +1285,7 @@ export default function HdrExrInspector({
             top: 64,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(12, 12, 12, 0.92)',
+            background: 'rgba(12, 12, 12, 0.94)',
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(56, 189, 248, 0.4)',
             borderRadius: 8,
@@ -1252,9 +1295,19 @@ export default function HdrExrInspector({
             alignItems: 'center',
             gap: 4,
             zIndex: 50,
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
+            cursor: 'pointer',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
           }}
+          onClick={(e) => {
+            e.stopPropagation();
+            resetZoom();
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            resetZoom();
+          }}
+          title="Click or Double-Click to Reset Zoom (0)"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Maximize2 size={15} color="#38bdf8" />
@@ -1266,9 +1319,29 @@ export default function HdrExrInspector({
                 (FOV: {currentFov.toFixed(1)}°)
               </span>
             )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                resetZoom();
+              }}
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                border: '1px solid #38bdf8',
+                borderRadius: 4,
+                color: '#38bdf8',
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                marginLeft: 4
+              }}
+              title="Reset Zoom to 100% (60° FOV)"
+            >
+              Reset (0)
+            </button>
           </div>
           <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-            Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
+            Hold Z + Drag Left/Right • Double-Click Canvas, Badge or Press 0 to Reset
           </div>
         </div>
       )}
@@ -1365,11 +1438,23 @@ export default function HdrExrInspector({
         <button
           className="hud-btn"
           onClick={handleFitView}
-          title={viewMode === 'flat' ? 'Fit Image to Window (F)' : 'Reset 360 View (F)'}
+          title={viewMode === 'flat' ? 'Fit Image to Window (F)' : 'Reset 360 View & Zoom (F)'}
         >
           <Maximize2 size={14} />
           <span className="hud-label">Fit</span>
         </button>
+
+        {/* Quick Reset Zoom Button in HUD if FOV is zoomed in/out in 360 Dome */}
+        {viewMode === 'pano' && Math.round(currentFov) !== 60 && (
+          <button
+            className="hud-btn active"
+            onClick={resetZoom}
+            title="Reset 360 Zoom to 100% (60° FOV) [Double-Click Canvas, Badge or 0]"
+          >
+            <RotateCcw size={13} />
+            <span className="hud-label">Zoom {Math.round((60 / currentFov) * 100)}%</span>
+          </button>
+        )}
 
         {/* Flip Vertical Orientation */}
         <button

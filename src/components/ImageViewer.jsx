@@ -38,6 +38,7 @@ export default function ImageViewer({
   const isDraggingZoomRef = useRef(false);
   const dragStartXRef = useRef(0);
   const startScaleRef = useRef(1.0);
+  const lastClickTimeRef = useRef(0);
 
   // List of all image and texture assets in current folder
   const imageAssets = allFolderItems.filter(
@@ -292,9 +293,13 @@ export default function ImageViewer({
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // left click only
 
+    const now = Date.now();
+    const isQuickDoubleClick = (e.detail === 2) || (now - lastClickTimeRef.current < 400);
+    lastClickTimeRef.current = now;
+
     // If holding Z: Zoom drag or double-click fit
     if (isZPressedRef.current) {
-      if (e.detail === 2) {
+      if (isQuickDoubleClick) {
         e.preventDefault();
         fitToScreen();
         return;
@@ -304,6 +309,14 @@ export default function ImageViewer({
       dragStartXRef.current = e.clientX;
       startScaleRef.current = scale;
       return;
+    }
+
+    if (isQuickDoubleClick) {
+      if (!e.target.closest('.viewport-hud')) {
+        e.preventDefault();
+        fitToScreen();
+        return;
+      }
     }
 
     setIsDragging(true);
@@ -419,6 +432,12 @@ export default function ImageViewer({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onDoubleClick={(e) => {
+        if (!e.target.closest('.viewport-hud')) {
+          e.preventDefault();
+          fitToScreen();
+        }
+      }}
     >
       {/* Floating Zoom HUD when holding Z or dragging zoom */}
       {(isZActive || isDraggingZoomRef.current) && (
@@ -428,7 +447,7 @@ export default function ImageViewer({
             top: 64,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(12, 12, 12, 0.92)',
+            background: 'rgba(12, 12, 12, 0.94)',
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(56, 189, 248, 0.4)',
             borderRadius: 8,
@@ -438,9 +457,19 @@ export default function ImageViewer({
             alignItems: 'center',
             gap: 4,
             zIndex: 50,
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
+            cursor: 'pointer',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
           }}
+          onClick={(e) => {
+            e.stopPropagation();
+            fitToScreen();
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            fitToScreen();
+          }}
+          title="Click or Double-Click to Reset Zoom (0)"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <ZoomIn size={15} color="#38bdf8" />
@@ -450,9 +479,29 @@ export default function ImageViewer({
             <span style={{ fontSize: 11, color: '#aaaaaa' }}>
               ({scale.toFixed(2)}×)
             </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                fitToScreen();
+              }}
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                border: '1px solid #38bdf8',
+                borderRadius: 4,
+                color: '#38bdf8',
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                marginLeft: 4
+              }}
+              title="Reset Zoom to 100% (Fit)"
+            >
+              Reset (0)
+            </button>
           </div>
           <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-            Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
+            Hold Z + Drag Left/Right • Double-Click Canvas, Badge or Press 0 to Reset
           </div>
         </div>
       )}

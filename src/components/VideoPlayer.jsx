@@ -1068,9 +1068,19 @@ export default function VideoPlayer({
               alignItems: 'center',
               gap: 4,
               zIndex: 40,
-              pointerEvents: 'none',
+              pointerEvents: 'auto',
+              cursor: 'pointer',
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
             }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomLevel(1.0);
+            }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setZoomLevel(1.0);
+            }}
+            title="Click or Double-Click to Reset Zoom (0)"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Maximize2 size={15} color="#38bdf8" />
@@ -1080,9 +1090,29 @@ export default function VideoPlayer({
               <span style={{ fontSize: 11, color: '#aaaaaa' }}>
                 ({zoomLevel.toFixed(2)}×)
               </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setZoomLevel(1.0);
+                }}
+                style={{
+                  background: 'rgba(56, 189, 248, 0.2)',
+                  border: '1px solid #38bdf8',
+                  borderRadius: 4,
+                  color: '#38bdf8',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  marginLeft: 4
+                }}
+                title="Reset Zoom to 100%"
+              >
+                Reset (0)
+              </button>
             </div>
             <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-              Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
+              Hold Z + Drag Left/Right • Double-Click Canvas, Badge or Press 0 to Reset
             </div>
           </div>
         )}
