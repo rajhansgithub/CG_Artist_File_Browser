@@ -24,7 +24,11 @@ import {
   Crosshair,
   BarChart3,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  ChevronUp
 } from 'lucide-react';
 
 const SPHERE_SIZES = {
@@ -88,6 +92,56 @@ export default function HdrExrInspector({
   const [sphereSize, setSphereSize] = useState('large'); // 'big_bada', 'large', 'medium', 'small'
   const [selectedLayer, setSelectedLayer] = useState(null);
   const prevViewModeRef = useRef(viewMode);
+
+  // Sidebar Visibility and Collapsible Sections State (Collapsed by default!)
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState({
+    histogram: true,     // Collapsed by default
+    pass: false,         // Open by default
+    exposure: false,     // Open by default (primary tool)
+    whiteBalance: true,  // Collapsed by default
+    toneMapping: true,   // Collapsed by default
+    wipe: true,          // Collapsed by default
+    metadata: true,      // Collapsed by default
+    probe: false         // Open when sampled
+  });
+
+  const toggleSection = useCallback((sectionKey) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  }, []);
+
+  const collapseAllSections = useCallback(() => {
+    setCollapsedSections({
+      histogram: true,
+      pass: true,
+      exposure: true,
+      whiteBalance: true,
+      toneMapping: true,
+      wipe: true,
+      metadata: true,
+      probe: true
+    });
+  }, []);
+
+  const expandAllSections = useCallback(() => {
+    setCollapsedSections({
+      histogram: false,
+      pass: false,
+      exposure: false,
+      whiteBalance: false,
+      toneMapping: false,
+      wipe: false,
+      metadata: false,
+      probe: false
+    });
+  }, []);
+
+  const areAllCollapsed = useMemo(() => {
+    return Object.values(collapsedSections).every((v) => v === true);
+  }, [collapsedSections]);
 
   // White Balance & Tint
   const [kelvin, setKelvin] = useState(6500); // 2000K to 10000K (default 6500K D65)
@@ -817,7 +871,7 @@ export default function HdrExrInspector({
     ctx.fillText('18%', midGrayX - 7, 9);
     ctx.fillText('0', 3, h - 3);
     ctx.fillText('1.0', w - 16, h - 3);
-  }, [textureInfo, ev, kelvin, tint]);
+  }, [textureInfo, ev, kelvin, tint, collapsedSections.histogram]);
 
   // Precision 32-bit Float Pixel Sampling Logic
   const samplePixelAtUv = useCallback((uv) => {
@@ -1022,6 +1076,8 @@ export default function HdrExrInspector({
         setWipeActive((prev) => !prev);
       } else if (e.key === 'p' || e.key === 'P') {
         setShowProbes((prev) => !prev);
+      } else if (e.key === 'i' || e.key === 'I' || e.key === 'n' || e.key === 'N') {
+        setSidebarOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1101,7 +1157,7 @@ export default function HdrExrInspector({
       )}
 
       {/* Floating Viewport HUD Toolbar */}
-      <div className="viewport-hud">
+      <div className={`viewport-hud with-sidebar ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
         {/* Flat 2D vs 360 Panoramic Sphere */}
         <button
           className={`hud-btn ${viewMode === 'flat' ? 'active' : ''}`}
@@ -1109,7 +1165,7 @@ export default function HdrExrInspector({
           title="Flat 2D Image View"
         >
           <Sliders size={14} />
-          <span>Flat View</span>
+          <span className="hud-label">Flat</span>
         </button>
         <button
           className={`hud-btn ${viewMode === 'pano' ? 'active' : ''}`}
@@ -1117,39 +1173,31 @@ export default function HdrExrInspector({
           title="360° Interactive Equirectangular Dome"
         >
           <Globe size={14} />
-          <span>360° Skybox</span>
+          <span className="hud-label">360° Dome</span>
         </button>
 
         {viewMode === 'pano' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                (sphere sizes):
-              </span>
-              <select
-                className="filter-btn"
-                value={sphereSize}
-                onChange={(e) => setSphereSize(e.target.value)}
-                title="360 Skybox Preview Sphere Size in Meters"
-                style={{
-                  height: 28,
-                  fontSize: 11,
-                  padding: '0 8px',
-                  color: '#ffffff',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: 4
-                }}
-              >
-                <option value="big_bada" style={{ color: '#000000', backgroundColor: '#ffffff' }}>big bada sphere = 300 meters</option>
-                <option value="large" style={{ color: '#000000', backgroundColor: '#ffffff' }}>large = 150 meters</option>
-                <option value="medium" style={{ color: '#000000', backgroundColor: '#ffffff' }}>medium = 80 meters</option>
-                <option value="small" style={{ color: '#000000', backgroundColor: '#ffffff' }}>small = 60 meters</option>
-              </select>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                ({SPHERE_SIZES[sphereSize]?.meters || 150}m)
-              </span>
-            </div>
+            <select
+              className="filter-btn"
+              value={sphereSize}
+              onChange={(e) => setSphereSize(e.target.value)}
+              title="360 Skybox Preview Sphere Dome Size"
+              style={{
+                height: 26,
+                fontSize: 11,
+                padding: '0 6px',
+                color: '#ffffff',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: 4
+              }}
+            >
+              <option value="big_bada" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Dome: 300m</option>
+              <option value="large" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Dome: 150m</option>
+              <option value="medium" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Dome: 80m</option>
+              <option value="small" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Dome: 60m</option>
+            </select>
 
             {/* 360 Studio Lighting Reference Spheres Toggle */}
             <button
@@ -1158,7 +1206,7 @@ export default function HdrExrInspector({
               title="Toggle 360 Studio Lighting Reference Spheres (Chrome, 50% Gray, White Specular) [P]"
             >
               <Sparkles size={14} />
-              <span>Studio Probes</span>
+              <span className="hud-label">Probes</span>
             </button>
           </>
         )}
@@ -1170,7 +1218,7 @@ export default function HdrExrInspector({
           title={viewMode === 'flat' ? 'Fit Image to Window (F)' : 'Reset 360 View (F)'}
         >
           <Maximize2 size={14} />
-          <span>Fit View</span>
+          <span className="hud-label">Fit</span>
         </button>
 
         {/* Flip Vertical Orientation */}
@@ -1180,7 +1228,7 @@ export default function HdrExrInspector({
           title="Flip Vertical Orientation (Hot-key: V)"
         >
           <ArrowUpDown size={13} />
-          <span>{flipVertical ? 'Flipped' : 'Flip V'}</span>
+          <span className="hud-label">{flipVertical ? 'Flipped' : 'Flip V'}</span>
         </button>
 
         <div className="hud-divider" />
@@ -1188,7 +1236,7 @@ export default function HdrExrInspector({
         {/* Quick Exposure Step in HUD */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(255, 255, 255, 0.1)' }}>
           <SunMedium size={13} color="#ffffff" />
-          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', minWidth: 46, textAlign: 'center', color: '#ffffff' }}>
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', minWidth: 44, textAlign: 'center', color: '#ffffff' }}>
             {ev > 0 ? `+${ev.toFixed(1)}` : ev.toFixed(1)} EV
           </span>
           <button
@@ -1228,7 +1276,7 @@ export default function HdrExrInspector({
           title="Split-Screen Wipe / Curtain Comparison [W]"
         >
           <Columns size={14} />
-          <span>A/B Wipe</span>
+          <span className="hud-label">Wipe</span>
         </button>
 
         {/* False Color Heatmap */}
@@ -1238,7 +1286,7 @@ export default function HdrExrInspector({
           title="Dynamic Range / False Color Heatmap"
         >
           <Eye size={14} />
-          <span>False Color</span>
+          <span className="hud-label">False Color</span>
         </button>
 
         <div className="hud-divider" />
@@ -1250,7 +1298,7 @@ export default function HdrExrInspector({
           title="Export Tonemapped PNG"
         >
           {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
-          <span>{snapshotFeedback ? 'Saved!' : 'Export PNG'}</span>
+          <span className="hud-label">{snapshotFeedback ? 'Saved!' : 'Export'}</span>
         </button>
 
         {onRevealInExplorer && (
@@ -1260,492 +1308,648 @@ export default function HdrExrInspector({
             title="Reveal in Windows Explorer"
           >
             <ExternalLink size={13} />
-            <span>Explorer</span>
+            <span className="hud-label">Explorer</span>
           </button>
         )}
 
+        {/* Inspector Panel Toggle Button */}
+        <button
+          className={`hud-btn ${sidebarOpen ? 'active' : ''}`}
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          title={sidebarOpen ? "Hide Inspector Panel (I or N)" : "Show Inspector Panel (I or N)"}
+        >
+          <Sliders size={13} />
+          <span className="hud-label">Panel</span>
+          {sidebarOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
+
         {onClose && (
-          <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }}>
+          <button className="hud-btn" onClick={onClose} style={{ marginLeft: 4 }} title="Close View (Esc)">
             ✕
           </button>
         )}
       </div>
 
       {/* HDR / EXR Studio Inspector Floating Right Sidebar */}
-      <div className="hdr-inspector-sidebar">
+      <div className={`hdr-inspector-sidebar ${!sidebarOpen ? 'collapsed' : ''}`}>
         <div className="hdr-controls-panel">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
-              <SunMedium size={16} color="#ffffff" />
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12.5, color: '#ffffff' }}>
+              <SunMedium size={15} color="#38bdf8" />
               <span>HDR / EXR STUDIO</span>
+              <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {textureInfo?.format || asset.extension}
+              </span>
             </div>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {textureInfo?.format || asset.extension}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                className="icon-btn"
+                style={{ width: 22, height: 22, padding: 0 }}
+                onClick={() => {
+                  if (areAllCollapsed) expandAllSections();
+                  else collapseAllSections();
+                }}
+                title={areAllCollapsed ? "Expand All Sections" : "Collapse All Sections"}
+              >
+                {areAllCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+              </button>
+              <button
+                className="icon-btn"
+                style={{ width: 22, height: 22, padding: 0 }}
+                onClick={() => setSidebarOpen(false)}
+                title="Collapse Sidebar (Press I or N)"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
 
-          {/* 1. Real-Time Dynamic Range Luminance Histogram */}
-          <div className="hdr-histogram-box">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                <BarChart3 size={12} color="#ffffff" />
-                <span>DYNAMIC RANGE HISTOGRAM</span>
+          {/* 1. Dynamic Range Luminance Histogram */}
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('histogram')}
+              title={collapsedSections.histogram ? "Click to expand histogram" : "Click to collapse histogram"}
+            >
+              <div className="inspector-section-title">
+                <BarChart3 size={13} color="#38bdf8" />
+                <span>HISTOGRAM</span>
               </div>
-              <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: '#22c55e', fontWeight: 600 }}>
-                {histStats.headroomEv} HDR
-              </span>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill" style={{ color: '#22c55e', fontWeight: 600 }}>
+                  {histStats.headroomEv} HDR
+                </span>
+                {collapsedSections.histogram ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
             </div>
 
-            <div style={{ position: 'relative' }}>
-              <canvas
-                ref={histogramCanvasRef}
-                width={260}
-                height={64}
-                className="hdr-histogram-canvas"
-              />
-            </div>
+            {!collapsedSections.histogram && (
+              <div className="inspector-section-body">
+                <div style={{ position: 'relative' }}>
+                  <canvas
+                    ref={histogramCanvasRef}
+                    width={260}
+                    height={60}
+                    className="hdr-histogram-canvas"
+                  />
+                </div>
 
-            <div className="hdr-histogram-stats">
-              <span title="Pure black clipping (< 0.001)">
-                Black: <strong style={{ color: Number(histStats.blackClipPct) > 5 ? '#ef4444' : '#ffffff' }}>{histStats.blackClipPct}%</strong>
-              </span>
-              <span title="18% Photography Mid-Gray Standard">
-                Mid: <strong style={{ color: '#ffffff' }}>18%</strong>
-              </span>
-              <span title="Standard LDR Highlight Clipping (> 1.0)">
-                Clip: <strong style={{ color: Number(histStats.highlightClipPct) > 5 ? '#ef4444' : '#ffffff' }}>{histStats.highlightClipPct}%</strong>
-              </span>
-              <span title="Peak Luminance Value">
-                Peak: <strong style={{ color: '#ffffff' }}>{histStats.maxLum}</strong>
-              </span>
-            </div>
+                <div className="hdr-histogram-stats">
+                  <span title="Pure black clipping (< 0.001)">
+                    Black: <strong style={{ color: Number(histStats.blackClipPct) > 5 ? '#ef4444' : '#ffffff' }}>{histStats.blackClipPct}%</strong>
+                  </span>
+                  <span title="18% Photography Mid-Gray Standard">
+                    Mid: <strong style={{ color: '#ffffff' }}>18%</strong>
+                  </span>
+                  <span title="Standard LDR Highlight Clipping (> 1.0)">
+                    Clip: <strong style={{ color: Number(histStats.highlightClipPct) > 5 ? '#ef4444' : '#ffffff' }}>{histStats.highlightClipPct}%</strong>
+                  </span>
+                  <span title="Peak Luminance Value">
+                    Peak: <strong style={{ color: '#ffffff' }}>{histStats.maxLum}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. Render Pass / AOV Selector */}
-          <div className="control-group">
-            <div className="control-label">
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                Render Pass / AOV
-                {loading && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />}
-              </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                {textureInfo?.availableLayers && textureInfo.availableLayers.length > 1
-                  ? (cachedLayerCount >= textureInfo.availableLayers.length
-                      ? <span style={{ color: '#10b981', fontWeight: 600 }}>✓ All {textureInfo.availableLayers.length} Instant</span>
-                      : `${cachedLayerCount}/${textureInfo.availableLayers.length} Passes Ready`)
-                  : (textureInfo?.pixelType || '32-bit Float')}
-              </span>
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('pass')}
+              title={collapsedSections.pass ? "Click to expand passes" : "Click to collapse passes"}
+            >
+              <div className="inspector-section-title">
+                <Layers size={13} color="#38bdf8" />
+                <span>RENDER PASS / AOV</span>
+                {loading && <Loader2 size={11} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />}
+              </div>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill">
+                  {selectedLayer ? (selectedLayer.split('.').pop() || selectedLayer) : (textureInfo?.isHdr ? 'Combined' : 'Beauty')}
+                </span>
+                {collapsedSections.pass ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
             </div>
 
-            {/* Collapsed Passes Dropdown (e.g. Combined, Mist, Normal, Depth, etc.) */}
-            {textureInfo?.availableLayers && textureInfo.availableLayers.length > 1 ? (
-              <select
-                className="filter-btn"
-                disabled={loading && !isLayerCached(asset?.path, selectedLayer)}
-                value={selectedLayer || textureInfo.selectedLayer || ''}
-                onChange={(e) => handleLayerChange(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: 28,
-                  color: '#ffffff',
-                  background: 'var(--bg-tertiary)',
-                  fontSize: 11,
-                  opacity: (loading && !isLayerCached(asset?.path, selectedLayer)) ? 0.6 : 1,
-                  cursor: 'pointer'
-                }}
-              >
-                {textureInfo.availableLayers.map((l) => {
-                  let label = l;
-                  const dot = l.lastIndexOf('.');
-                  if (dot !== -1) {
-                    label = l.substring(dot + 1);
-                  }
-                  if (/combined/i.test(label) || /beauty/i.test(label)) {
-                    label = `${label} (Beauty / RGB)`;
-                  }
-                  const cached = isLayerCached(asset?.path, l);
-                  return (
-                    <option key={l} value={l} style={{ color: '#000000', backgroundColor: '#ffffff' }}>
-                      {cached ? `⚡ ${label}` : label}
-                    </option>
-                  );
-                })}
-              </select>
-            ) : (
-              <div
-                style={{
-                  fontSize: 11,
-                  padding: '6px 8px',
-                  background: 'var(--bg-tertiary)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                {textureInfo?.isHdr ? 'Radiance HDR (Combined RGB)' : 'Beauty / Combined (Full Render)'}
+            {!collapsedSections.pass && (
+              <div className="inspector-section-body">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span>Active Layer:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>
+                    {textureInfo?.availableLayers && textureInfo.availableLayers.length > 1
+                      ? (cachedLayerCount >= textureInfo.availableLayers.length
+                          ? <span style={{ color: '#10b981', fontWeight: 600 }}>✓ All {textureInfo.availableLayers.length} Ready</span>
+                          : `${cachedLayerCount}/${textureInfo.availableLayers.length} Ready`)
+                      : (textureInfo?.pixelType || '32-bit Float')}
+                  </span>
+                </div>
+
+                {textureInfo?.availableLayers && textureInfo.availableLayers.length > 1 ? (
+                  <select
+                    className="filter-btn"
+                    disabled={loading && !isLayerCached(asset?.path, selectedLayer)}
+                    value={selectedLayer || textureInfo.selectedLayer || ''}
+                    onChange={(e) => handleLayerChange(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 28,
+                      color: '#ffffff',
+                      background: 'var(--bg-tertiary)',
+                      fontSize: 11,
+                      opacity: (loading && !isLayerCached(asset?.path, selectedLayer)) ? 0.6 : 1,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {textureInfo.availableLayers.map((l) => {
+                      let label = l;
+                      const dot = l.lastIndexOf('.');
+                      if (dot !== -1) {
+                        label = l.substring(dot + 1);
+                      }
+                      if (/combined/i.test(label) || /beauty/i.test(label)) {
+                        label = `${label} (Beauty / RGB)`;
+                      }
+                      const cached = isLayerCached(asset?.path, l);
+                      return (
+                        <option key={l} value={l} style={{ color: '#000000', backgroundColor: '#ffffff' }}>
+                          {cached ? `⚡ ${label}` : label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      padding: '5px 8px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {textureInfo?.isHdr ? 'Radiance HDR (Combined RGB)' : 'Beauty / Combined (Full Render)'}
+                  </div>
+                )}
+
+                {/* Channel Isolation: RGB, R, G, B, A, LUM */}
+                <div className="channel-btn-group">
+                  {['rgb', 'r', 'g', 'b', 'a', 'lum'].map((ch) => (
+                    <button
+                      key={ch}
+                      className={`channel-btn ${channel === ch ? 'active' : ''}`}
+                      onClick={() => setChannel(ch)}
+                      title={`Isolate ${ch.toUpperCase()} channel`}
+                    >
+                      {ch.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+          </div>
 
-            {/* Below Options Controlling Each Pass: RGB, R, G, B, A, LUM */}
-            <div className="channel-btn-group" style={{ marginTop: 6 }}>
-              {['rgb', 'r', 'g', 'b', 'a', 'lum'].map((ch) => (
-                <button
-                  key={ch}
-                  className={`channel-btn ${channel === ch ? 'active' : ''}`}
-                  onClick={() => setChannel(ch)}
-                  title={`Isolate ${ch.toUpperCase()} channel of active pass`}
-                >
-                  {ch.toUpperCase()}
-                </button>
-              ))}
+          {/* 3. Exposure EV */}
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('exposure')}
+              title={collapsedSections.exposure ? "Click to expand exposure" : "Click to collapse exposure"}
+            >
+              <div className="inspector-section-title">
+                <SunMedium size={13} color="#38bdf8" />
+                <span>EXPOSURE</span>
+              </div>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill" style={{ color: '#ffffff', fontWeight: 600 }}>
+                  {ev > 0 ? `+${ev.toFixed(1)}` : ev.toFixed(1)} EV
+                </span>
+                {collapsedSections.exposure ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
             </div>
-          </div>
 
-        {/* 3. Exposure EV Slider & Direct Number Input */}
-        <div className="control-group">
-          <div className="control-label">
-            <span>Exposure (EV)</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input
-                type="number"
-                step="0.5"
-                min="-60"
-                max="60"
-                value={Number.isFinite(ev) ? ev : 0}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setEv(isNaN(val) ? 0 : Math.max(-60, Math.min(60, val)));
-                }}
-                style={{
-                  width: 58,
-                  height: 22,
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 3,
-                  color: '#ffffff',
-                  fontSize: 11,
-                  fontFamily: 'var(--font-mono)',
-                  textAlign: 'right',
-                  paddingRight: 4
-                }}
-              />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#888888' }}>EV</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range"
-              className="range-slider"
-              min="-24.0"
-              max="24.0"
-              step="0.1"
-              value={Math.max(-24, Math.min(24, ev))}
-              onChange={(e) => setEv(parseFloat(e.target.value))}
-            />
-            <button
-              className="icon-btn"
-              style={{ width: 26, height: 26, flexShrink: 0 }}
-              onClick={() => setEv(0.0)}
-              title="Reset Exposure to 0 EV"
-            >
-              <RotateCcw size={12} />
-            </button>
-          </div>
+            {!collapsedSections.exposure && (
+              <div className="inspector-section-body">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>F-Stop / EV Shift:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="-60"
+                      max="60"
+                      value={Number.isFinite(ev) ? ev : 0}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setEv(isNaN(val) ? 0 : Math.max(-60, Math.min(60, val)));
+                      }}
+                      style={{
+                        width: 54,
+                        height: 22,
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 3,
+                        color: '#ffffff',
+                        fontSize: 11,
+                        fontFamily: 'var(--font-mono)',
+                        textAlign: 'right',
+                        paddingRight: 4
+                      }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: '#888888' }}>EV</span>
+                  </div>
+                </div>
 
-          {/* Quick EV Presets */}
-          <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
-            {[-8, -4, -2, -1, 0, 1, 2, 4, 8, 12].map((preset) => (
-              <button
-                key={preset}
-                className="filter-btn"
-                style={{
-                  flex: 1,
-                  padding: '2px 0',
-                  fontSize: 9,
-                  textAlign: 'center',
-                  background: ev === preset ? '#ffffff' : 'var(--bg-tertiary)',
-                  color: ev === preset ? '#000000' : 'var(--text-main)',
-                  fontWeight: ev === preset ? 700 : 400
-                }}
-                onClick={() => setEv(preset)}
-                title={`Set exposure to ${preset > 0 ? `+${preset}` : preset} EV`}
-              >
-                {preset > 0 ? `+${preset}` : preset}
-              </button>
-            ))}
-          </div>
-        </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="range"
+                    className="range-slider"
+                    min="-24.0"
+                    max="24.0"
+                    step="0.1"
+                    value={Math.max(-24, Math.min(24, ev))}
+                    onChange={(e) => setEv(parseFloat(e.target.value))}
+                  />
+                  <button
+                    className="icon-btn"
+                    style={{ width: 22, height: 22, flexShrink: 0 }}
+                    onClick={() => setEv(0.0)}
+                    title="Reset Exposure to 0 EV"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                </div>
 
-        {/* 4. White Balance & Tint Sliders */}
-        <div className="control-group">
-          <div className="control-label">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Thermometer size={12} color="#ffffff" />
-              <span>White Balance</span>
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ffffff' }}>
-              {kelvin}K {tint !== 0 ? `(${tint > 0 ? `+${tint}` : tint} Tint)` : ''}
-            </span>
-          </div>
-
-          {/* Kelvin Slider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9.5, color: '#ff9d42', fontFamily: 'var(--font-mono)', width: 34 }}>2000K</span>
-            <input
-              type="range"
-              className="kelvin-slider"
-              min="2000"
-              max="10000"
-              step="50"
-              value={kelvin}
-              onChange={(e) => setKelvin(parseInt(e.target.value, 10))}
-            />
-            <span style={{ fontSize: 9.5, color: '#a0c4ff', fontFamily: 'var(--font-mono)', width: 40, textAlign: 'right' }}>10000K</span>
-            <button
-              className="icon-btn"
-              style={{ width: 22, height: 22, flexShrink: 0 }}
-              onClick={() => { setKelvin(6500); setTint(0); }}
-              title="Reset White Balance to 6500K / 0 Tint"
-            >
-              <RotateCcw size={11} />
-            </button>
-          </div>
-
-          {/* Green / Magenta Tint Slider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <span style={{ fontSize: 9.5, color: '#e879f9', fontFamily: 'var(--font-mono)', width: 34 }}>-50 M</span>
-            <input
-              type="range"
-              className="tint-slider"
-              min="-50"
-              max="50"
-              step="1"
-              value={tint}
-              onChange={(e) => setTint(parseInt(e.target.value, 10))}
-            />
-            <span style={{ fontSize: 9.5, color: '#4ade80', fontFamily: 'var(--font-mono)', width: 40, textAlign: 'right' }}>+50 G</span>
-          </div>
-
-          {/* White Balance Presets */}
-          <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
-            {[
-              { k: 3200, label: '3200K Tung' },
-              { k: 4500, label: '4500K Fluor' },
-              { k: 5500, label: '5500K Sun' },
-              { k: 6500, label: '6500K D65' },
-              { k: 7500, label: '7500K Shade' }
-            ].map((p) => (
-              <button
-                key={p.k}
-                className="filter-btn"
-                style={{
-                  flex: 1,
-                  padding: '2px 0',
-                  fontSize: 8.5,
-                  textAlign: 'center',
-                  background: kelvin === p.k ? '#ffffff' : 'var(--bg-tertiary)',
-                  color: kelvin === p.k ? '#000000' : 'var(--text-main)',
-                  fontWeight: kelvin === p.k ? 700 : 400
-                }}
-                onClick={() => setKelvin(p.k)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 5. Tone Mapping Operator */}
-        <div className="control-group">
-          <div className="control-label">
-            <span>Tone Mapping</span>
-          </div>
-          <select
-            className="filter-btn"
-            value={toneMapping}
-            onChange={(e) => setToneMapping(e.target.value)}
-            style={{ width: '100%', height: 30, color: 'var(--text-main)', background: 'var(--bg-tertiary)' }}
-          >
-            <option value="aces" style={{ color: '#000000', backgroundColor: '#ffffff' }}>ACES Filmic (VFX Standard)</option>
-            <option value="agx" style={{ color: '#000000', backgroundColor: '#ffffff' }}>AgX (Blender 4/5 Standard)</option>
-            <option value="reinhard" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Reinhard (Smooth Highlight)</option>
-            <option value="cineon" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Cineon Film Response</option>
-            <option value="linear" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Linear (Raw Un-mapped)</option>
-          </select>
-        </div>
-
-        {/* 6. Split-Screen Wipe Controls */}
-        <div className="control-group">
-          <div className="control-label">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Columns size={12} color="#ffffff" />
-              <span>A/B Curtain Wipe</span>
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: wipeActive ? '#ffffff' : '#888888' }}>
-              {wipeActive ? `${Math.round(wipePos * 100)}% Split` : 'Off'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className={`filter-btn ${wipeActive ? 'active' : ''}`}
-              style={{
-                flex: 1,
-                padding: '5px 0',
-                fontSize: 10.5,
-                background: wipeActive ? '#ffffff' : 'var(--bg-tertiary)',
-                color: wipeActive ? '#000000' : 'var(--text-main)',
-                fontWeight: wipeActive ? 700 : 400
-              }}
-              onClick={() => setWipeActive(!wipeActive)}
-            >
-              {wipeActive ? 'Wipe Active' : 'Enable Wipe'}
-            </button>
-            {wipeActive && (
-              <select
-                className="filter-btn"
-                value={wipeMode}
-                onChange={(e) => setWipeMode(parseInt(e.target.value, 10))}
-                style={{ flex: 1.5, height: 28, fontSize: 10.5, background: 'var(--bg-tertiary)', color: '#ffffff' }}
-              >
-                <option value={0} style={{ color: '#000', backgroundColor: '#fff' }}>vs Raw Linear</option>
-                <option value={1} style={{ color: '#000', backgroundColor: '#fff' }}>vs False Color</option>
-              </select>
+                {/* Quick EV Presets */}
+                <div style={{ display: 'flex', gap: 2, marginTop: 2 }}>
+                  {[-8, -4, -2, -1, 0, 1, 2, 4, 8, 12].map((preset) => (
+                    <button
+                      key={preset}
+                      className="filter-btn"
+                      style={{
+                        flex: 1,
+                        padding: '2px 0',
+                        fontSize: 8.5,
+                        textAlign: 'center',
+                        background: ev === preset ? '#ffffff' : 'var(--bg-tertiary)',
+                        color: ev === preset ? '#000000' : 'var(--text-main)',
+                        fontWeight: ev === preset ? 700 : 400
+                      }}
+                      onClick={() => setEv(preset)}
+                      title={`Set to ${preset > 0 ? `+${preset}` : preset} EV`}
+                    >
+                      {preset > 0 ? `+${preset}` : preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
+
+          {/* 4. White Balance & Tint */}
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('whiteBalance')}
+              title={collapsedSections.whiteBalance ? "Click to expand white balance" : "Click to collapse white balance"}
+            >
+              <div className="inspector-section-title">
+                <Thermometer size={13} color="#38bdf8" />
+                <span>WHITE BALANCE</span>
+              </div>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill">
+                  {kelvin}K {tint !== 0 ? `(${tint > 0 ? `+${tint}` : tint}T)` : ''}
+                </span>
+                {collapsedSections.whiteBalance ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
+            </div>
+
+            {!collapsedSections.whiteBalance && (
+              <div className="inspector-section-body">
+                {/* Kelvin */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 9.5, color: '#ff9d42', fontFamily: 'var(--font-mono)', width: 34 }}>2000K</span>
+                  <input
+                    type="range"
+                    className="kelvin-slider"
+                    min="2000"
+                    max="10000"
+                    step="50"
+                    value={kelvin}
+                    onChange={(e) => setKelvin(parseInt(e.target.value, 10))}
+                  />
+                  <span style={{ fontSize: 9.5, color: '#a0c4ff', fontFamily: 'var(--font-mono)', width: 40, textAlign: 'right' }}>10000K</span>
+                  <button
+                    className="icon-btn"
+                    style={{ width: 22, height: 22, flexShrink: 0 }}
+                    onClick={() => { setKelvin(6500); setTint(0); }}
+                    title="Reset to 6500K / 0 Tint"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                </div>
+
+                {/* Tint */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 9.5, color: '#e879f9', fontFamily: 'var(--font-mono)', width: 34 }}>-50 M</span>
+                  <input
+                    type="range"
+                    className="tint-slider"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    value={tint}
+                    onChange={(e) => setTint(parseInt(e.target.value, 10))}
+                  />
+                  <span style={{ fontSize: 9.5, color: '#4ade80', fontFamily: 'var(--font-mono)', width: 40, textAlign: 'right' }}>+50 G</span>
+                </div>
+
+                {/* Presets */}
+                <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+                  {[
+                    { k: 3200, label: '3200K Tung' },
+                    { k: 4500, label: '4500K Fluor' },
+                    { k: 5500, label: '5500K Sun' },
+                    { k: 6500, label: '6500K D65' },
+                    { k: 7500, label: '7500K Shade' }
+                  ].map((p) => (
+                    <button
+                      key={p.k}
+                      className="filter-btn"
+                      style={{
+                        flex: 1,
+                        padding: '2px 0',
+                        fontSize: 8.5,
+                        textAlign: 'center',
+                        background: kelvin === p.k ? '#ffffff' : 'var(--bg-tertiary)',
+                        color: kelvin === p.k ? '#000000' : 'var(--text-main)',
+                        fontWeight: kelvin === p.k ? 700 : 400
+                      }}
+                      onClick={() => setKelvin(p.k)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Tone Mapping */}
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('toneMapping')}
+              title={collapsedSections.toneMapping ? "Click to expand tone mapping" : "Click to collapse tone mapping"}
+            >
+              <div className="inspector-section-title">
+                <Activity size={13} color="#38bdf8" />
+                <span>TONE MAPPING</span>
+              </div>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill">
+                  {toneMapping.toUpperCase()}
+                </span>
+                {collapsedSections.toneMapping ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
+            </div>
+
+            {!collapsedSections.toneMapping && (
+              <div className="inspector-section-body">
+                <select
+                  className="filter-btn"
+                  value={toneMapping}
+                  onChange={(e) => setToneMapping(e.target.value)}
+                  style={{ width: '100%', height: 28, color: 'var(--text-main)', background: 'var(--bg-tertiary)', fontSize: 11 }}
+                >
+                  <option value="aces" style={{ color: '#000000', backgroundColor: '#ffffff' }}>ACES Filmic (VFX Standard)</option>
+                  <option value="agx" style={{ color: '#000000', backgroundColor: '#ffffff' }}>AgX (Blender 4/5 Standard)</option>
+                  <option value="reinhard" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Reinhard (Smooth Highlight)</option>
+                  <option value="cineon" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Cineon Film Response</option>
+                  <option value="linear" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Linear (Raw Un-mapped)</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 6. Split-Screen Wipe Controls */}
+          <div className="inspector-section-card">
+            <div
+              className="inspector-section-header"
+              onClick={() => toggleSection('wipe')}
+              title={collapsedSections.wipe ? "Click to expand wipe controls" : "Click to collapse wipe controls"}
+            >
+              <div className="inspector-section-title">
+                <Columns size={13} color="#38bdf8" />
+                <span>A/B CURTAIN WIPE</span>
+              </div>
+              <div className="inspector-section-meta">
+                <span className="section-badge-pill" style={{ color: wipeActive ? '#ffffff' : 'var(--text-muted)' }}>
+                  {wipeActive ? `${Math.round(wipePos * 100)}% Split` : 'Off'}
+                </span>
+                {collapsedSections.wipe ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </div>
+            </div>
+
+            {!collapsedSections.wipe && (
+              <div className="inspector-section-body">
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className={`filter-btn ${wipeActive ? 'active' : ''}`}
+                    style={{
+                      flex: 1,
+                      padding: '4px 0',
+                      fontSize: 10.5,
+                      background: wipeActive ? '#ffffff' : 'var(--bg-tertiary)',
+                      color: wipeActive ? '#000000' : 'var(--text-main)',
+                      fontWeight: wipeActive ? 700 : 400
+                    }}
+                    onClick={() => setWipeActive(!wipeActive)}
+                  >
+                    {wipeActive ? 'Wipe Active' : 'Enable Wipe'}
+                  </button>
+                  {wipeActive && (
+                    <select
+                      className="filter-btn"
+                      value={wipeMode}
+                      onChange={(e) => setWipeMode(parseInt(e.target.value, 10))}
+                      style={{ flex: 1.5, height: 26, fontSize: 10.5, background: 'var(--bg-tertiary)', color: '#ffffff' }}
+                    >
+                      <option value={0} style={{ color: '#000', backgroundColor: '#fff' }}>vs Raw Linear</option>
+                      <option value={1} style={{ color: '#000', backgroundColor: '#fff' }}>vs False Color</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 7. File Specs & EXR Header */}
+          {textureInfo && (
+            <div className="inspector-section-card">
+              <div
+                className="inspector-section-header"
+                onClick={() => toggleSection('metadata')}
+                title={collapsedSections.metadata ? "Click to expand metadata" : "Click to collapse metadata"}
+              >
+                <div className="inspector-section-title">
+                  <Sliders size={13} color="#38bdf8" />
+                  <span>METADATA & SPECS</span>
+                </div>
+                <div className="inspector-section-meta">
+                  <span className="section-badge-pill">
+                    {textureInfo.width} × {textureInfo.height}
+                  </span>
+                  {collapsedSections.metadata ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </div>
+              </div>
+
+              {!collapsedSections.metadata && (
+                <div className="inspector-section-body" style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Dimensions:</span>
+                    <span style={{ color: '#ffffff' }}>{textureInfo.width} × {textureInfo.height} px</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Channels:</span>
+                    <span style={{ color: '#ffffff' }}>{textureInfo.channels?.join(', ') || 'RGBA'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Compression:</span>
+                    <span style={{ color: '#ffffff' }}>{textureInfo.compression || (textureInfo.isHdr ? 'RLE RGBE' : 'None')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Orientation:</span>
+                    <span style={{ color: flipVertical ? '#38bdf8' : '#ffffff' }}>
+                      {flipVertical ? 'Flipped (V)' : 'Standard'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* File Specs & EXR Header */}
-        {textureInfo && (
-          <div
-            style={{
-              background: 'var(--bg-tertiary)',
-              padding: '8px 10px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 11,
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Dimensions:</span>
-              <span style={{ color: 'var(--text-main)' }}>
-                {textureInfo.width} × {textureInfo.height}
-              </span>
+        {/* Precision 32-bit Float Pixel Eyedropper Card - Attached right under Inspector */}
+        {probeData && (
+          <div className="pixel-probe-hud">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--text-main)' }}>
+                <Pipette size={13} color="#38bdf8" />
+                <span>32-BIT COLOR PROBE</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  className="icon-btn"
+                  style={{ width: 20, height: 20, padding: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsProbePinned(!isProbePinned);
+                  }}
+                  title={isProbePinned ? 'Unpin Eyedropper' : 'Pin Eyedropper'}
+                >
+                  {isProbePinned ? <Lock size={11} color="#38bdf8" /> : <Unlock size={11} color="#888888" />}
+                </button>
+                <button
+                  className="icon-btn"
+                  style={{ width: 20, height: 20, padding: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyProbeValues();
+                  }}
+                  title="Copy Linear Values to Clipboard"
+                >
+                  {copiedFeedback ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
+                </button>
+                <button
+                  className="icon-btn"
+                  style={{ width: 20, height: 20, padding: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection('probe');
+                  }}
+                  title={collapsedSections.probe ? "Expand Probe Details" : "Collapse Probe Details"}
+                >
+                  {collapsedSections.probe ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Channels:</span>
-              <span style={{ color: 'var(--text-main)' }}>
-                {textureInfo.channels?.join(', ') || 'RGBA'}
-              </span>
+
+            {/* Color swatch & Hex */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 4,
+                  backgroundColor: probeData.hex,
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.5)'
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#ffffff' }}>
+                  {probeData.hex}
+                </span>
+                <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
+                  {probeData.x} × {probeData.y} px ({probeData.uPct}%, {probeData.vPct}%)
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Compression:</span>
-              <span style={{ color: 'var(--text-main)' }}>
-                {textureInfo.compression || (textureInfo.isHdr ? 'RLE RGBE' : 'None')}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Orientation:</span>
-              <span style={{ color: flipVertical ? '#ffffff' : 'var(--text-main)' }}>
-                {flipVertical ? 'Flipped (V)' : 'Standard'}
-              </span>
-            </div>
+
+            {!collapsedSections.probe && (
+              <>
+                {/* Linear 32-bit Radiometric Float values */}
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    Radiometric Linear Float (Raw 32-bit):
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                    <span style={{ color: '#ef4444' }}>R: {probeData.rLin}</span>
+                    <span style={{ color: '#22c55e' }}>G: {probeData.gLin}</span>
+                    <span style={{ color: '#3b82f6' }}>B: {probeData.bLin}</span>
+                  </div>
+                </div>
+
+                {/* Exposed Values */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
+                  <span>Exposed ({probeData.evFormatted} EV):</span>
+                  <span style={{ color: '#ffffff' }}>
+                    {probeData.rExp}, {probeData.gExp}, {probeData.bExp}
+                  </span>
+                </div>
+
+                {/* Luminance & IRE Rating */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Luminance / IRE:</span>
+                  <span style={{ color: probeData.ire > 100 ? '#eab308' : '#ffffff', fontWeight: 600 }}>
+                    {probeData.lumLin} ({probeData.ire}% IRE)
+                  </span>
+                </div>
+
+                <div style={{ fontSize: 8.5, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
+                  {isProbePinned ? '● Pinned (Click image to move/unpin)' : 'Hover to sample • Click to pin'}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* Precision 32-bit Float Pixel Eyedropper Card - Attached right under Inspector */}
-      {probeData && (
-        <div className="pixel-probe-hud">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--text-main)' }}>
-              <Pipette size={13} color="#ffffff" />
-              <span>32-BIT COLOR PROBE</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button
-                className="icon-btn"
-                style={{ width: 20, height: 20, padding: 0 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsProbePinned(!isProbePinned);
-                }}
-                title={isProbePinned ? 'Unpin Eyedropper' : 'Pin Eyedropper'}
-              >
-                {isProbePinned ? <Lock size={11} color="#ffffff" /> : <Unlock size={11} color="#888888" />}
-              </button>
-              <button
-                className="icon-btn"
-                style={{ width: 20, height: 20, padding: 0 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copyProbeValues();
-                }}
-                title="Copy Linear Values to Clipboard"
-              >
-                {copiedFeedback ? <Check size={11} color="#22c55e" /> : <Copy size={11} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Color swatch & Hex */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 4,
-                backgroundColor: probeData.hex,
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.5)'
-              }}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#ffffff' }}>
-                {probeData.hex}
-              </span>
-              <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
-                {probeData.x} × {probeData.y} px ({probeData.uPct}%, {probeData.vPct}%)
-              </span>
-            </div>
-          </div>
-
-          {/* Linear 32-bit Radiometric Float values */}
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Radiometric Linear Float (Raw 32-bit):
-            </div>
-            <div style={{ display: 'flex', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-              <span style={{ color: '#ef4444' }}>R: {probeData.rLin}</span>
-              <span style={{ color: '#22c55e' }}>G: {probeData.gLin}</span>
-              <span style={{ color: '#3b82f6' }}>B: {probeData.bLin}</span>
-            </div>
-          </div>
-
-          {/* Exposed Values */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
-            <span>Exposed ({probeData.evFormatted} EV):</span>
-            <span style={{ color: '#ffffff' }}>
-              {probeData.rExp}, {probeData.gExp}, {probeData.bExp}
-            </span>
-          </div>
-
-          {/* Luminance & IRE Rating */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Luminance / IRE:</span>
-            <span style={{ color: probeData.ire > 100 ? '#eab308' : '#ffffff', fontWeight: 600 }}>
-              {probeData.lumLin} ({probeData.ire}% IRE)
-            </span>
-          </div>
-
-          <div style={{ fontSize: 8.5, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
-            {isProbePinned ? '● Pinned (Click image to move/unpin)' : 'Hover to sample • Click to pin'}
-          </div>
-        </div>
+      {/* Floating Reopen Inspector Tab when Sidebar is Collapsed */}
+      {!sidebarOpen && (
+        <button
+          className="hdr-sidebar-open-tab"
+          onClick={() => setSidebarOpen(true)}
+          title="Open HDR / EXR Studio Inspector (Press I or N)"
+        >
+          <Sliders size={13} color="#38bdf8" />
+          <span>Inspector</span>
+          <ChevronLeft size={13} />
+        </button>
       )}
-    </div>
 
       {/* 360 Studio Lighting Reference Spheres Legend (in 360 mode) */}
       {viewMode === 'pano' && showProbes && (

@@ -557,7 +557,7 @@ export default function Viewport3D({
           title="Auto Turntable Spin"
         >
           <RotateCw size={14} className={turntable ? 'spin-icon' : ''} />
-          <span>Turntable</span>
+          <span className="hud-label">Turntable</span>
         </button>
 
         {/* Grid Toggle */}
@@ -567,7 +567,7 @@ export default function Viewport3D({
           title="Toggle Ground Grid"
         >
           <Grid size={14} />
-          <span>Grid</span>
+          <span className="hud-label">Grid</span>
         </button>
 
         {/* Wireframe Overlay Toggle */}
@@ -584,7 +584,7 @@ export default function Viewport3D({
           title="Toggle Wireframe Overlay"
         >
           <Box size={14} />
-          <span>Wireframe</span>
+          <span className="hud-label">Wireframe</span>
         </button>
 
         <div className="hud-divider" />
@@ -637,7 +637,7 @@ export default function Viewport3D({
           title="Focus / Frame Model (F key)"
         >
           <Maximize2 size={14} />
-          <span>Focus (F)</span>
+          <span className="hud-label">Focus</span>
         </button>
 
         {/* Screenshot */}
@@ -647,7 +647,7 @@ export default function Viewport3D({
           title="Capture Snapshot PNG"
         >
           {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
-          <span>{snapshotFeedback ? 'Saved!' : 'Snapshot'}</span>
+          <span className="hud-label">{snapshotFeedback ? 'Saved!' : 'Snapshot'}</span>
         </button>
 
         {onRevealInExplorer && (
@@ -657,12 +657,12 @@ export default function Viewport3D({
             title="Reveal in Windows Explorer"
           >
             <ExternalLink size={13} />
-            <span>Explorer</span>
+            <span className="hud-label">Explorer</span>
           </button>
         )}
 
         {onClose && (
-          <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }}>
+          <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }} title="Close View (Esc)">
             ✕
           </button>
         )}

@@ -354,22 +354,22 @@ export default function ImageViewer({
       <div className="viewport-hud">
         <button className="hud-btn" onClick={() => setScale((s) => Math.min(25, s * 1.25))} title="Zoom In (+)">
           <ZoomIn size={13} />
-          <span>Zoom In</span>
+          <span className="hud-label">Zoom In</span>
         </button>
         <button className="hud-btn" onClick={() => setScale((s) => Math.max(0.1, s * 0.8))} title="Zoom Out (-)">
           <ZoomOut size={13} />
-          <span>Zoom Out</span>
+          <span className="hud-label">Zoom Out</span>
         </button>
         <button className="hud-btn" onClick={fitToScreen} title="Fit to Screen (Ctrl+0)">
           <Maximize2 size={13} />
-          <span>Fit Screen</span>
+          <span className="hud-label">Fit</span>
         </button>
         <button className="hud-btn" onClick={setActualSize} title="100% Actual Pixels">
           <span>1:1</span>
         </button>
         <button className="hud-btn" onClick={rotate} title="Rotate 90° Clockwise">
           <RotateCw size={13} />
-          <span>Rotate</span>
+          <span className="hud-label">Rotate</span>
         </button>
 
         <div className="hud-divider" />
@@ -381,12 +381,12 @@ export default function ImageViewer({
           title="Export as PNG"
         >
           {snapshotFeedback ? <Check size={13} color="#22c55e" /> : <Camera size={13} />}
-          <span>{snapshotFeedback ? 'Saved!' : 'Export PNG'}</span>
+          <span className="hud-label">{snapshotFeedback ? 'Saved!' : 'Export PNG'}</span>
         </button>
 
         <button className="hud-btn" onClick={() => onRevealInExplorer(asset.path)} title="Reveal in Windows Explorer">
           <ExternalLink size={13} />
-          <span>Explorer</span>
+          <span className="hud-label">Explorer</span>
         </button>
 
         {onClose && (
