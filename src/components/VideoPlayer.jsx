@@ -89,13 +89,14 @@ export default function VideoPlayer({
   const [isEActive, setIsEActive] = useState(false);
   const [isDraggingExposure, setIsDraggingExposure] = useState(false);
 
-  // Zoom control via Hold Z + Drag Up/Down (range: 0.1 to 10.0, default 1.0)
+  // Zoom control via Hold Z + Drag Left/Right (range: 0.1 to 10.0, default 1.0)
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [isZActive, setIsZActive] = useState(false);
   const [isDraggingZoom, setIsDraggingZoom] = useState(false);
 
-  // Mouse Seeking via Left-Click Drag Left/Right
+  // Mouse Seeking via Hold Shift + Left-Click Drag Left/Right
   const [isScrubbingMouse, setIsScrubbingMouse] = useState(false);
+  const [isShiftActive, setIsShiftActive] = useState(false);
 
   // Channel soloing: 'rgb', 'r', 'g', 'b', 'alpha', 'lum' (default: 'rgb')
   const [activeChannel, setActiveChannel] = useState('rgb');
@@ -110,7 +111,6 @@ export default function VideoPlayer({
   const isZKeyPressedRef = useRef(false);
   const isDraggingZoomRef = useRef(false);
   const wasDraggingZoomRef = useRef(false);
-  const dragStartYRef = useRef(0);
   const startZoomRef = useRef(1.0);
 
   const isSeekingMouseRef = useRef(false);
@@ -156,17 +156,17 @@ export default function VideoPlayer({
         return;
       }
 
-      // 2. Zoom drag (Hold Z + Left-Click Drag Up/Down)
+      // 2. Zoom drag (Hold Z + Left-Click Drag Left/Right)
       if (isDraggingZoomRef.current) {
         e.preventDefault();
-        const deltaY = e.clientY - dragStartYRef.current;
-        // Drag UP (deltaY < 0) zooms in, Drag DOWN (deltaY > 0) zooms out
-        const newZoom = Math.max(0.1, Math.min(10.0, startZoomRef.current * Math.exp(-deltaY * 0.007)));
+        const deltaX = e.clientX - dragStartXRef.current;
+        // Drag Right (deltaX > 0) zooms in, Drag Left (deltaX < 0) zooms out
+        const newZoom = Math.max(0.1, Math.min(10.0, startZoomRef.current * Math.exp(deltaX * 0.007)));
         setZoomLevel(parseFloat(newZoom.toFixed(2)));
         return;
       }
 
-      // 3. Video Scrubbing drag (Left-Click Drag Left/Right on stage)
+      // 3. Video Scrubbing drag (Hold Shift + Left-Click Drag Left/Right on stage)
       if (isSeekingMouseRef.current) {
         e.preventDefault();
         const deltaX = e.clientX - seekStartXRef.current;
@@ -395,6 +395,11 @@ export default function VideoPlayer({
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
+      // Shift Key for Timeline Scrubbing hint
+      if (e.key === 'Shift') {
+        setIsShiftActive(true);
+      }
+
       // E Key for Exposure interactive drag
       if (e.key === 'e' || e.key === 'E') {
         isEKeyPressedRef.current = true;
@@ -507,6 +512,9 @@ export default function VideoPlayer({
     };
 
     const handleKeyUp = (e) => {
+      if (e.key === 'Shift') {
+        setIsShiftActive(false);
+      }
       if (e.key === 'e' || e.key === 'E') {
         isEKeyPressedRef.current = false;
         setIsEActive(false);
@@ -532,6 +540,7 @@ export default function VideoPlayer({
     };
 
     const handleBlur = () => {
+      setIsShiftActive(false);
       isEKeyPressedRef.current = false;
       setIsEActive(false);
       isDraggingExposureRef.current = false;
@@ -589,7 +598,7 @@ export default function VideoPlayer({
       return;
     }
 
-    // 2. Zoom drag / double-click reset (Hold Z)
+    // 2. Zoom drag / double-click reset (Hold Z + Left-Click Drag Left/Right)
     if (isZKeyPressedRef.current) {
       if (e.detail === 2) {
         e.preventDefault();
@@ -603,24 +612,27 @@ export default function VideoPlayer({
       e.stopPropagation();
       isDraggingZoomRef.current = true;
       wasDraggingZoomRef.current = true;
-      dragStartYRef.current = e.clientY;
+      dragStartXRef.current = e.clientX;
       startZoomRef.current = zoomLevel;
       setIsDraggingZoom(true);
       return;
     }
 
-    // 3. Timeline Seeking with mouse drag (Left click & drag left/right)
-    e.preventDefault();
-    isSeekingMouseRef.current = true;
-    wasDraggingSeekRef.current = false;
-    seekStartXRef.current = e.clientX;
-    seekStartTimeRef.current = videoRef.current ? videoRef.current.currentTime : 0;
-    if (isPlaying && videoRef.current) {
-      wasPlayingBeforeSeekRef.current = true;
-      videoRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      wasPlayingBeforeSeekRef.current = false;
+    // 3. Timeline Seeking with mouse drag (Hold Shift + Left-click & drag left/right)
+    if (e.shiftKey) {
+      e.preventDefault();
+      isSeekingMouseRef.current = true;
+      wasDraggingSeekRef.current = false;
+      seekStartXRef.current = e.clientX;
+      seekStartTimeRef.current = videoRef.current ? videoRef.current.currentTime : 0;
+      if (isPlaying && videoRef.current) {
+        wasPlayingBeforeSeekRef.current = true;
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        wasPlayingBeforeSeekRef.current = false;
+      }
+      return;
     }
   };
 
@@ -949,10 +961,12 @@ export default function VideoPlayer({
           cursor: isEActive || isDraggingExposure
             ? 'ew-resize'
             : isZActive || isDraggingZoom
-            ? 'ns-resize'
+            ? 'ew-resize'
             : isScrubbingMouse
             ? 'grabbing'
-            : 'ew-resize'
+            : isShiftActive
+            ? 'ew-resize'
+            : 'pointer'
         }}
         onMouseDown={handleStageMouseDown}
         onClick={handleStageClick}
@@ -1068,7 +1082,7 @@ export default function VideoPlayer({
               </span>
             </div>
             <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-              Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+              Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
             </div>
           </div>
         )}
@@ -1105,7 +1119,7 @@ export default function VideoPlayer({
               </span>
             </div>
             <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-              ↔ Scrubbing Timeline (Drag Left / Right)
+              ↔ Scrubbing Timeline (Hold Shift + Drag Left/Right)
             </div>
           </div>
         )}

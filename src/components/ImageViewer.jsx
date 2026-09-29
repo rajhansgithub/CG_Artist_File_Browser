@@ -32,11 +32,11 @@ export default function ImageViewer({
   const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const containerRef = useRef(null);
 
-  // Zoom control via Hold Z + Drag Up/Down
+  // Zoom control via Hold Z + Drag Left/Right
   const [isZActive, setIsZActive] = useState(false);
   const isZPressedRef = useRef(false);
   const isDraggingZoomRef = useRef(false);
-  const dragStartYRef = useRef(0);
+  const dragStartXRef = useRef(0);
   const startScaleRef = useRef(1.0);
 
   // List of all image and texture assets in current folder
@@ -288,7 +288,7 @@ export default function ImageViewer({
     setScale((prevScale) => Math.min(25, Math.max(0.1, prevScale * zoomFactor)));
   };
 
-  // Pan & Zoom dragging (Hold Z + Left-Click Drag Up/Down)
+  // Pan & Zoom dragging (Hold Z + Left-Click Drag Left/Right)
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // left click only
 
@@ -301,7 +301,7 @@ export default function ImageViewer({
       }
       e.preventDefault();
       isDraggingZoomRef.current = true;
-      dragStartYRef.current = e.clientY;
+      dragStartXRef.current = e.clientX;
       startScaleRef.current = scale;
       return;
     }
@@ -313,9 +313,9 @@ export default function ImageViewer({
   const handleMouseMove = (e) => {
     if (isDraggingZoomRef.current) {
       e.preventDefault();
-      const deltaY = e.clientY - dragStartYRef.current;
-      // Drag UP (deltaY < 0) zooms IN, Drag DOWN (deltaY > 0) zooms OUT
-      const newScale = Math.min(25, Math.max(0.05, startScaleRef.current * Math.exp(-deltaY * 0.007)));
+      const deltaX = e.clientX - dragStartXRef.current;
+      // Drag Right (deltaX > 0) zooms IN, Drag Left (deltaX < 0) zooms OUT
+      const newScale = Math.min(25, Math.max(0.05, startScaleRef.current * Math.exp(deltaX * 0.007)));
       setScale(parseFloat(newScale.toFixed(3)));
       return;
     }
@@ -409,7 +409,7 @@ export default function ImageViewer({
         userSelect: 'none',
         overflow: 'hidden',
         cursor: isZActive || isDraggingZoomRef.current
-          ? 'ns-resize'
+          ? 'ew-resize'
           : isDragging
           ? 'grabbing'
           : 'grab'
@@ -452,7 +452,7 @@ export default function ImageViewer({
             </span>
           </div>
           <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-            Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+            Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
           </div>
         </div>
       )}

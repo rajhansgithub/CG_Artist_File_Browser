@@ -143,14 +143,6 @@ export default function Viewport3D({
   const turntableRef = useRef(false);
   const turntableSpeedRef = useRef(1.0);
   const isPlayingRef = useRef(true);
-
-  // Zoom control via Hold Z + Drag Up/Down
-  const [isZActive, setIsZActive] = useState(false);
-  const isZPressedRef = useRef(false);
-  const isDraggingZoomRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const startDistRef = useRef(5.0);
-
   // Synchronize turntable and controls autoRotate
   useEffect(() => {
     turntableRef.current = turntable;
@@ -455,25 +447,10 @@ export default function Viewport3D({
     };
   }, [asset]);
 
-  // Keyboard shortcut: F to focus/frame model, Z to zoom, Esc to close
+  // Keyboard shortcut: F to focus/frame model, Esc to close
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-
-      if (e.key === 'z' || e.key === 'Z') {
-        isZPressedRef.current = true;
-        setIsZActive(true);
-        if (controlsRef.current) controlsRef.current.enabled = false;
-      }
-
-      if (isZPressedRef.current && (e.key === '0' || e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        if (cameraRef.current && controlsRef.current && modelRef.current) {
-          focusCameraOnModel(cameraRef.current, controlsRef.current, modelRef.current);
-          needsRenderRef.current = true;
-        }
-        return;
-      }
 
       if (e.key === 'f' || e.key === 'F') {
         if (cameraRef.current && controlsRef.current && modelRef.current) {
@@ -485,76 +462,11 @@ export default function Viewport3D({
       }
     };
 
-    const handleKeyUp = (e) => {
-      if (e.key === 'z' || e.key === 'Z') {
-        isZPressedRef.current = false;
-        setIsZActive(false);
-        isDraggingZoomRef.current = false;
-        if (controlsRef.current) controlsRef.current.enabled = true;
-      }
-    };
-
-    const handleBlur = () => {
-      isZPressedRef.current = false;
-      setIsZActive(false);
-      isDraggingZoomRef.current = false;
-      if (controlsRef.current) controlsRef.current.enabled = true;
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', handleBlur);
     };
   }, [onClose]);
-
-  // Pointer drag for Hold Z Zoom in 3D
-  const handlePointerDown = (e) => {
-    if (e.button === 0 && isZPressedRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.detail === 2) {
-        if (cameraRef.current && controlsRef.current && modelRef.current) {
-          focusCameraOnModel(cameraRef.current, controlsRef.current, modelRef.current);
-          needsRenderRef.current = true;
-        }
-        return;
-      }
-      isDraggingZoomRef.current = true;
-      dragStartYRef.current = e.clientY;
-      if (cameraRef.current && controlsRef.current) {
-        startDistRef.current = cameraRef.current.position.distanceTo(controlsRef.current.target);
-        controlsRef.current.enabled = false;
-      }
-    }
-  };
-
-  const handlePointerMove = (e) => {
-    if (isDraggingZoomRef.current) {
-      e.preventDefault();
-      const deltaY = e.clientY - dragStartYRef.current;
-      // Drag UP (deltaY < 0) zooms IN, Drag DOWN (deltaY > 0) zooms OUT
-      const newDist = Math.max(0.05, Math.min(500, startDistRef.current * Math.exp(deltaY * 0.007)));
-      if (cameraRef.current && controlsRef.current) {
-        const dir = new THREE.Vector3().subVectors(cameraRef.current.position, controlsRef.current.target).normalize();
-        cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, newDist);
-        controlsRef.current.update();
-        needsRenderRef.current = true;
-      }
-    }
-  };
-
-  const handlePointerUp = () => {
-    if (isDraggingZoomRef.current) {
-      isDraggingZoomRef.current = false;
-      if (controlsRef.current && !isZPressedRef.current) {
-        controlsRef.current.enabled = true;
-      }
-    }
-  };
 
   // Handle Render Style changes (Lit, Wireframe, Normals, Clay) & Wireframe Overlay
   useEffect(() => {
@@ -699,50 +611,8 @@ export default function Viewport3D({
   };
 
   return (
-    <div
-      className="viewport-wrapper"
-      style={{
-        cursor: isZActive || isDraggingZoomRef.current ? 'ns-resize' : undefined
-      }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
+    <div className="viewport-wrapper">
       <div ref={containerRef} className="canvas-container" />
-
-      {/* Floating Zoom HUD when holding Z or dragging zoom */}
-      {(isZActive || isDraggingZoomRef.current) && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 64,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(12, 12, 12, 0.92)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            borderRadius: 8,
-            padding: '8px 18px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 4,
-            zIndex: 50,
-            pointerEvents: 'none',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Maximize2 size={15} color="#38bdf8" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
-              3D Zoom Active
-            </span>
-          </div>
-          <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-            Hold Z + Drag Up/Down • Double-Click with Z or 0 to Frame
-          </div>
-        </div>
-      )}
 
       {/* Floating HUD Toolbar */}
       <div className="viewport-hud">

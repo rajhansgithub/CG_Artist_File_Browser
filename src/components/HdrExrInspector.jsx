@@ -93,12 +93,12 @@ export default function HdrExrInspector({
   const [selectedLayer, setSelectedLayer] = useState(null);
   const prevViewModeRef = useRef(viewMode);
 
-  // Zoom control via Hold Z + Drag Up/Down (in 360 pano & flat)
+  // Zoom control via Hold Z + Drag Left/Right (in 360 pano & flat)
   const [isZActive, setIsZActive] = useState(false);
   const [currentFov, setCurrentFov] = useState(60);
   const isZPressedRef = useRef(false);
   const isDraggingZoomRef = useRef(false);
-  const dragStartYRef = useRef(0);
+  const dragStartXRef = useRef(0);
   const startFovRef = useRef(60);
   const startDistRef = useRef(2.0);
 
@@ -960,21 +960,21 @@ export default function HdrExrInspector({
 
   // Pointer move probe detection and Z zoom drag
   const handlePointerMove = (e) => {
-    // 1. Z Zoom Drag (Hold Z + Left-Click Drag Up/Down)
+    // 1. Z Zoom Drag (Hold Z + Left-Click Drag Left/Right)
     if (isDraggingZoomRef.current) {
       e.preventDefault();
-      const deltaY = e.clientY - dragStartYRef.current;
+      const deltaX = e.clientX - dragStartXRef.current;
       if (viewMode === 'pano') {
-        // In 360 panorama, drag UP (deltaY < 0) zooms IN (reduces FOV)
-        const newFov = Math.max(12, Math.min(115, startFovRef.current + deltaY * 0.18));
+        // In 360 panorama, drag RIGHT (deltaX > 0) zooms IN (reduces FOV)
+        const newFov = Math.max(12, Math.min(115, startFovRef.current - deltaX * 0.18));
         if (cameraRef.current) {
           cameraRef.current.fov = newFov;
           cameraRef.current.updateProjectionMatrix();
           setCurrentFov(parseFloat(newFov.toFixed(1)));
         }
       } else {
-        // In Flat 2D mode, drag UP (deltaY < 0) zooms IN (moves camera closer)
-        const newZ = Math.max(0.05, Math.min(200, startDistRef.current * Math.exp(deltaY * 0.007)));
+        // In Flat 2D mode, drag RIGHT (deltaX > 0) zooms IN (moves camera closer)
+        const newZ = Math.max(0.05, Math.min(200, startDistRef.current * Math.exp(-deltaX * 0.007)));
         if (cameraRef.current && controlsRef.current) {
           cameraRef.current.position.z = newZ;
           controlsRef.current.update();
@@ -1030,7 +1030,7 @@ export default function HdrExrInspector({
         return;
       }
       isDraggingZoomRef.current = true;
-      dragStartYRef.current = e.clientY;
+      dragStartXRef.current = e.clientX;
       startFovRef.current = cameraRef.current ? cameraRef.current.fov : 60;
       startDistRef.current = cameraRef.current ? cameraRef.current.position.z : 2.0;
       if (controlsRef.current) controlsRef.current.enabled = false;
@@ -1225,7 +1225,7 @@ export default function HdrExrInspector({
     <div
       className="viewport-wrapper"
       style={{
-        cursor: isZActive || isDraggingZoomRef.current ? 'ns-resize' : undefined
+        cursor: isZActive || isDraggingZoomRef.current ? 'ew-resize' : undefined
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -1268,7 +1268,7 @@ export default function HdrExrInspector({
             )}
           </div>
           <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-            Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+            Hold Z + Drag Left/Right • Double-Click with Z or 0 to Reset
           </div>
         </div>
       )}
