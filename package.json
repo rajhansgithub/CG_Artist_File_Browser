@@ -1,6 +1,6 @@
 {
   "name": "cg-artist-file-browser",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "High-Performance 3D & HDR/EXR File Browser and Inspector for CG & VFX Artists",
   "repository": {
     "type": "git",
@@ -48,10 +48,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "CG Artist File Browser",
-      "artifactName": "CG-Artist-File-Browser-Setup-1.0.7.exe"
+      "artifactName": "CG-Artist-File-Browser-Setup-1.0.8.exe"
     },
     "portable": {
-      "artifactName": "CG-Artist-File-Browser-1.0.7-Portable.exe"
+      "artifactName": "CG-Artist-File-Browser-1.0.8-Portable.exe"
     }
   },
   "keywords": [
