@@ -93,6 +93,15 @@ export default function HdrExrInspector({
   const [selectedLayer, setSelectedLayer] = useState(null);
   const prevViewModeRef = useRef(viewMode);
 
+  // Zoom control via Hold Z + Drag Up/Down (in 360 pano & flat)
+  const [isZActive, setIsZActive] = useState(false);
+  const [currentFov, setCurrentFov] = useState(60);
+  const isZPressedRef = useRef(false);
+  const isDraggingZoomRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const startFovRef = useRef(60);
+  const startDistRef = useRef(2.0);
+
   // Sidebar Visibility and Collapsible Sections State (Collapsed by default!)
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState({
@@ -949,8 +958,31 @@ export default function HdrExrInspector({
     }
   }, [samplePixelAtUv, isProbePinned, ev, kelvin, tint]);
 
-  // Pointer move probe detection
+  // Pointer move probe detection and Z zoom drag
   const handlePointerMove = (e) => {
+    // 1. Z Zoom Drag (Hold Z + Left-Click Drag Up/Down)
+    if (isDraggingZoomRef.current) {
+      e.preventDefault();
+      const deltaY = e.clientY - dragStartYRef.current;
+      if (viewMode === 'pano') {
+        // In 360 panorama, drag UP (deltaY < 0) zooms IN (reduces FOV)
+        const newFov = Math.max(12, Math.min(115, startFovRef.current + deltaY * 0.18));
+        if (cameraRef.current) {
+          cameraRef.current.fov = newFov;
+          cameraRef.current.updateProjectionMatrix();
+          setCurrentFov(parseFloat(newFov.toFixed(1)));
+        }
+      } else {
+        // In Flat 2D mode, drag UP (deltaY < 0) zooms IN (moves camera closer)
+        const newZ = Math.max(0.05, Math.min(200, startDistRef.current * Math.exp(deltaY * 0.007)));
+        if (cameraRef.current && controlsRef.current) {
+          cameraRef.current.position.z = newZ;
+          controlsRef.current.update();
+        }
+      }
+      return;
+    }
+
     if (isDraggingWipeRef.current) {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -980,9 +1012,35 @@ export default function HdrExrInspector({
     }
   };
 
+  const handlePointerDown = (e) => {
+    if (e.button === 0 && isZPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.detail === 2) {
+        // Double-click with Z resets zoom
+        if (viewMode === 'pano') {
+          if (cameraRef.current) {
+            cameraRef.current.fov = 60;
+            cameraRef.current.updateProjectionMatrix();
+            setCurrentFov(60);
+          }
+        } else {
+          handleFitView();
+        }
+        return;
+      }
+      isDraggingZoomRef.current = true;
+      dragStartYRef.current = e.clientY;
+      startFovRef.current = cameraRef.current ? cameraRef.current.fov : 60;
+      startDistRef.current = cameraRef.current ? cameraRef.current.position.z : 2.0;
+      if (controlsRef.current) controlsRef.current.enabled = false;
+      return;
+    }
+  };
+
   // Canvas click to pin / unpin eyedropper probe
   const handleCanvasClick = (e) => {
-    if (isDraggingWipeRef.current) return;
+    if (isDraggingWipeRef.current || isZPressedRef.current || isDraggingZoomRef.current) return;
     if (e.target.closest('.viewport-hud') || e.target.closest('.hdr-controls-panel') || e.target.closest('.pixel-probe-hud') || e.target.closest('.hdr-inspector-sidebar')) {
       return;
     }
@@ -1009,6 +1067,12 @@ export default function HdrExrInspector({
   };
 
   const handlePointerUp = () => {
+    if (isDraggingZoomRef.current) {
+      isDraggingZoomRef.current = false;
+      if (controlsRef.current && !isZPressedRef.current) {
+        controlsRef.current.enabled = true;
+      }
+    }
     isDraggingWipeRef.current = false;
   };
 
@@ -1061,10 +1125,30 @@ export default function HdrExrInspector({
     }
   };
 
-  // Keyboard navigation
+  // Keyboard navigation & Z Zoom
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+      if (e.key === 'z' || e.key === 'Z') {
+        isZPressedRef.current = true;
+        setIsZActive(true);
+        if (controlsRef.current) controlsRef.current.enabled = false;
+      }
+
+      if (isZPressedRef.current && e.key === '0') {
+        e.preventDefault();
+        if (viewMode === 'pano') {
+          if (cameraRef.current) {
+            cameraRef.current.fov = 60;
+            cameraRef.current.updateProjectionMatrix();
+            setCurrentFov(60);
+          }
+        } else {
+          handleFitView();
+        }
+        return;
+      }
 
       if (e.key === 'Escape') {
         if (onClose) onClose();
@@ -1080,8 +1164,31 @@ export default function HdrExrInspector({
         setSidebarOpen((prev) => !prev);
       }
     };
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'z' || e.key === 'Z') {
+        isZPressedRef.current = false;
+        setIsZActive(false);
+        isDraggingZoomRef.current = false;
+        if (controlsRef.current) controlsRef.current.enabled = true;
+      }
+    };
+
+    const handleBlur = () => {
+      isZPressedRef.current = false;
+      setIsZActive(false);
+      isDraggingZoomRef.current = false;
+      if (controlsRef.current) controlsRef.current.enabled = true;
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, [onClose, viewMode, textureInfo]);
 
   const captureSnapshot = async () => {
@@ -1117,11 +1224,54 @@ export default function HdrExrInspector({
   return (
     <div
       className="viewport-wrapper"
+      style={{
+        cursor: isZActive || isDraggingZoomRef.current ? 'ns-resize' : undefined
+      }}
+      onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onClick={handleCanvasClick}
     >
       <div ref={containerRef} className="canvas-container" />
+
+      {/* Floating Zoom HUD when holding Z or dragging zoom */}
+      {(isZActive || isDraggingZoomRef.current) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 64,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(12, 12, 12, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            borderRadius: 8,
+            padding: '8px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 50,
+            pointerEvents: 'none',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Maximize2 size={15} color="#38bdf8" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+              {viewMode === 'pano' ? `360° Zoom: ${Math.round((60 / currentFov) * 100)}%` : 'Zoom Adjusted'}
+            </span>
+            {viewMode === 'pano' && (
+              <span style={{ fontSize: 11, color: '#38bdf8' }}>
+                (FOV: {currentFov.toFixed(1)}°)
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+            Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+          </div>
+        </div>
+      )}
 
       {/* Split-Screen Wipe Viewport Overlay Line & Handle */}
       {wipeActive && (

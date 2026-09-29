@@ -32,6 +32,13 @@ export default function ImageViewer({
   const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const containerRef = useRef(null);
 
+  // Zoom control via Hold Z + Drag Up/Down
+  const [isZActive, setIsZActive] = useState(false);
+  const isZPressedRef = useRef(false);
+  const isDraggingZoomRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const startScaleRef = useRef(1.0);
+
   // List of all image and texture assets in current folder
   const imageAssets = allFolderItems.filter(
     (item) => !item.isDirectory && (item.category === 'image' || item.category === 'texture')
@@ -206,9 +213,22 @@ export default function ImageViewer({
     };
   }, []);
 
-  // Keyboard navigation
+  // Keyboard navigation & Z Zoom Shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+      if (e.key === 'z' || e.key === 'Z') {
+        isZPressedRef.current = true;
+        setIsZActive(true);
+      }
+
+      if (isZPressedRef.current && e.key === '0') {
+        e.preventDefault();
+        fitToScreen();
+        return;
+      }
+
       if (e.key === 'Escape') {
         onClose();
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -221,8 +241,28 @@ export default function ImageViewer({
       }
     };
 
+    const handleKeyUp = (e) => {
+      if (e.key === 'z' || e.key === 'Z') {
+        isZPressedRef.current = false;
+        setIsZActive(false);
+        isDraggingZoomRef.current = false;
+      }
+    };
+
+    const handleBlur = () => {
+      isZPressedRef.current = false;
+      setIsZActive(false);
+      isDraggingZoomRef.current = false;
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, [currentIndex, imageAssets]);
 
   const goToNext = () => {
@@ -248,14 +288,38 @@ export default function ImageViewer({
     setScale((prevScale) => Math.min(25, Math.max(0.1, prevScale * zoomFactor)));
   };
 
-  // Pan dragging
+  // Pan & Zoom dragging (Hold Z + Left-Click Drag Up/Down)
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // left click only
+
+    // If holding Z: Zoom drag or double-click fit
+    if (isZPressedRef.current) {
+      if (e.detail === 2) {
+        e.preventDefault();
+        fitToScreen();
+        return;
+      }
+      e.preventDefault();
+      isDraggingZoomRef.current = true;
+      dragStartYRef.current = e.clientY;
+      startScaleRef.current = scale;
+      return;
+    }
+
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   const handleMouseMove = (e) => {
+    if (isDraggingZoomRef.current) {
+      e.preventDefault();
+      const deltaY = e.clientY - dragStartYRef.current;
+      // Drag UP (deltaY < 0) zooms IN, Drag DOWN (deltaY > 0) zooms OUT
+      const newScale = Math.min(25, Math.max(0.05, startScaleRef.current * Math.exp(-deltaY * 0.007)));
+      setScale(parseFloat(newScale.toFixed(3)));
+      return;
+    }
+
     if (!isDragging) return;
     setPosition({
       x: e.clientX - dragStart.x,
@@ -264,6 +328,7 @@ export default function ImageViewer({
   };
 
   const handleMouseUp = () => {
+    isDraggingZoomRef.current = false;
     setIsDragging(false);
   };
 
@@ -342,7 +407,12 @@ export default function ImageViewer({
         alignItems: 'center',
         justifyContent: 'center',
         userSelect: 'none',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        cursor: isZActive || isDraggingZoomRef.current
+          ? 'ns-resize'
+          : isDragging
+          ? 'grabbing'
+          : 'grab'
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -350,6 +420,43 @@ export default function ImageViewer({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
+      {/* Floating Zoom HUD when holding Z or dragging zoom */}
+      {(isZActive || isDraggingZoomRef.current) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 64,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(12, 12, 12, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            borderRadius: 8,
+            padding: '8px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 50,
+            pointerEvents: 'none',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ZoomIn size={15} color="#38bdf8" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+              Zoom: {Math.round(scale * 100)}%
+            </span>
+            <span style={{ fontSize: 11, color: '#aaaaaa' }}>
+              ({scale.toFixed(2)}×)
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+            Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+          </div>
+        </div>
+      )}
+
       {/* Top Floating Controls Toolbar */}
       <div className="viewport-hud">
         <button className="hud-btn" onClick={() => setScale((s) => Math.min(25, s * 1.25))} title="Zoom In (+)">

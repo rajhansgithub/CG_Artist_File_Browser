@@ -81,13 +81,21 @@ export default function VideoPlayer({
   // Video resolution metadata
   const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
 
-  // Viewport Fit mode: 'best', '1:1', 'width', 'height', 'fill', 'off' (default: 'best')
-  const [fitMode, setFitMode] = useState('best');
+  // Viewport Fit mode: 'width' (default), 'best', '1:1', 'height', 'fill', 'off'
+  const [fitMode, setFitMode] = useState('width');
 
   // Exposure control in EV (-7.0 to +7.0, default 0.0)
   const [exposure, setExposure] = useState(0.0);
   const [isEActive, setIsEActive] = useState(false);
   const [isDraggingExposure, setIsDraggingExposure] = useState(false);
+
+  // Zoom control via Hold Z + Drag Up/Down (range: 0.1 to 10.0, default 1.0)
+  const [zoomLevel, setZoomLevel] = useState(1.0);
+  const [isZActive, setIsZActive] = useState(false);
+  const [isDraggingZoom, setIsDraggingZoom] = useState(false);
+
+  // Mouse Seeking via Left-Click Drag Left/Right
+  const [isScrubbingMouse, setIsScrubbingMouse] = useState(false);
 
   // Channel soloing: 'rgb', 'r', 'g', 'b', 'alpha', 'lum' (default: 'rgb')
   const [activeChannel, setActiveChannel] = useState('rgb');
@@ -98,6 +106,18 @@ export default function VideoPlayer({
   const wasDraggingExposureRef = useRef(false);
   const dragStartXRef = useRef(0);
   const startExposureRef = useRef(0);
+
+  const isZKeyPressedRef = useRef(false);
+  const isDraggingZoomRef = useRef(false);
+  const wasDraggingZoomRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const startZoomRef = useRef(1.0);
+
+  const isSeekingMouseRef = useRef(false);
+  const wasDraggingSeekRef = useRef(false);
+  const seekStartXRef = useRef(0);
+  const seekStartTimeRef = useRef(0);
+  const wasPlayingBeforeSeekRef = useRef(false);
 
   // Filter video assets in current folder for playlist stepping
   const videoAssets = allFolderItems.filter(
@@ -119,19 +139,48 @@ export default function VideoPlayer({
     setLoopOut(null);
     setLoopEnabled(false);
     setExposure(0);
+    setZoomLevel(1.0);
     setActiveChannel('rgb');
   }, [asset]);
 
-  // Global mousemove and mouseup listeners for interactive Exposure Drag (Hold E + Left-Click Drag)
+  // Global mousemove and mouseup listeners for Exposure Drag (E), Zoom Drag (Z), and Timeline Scrubbing
   useEffect(() => {
     const handleGlobalMouseMove = (e) => {
+      // 1. Exposure drag (Hold E + Left-Click Drag Left/Right)
       if (isDraggingExposureRef.current) {
         e.preventDefault();
         const deltaX = e.clientX - dragStartXRef.current;
-        // ~140px horizontal movement per 1.0 EV change
         const sensitivity = 0.007;
         const newEv = Math.max(-7.0, Math.min(7.0, startExposureRef.current + deltaX * sensitivity));
         setExposure(parseFloat(newEv.toFixed(2)));
+        return;
+      }
+
+      // 2. Zoom drag (Hold Z + Left-Click Drag Up/Down)
+      if (isDraggingZoomRef.current) {
+        e.preventDefault();
+        const deltaY = e.clientY - dragStartYRef.current;
+        // Drag UP (deltaY < 0) zooms in, Drag DOWN (deltaY > 0) zooms out
+        const newZoom = Math.max(0.1, Math.min(10.0, startZoomRef.current * Math.exp(-deltaY * 0.007)));
+        setZoomLevel(parseFloat(newZoom.toFixed(2)));
+        return;
+      }
+
+      // 3. Video Scrubbing drag (Left-Click Drag Left/Right on stage)
+      if (isSeekingMouseRef.current) {
+        e.preventDefault();
+        const deltaX = e.clientX - seekStartXRef.current;
+        if (Math.abs(deltaX) > 4) {
+          wasDraggingSeekRef.current = true;
+          setIsScrubbingMouse(true);
+        }
+        if (wasDraggingSeekRef.current && videoRef.current) {
+          const dur = isFinite(duration) && duration > 0 ? duration : (videoRef.current.duration || 60);
+          const timePerPixel = dur < 15 ? (dur / 400) : Math.max(0.02, Math.min(0.25, dur / 800));
+          const newTime = Math.max(0, Math.min(dur, seekStartTimeRef.current + deltaX * timePerPixel));
+          videoRef.current.currentTime = newTime;
+          setCurrentTime(newTime);
+        }
       }
     };
 
@@ -143,6 +192,22 @@ export default function VideoPlayer({
           wasDraggingExposureRef.current = false;
         }, 80);
       }
+
+      if (isDraggingZoomRef.current) {
+        isDraggingZoomRef.current = false;
+        setIsDraggingZoom(false);
+        setTimeout(() => {
+          wasDraggingZoomRef.current = false;
+        }, 80);
+      }
+
+      if (isSeekingMouseRef.current) {
+        isSeekingMouseRef.current = false;
+        setIsScrubbingMouse(false);
+        setTimeout(() => {
+          wasDraggingSeekRef.current = false;
+        }, 80);
+      }
     };
 
     window.addEventListener('mousemove', handleGlobalMouseMove);
@@ -151,7 +216,7 @@ export default function VideoPlayer({
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, []);
+  }, [duration]);
 
   // Video event handlers
   const handleLoadedMetadata = () => {
@@ -336,6 +401,12 @@ export default function VideoPlayer({
         setIsEActive(true);
       }
 
+      // Z Key for Zoom interactive drag
+      if (e.key === 'z' || e.key === 'Z') {
+        isZKeyPressedRef.current = true;
+        setIsZActive(true);
+      }
+
       // If holding E, allow quick adjustments or reset
       if (isEKeyPressedRef.current) {
         if (e.key === '0') {
@@ -355,8 +426,17 @@ export default function VideoPlayer({
         }
       }
 
-      // Channel Soloing Shortcuts (when not holding E)
-      if (!isEKeyPressedRef.current) {
+      // If holding Z, allow 0 to reset zoom
+      if (isZKeyPressedRef.current) {
+        if (e.key === '0') {
+          e.preventDefault();
+          setZoomLevel(1.0);
+          return;
+        }
+      }
+
+      // Channel Soloing Shortcuts (when not holding E or Z)
+      if (!isEKeyPressedRef.current && !isZKeyPressedRef.current) {
         if (e.key === '1') {
           setActiveChannel('rgb');
         } else if (e.key === '2') {
@@ -438,6 +518,17 @@ export default function VideoPlayer({
           }, 80);
         }
       }
+      if (e.key === 'z' || e.key === 'Z') {
+        isZKeyPressedRef.current = false;
+        setIsZActive(false);
+        if (isDraggingZoomRef.current) {
+          isDraggingZoomRef.current = false;
+          setIsDraggingZoom(false);
+          setTimeout(() => {
+            wasDraggingZoomRef.current = false;
+          }, 80);
+        }
+      }
     };
 
     const handleBlur = () => {
@@ -445,6 +536,10 @@ export default function VideoPlayer({
       setIsEActive(false);
       isDraggingExposureRef.current = false;
       setIsDraggingExposure(false);
+      isZKeyPressedRef.current = false;
+      setIsZActive(false);
+      isDraggingZoomRef.current = false;
+      setIsDraggingZoom(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -455,7 +550,7 @@ export default function VideoPlayer({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [currentTime, duration, fps, loopEnabled, loopIn, loopOut, isFullscreen, currentIndex, activeChannel, exposure]);
+  }, [currentTime, duration, fps, loopEnabled, loopIn, loopOut, isFullscreen, currentIndex, activeChannel, exposure, zoomLevel]);
 
   const currentFrame = Math.round(currentTime * fps);
   const totalFrames = Math.round(duration * fps);
@@ -470,9 +565,20 @@ export default function VideoPlayer({
     ? 'url(#video-color-filter)'
     : 'none';
 
-  // Interactive mouse handlers for E + Left Click Drag Exposure control
+  // Interactive mouse handlers for stage: Exposure (E), Zoom (Z), and Timeline Scrubbing
   const handleStageMouseDown = (e) => {
-    if (e.button === 0 && isEKeyPressedRef.current) {
+    if (e.button !== 0) return; // Left click only
+
+    // 1. Exposure drag / double-click reset (Hold E)
+    if (isEKeyPressedRef.current) {
+      if (e.detail === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+        setExposure(0.0);
+        isDraggingExposureRef.current = false;
+        setIsDraggingExposure(false);
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       isDraggingExposureRef.current = true;
@@ -480,22 +586,83 @@ export default function VideoPlayer({
       dragStartXRef.current = e.clientX;
       startExposureRef.current = exposure;
       setIsDraggingExposure(true);
+      return;
+    }
+
+    // 2. Zoom drag / double-click reset (Hold Z)
+    if (isZKeyPressedRef.current) {
+      if (e.detail === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+        setZoomLevel(1.0);
+        isDraggingZoomRef.current = false;
+        setIsDraggingZoom(false);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingZoomRef.current = true;
+      wasDraggingZoomRef.current = true;
+      dragStartYRef.current = e.clientY;
+      startZoomRef.current = zoomLevel;
+      setIsDraggingZoom(true);
+      return;
+    }
+
+    // 3. Timeline Seeking with mouse drag (Left click & drag left/right)
+    e.preventDefault();
+    isSeekingMouseRef.current = true;
+    wasDraggingSeekRef.current = false;
+    seekStartXRef.current = e.clientX;
+    seekStartTimeRef.current = videoRef.current ? videoRef.current.currentTime : 0;
+    if (isPlaying && videoRef.current) {
+      wasPlayingBeforeSeekRef.current = true;
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      wasPlayingBeforeSeekRef.current = false;
     }
   };
 
   const handleStageClick = () => {
-    if (wasDraggingExposureRef.current || isEKeyPressedRef.current) {
+    if (
+      wasDraggingExposureRef.current ||
+      wasDraggingZoomRef.current ||
+      wasDraggingSeekRef.current ||
+      isEKeyPressedRef.current ||
+      isZKeyPressedRef.current
+    ) {
       wasDraggingExposureRef.current = false;
+      wasDraggingZoomRef.current = false;
+      wasDraggingSeekRef.current = false;
       return;
     }
     togglePlay();
   };
 
-  // Compute Video styles based on fitMode
+  const handleStageDoubleClick = (e) => {
+    if (isEKeyPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setExposure(0.0);
+      return;
+    }
+    if (isZKeyPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setZoomLevel(1.0);
+      return;
+    }
+    toggleFullscreen();
+  };
+
+  // Compute Video styles based on fitMode and zoomLevel
   const getVideoStyle = () => {
     const base = {
       filter: filterStyle,
-      transition: isDraggingExposure ? 'none' : 'filter 0.08s ease'
+      transform: zoomLevel !== 1.0 ? `scale(${zoomLevel})` : 'none',
+      transformOrigin: 'center center',
+      transition: (isDraggingExposure || isDraggingZoom) ? 'none' : 'filter 0.08s ease, transform 0.08s ease'
     };
 
     switch (fitMode) {
@@ -693,9 +860,9 @@ export default function VideoPlayer({
             style={{ height: 28, fontSize: 11 }}
             title="Video Viewport Fit Mode"
           >
+            <option value="width" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Width</option>
             <option value="best" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Best</option>
             <option value="1:1" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: 1:1</option>
-            <option value="width" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Width</option>
             <option value="height" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Height</option>
             <option value="fill" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Fill</option>
             <option value="off" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Off</option>
@@ -738,14 +905,14 @@ export default function VideoPlayer({
             <option value="social_916" style={{ color: '#000', backgroundColor: '#fff' }}>9:16 Vertical Safe</option>
           </select>
 
-          {/* Snapshot PNG Frame Grab */}
+          {/* Snapshot PNG Frame Grab (Icon Only) */}
           <button
-            className={`filter-btn ${snapshotFeedback ? 'active' : ''}`}
+            className={`icon-btn ${snapshotFeedback ? 'active' : ''}`}
             onClick={captureSnapshot}
-            title="Export Frame as PNG (S key)"
+            title={snapshotFeedback ? "Frame Grab Saved!" : "Export Frame as PNG (S key)"}
+            style={{ width: 28, height: 28 }}
           >
-            {snapshotFeedback ? <Check size={13} color="#22c55e" /> : <Camera size={13} />}
-            <span>{snapshotFeedback ? 'Saved!' : 'Frame Grab'}</span>
+            {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
           </button>
 
           {/* Reveal in Explorer */}
@@ -778,26 +945,19 @@ export default function VideoPlayer({
       <div
         className="media-viewport-stage"
         style={{
-          overflow: fitMode === 'best' || fitMode === 'fill' ? 'hidden' : 'auto',
-          cursor: isEActive || isDraggingExposure ? 'ew-resize' : 'pointer'
+          overflow: fitMode === 'best' || fitMode === 'fill' ? (zoomLevel > 1.0 ? 'auto' : 'hidden') : 'auto',
+          cursor: isEActive || isDraggingExposure
+            ? 'ew-resize'
+            : isZActive || isDraggingZoom
+            ? 'ns-resize'
+            : isScrubbingMouse
+            ? 'grabbing'
+            : 'ew-resize'
         }}
         onMouseDown={handleStageMouseDown}
         onClick={handleStageClick}
+        onDoubleClick={handleStageDoubleClick}
       >
-        {/* Subtle Checkerboard background for alpha transparency inspection (MOV with Alpha) */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.25,
-            backgroundImage:
-              'linear-gradient(45deg, #202020 25%, transparent 25%), linear-gradient(-45deg, #202020 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #202020 75%), linear-gradient(-45deg, transparent 75%, #202020 75%)',
-            backgroundSize: '24px 24px',
-            backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0px',
-            pointerEvents: 'none'
-          }}
-        />
-
         <video
           ref={videoRef}
           src={streamUrl}
@@ -871,7 +1031,81 @@ export default function VideoPlayer({
               </span>
             </div>
             <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-              Hold E + Drag Left/Right to Adjust • Press 0 to Reset
+              Hold E + Drag Left/Right • Double-Click with E or 0 to Reset
+            </div>
+          </div>
+        )}
+
+        {/* Floating Zoom HUD when adjusting or holding Z */}
+        {(isZActive || isDraggingZoom) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 24,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(12, 12, 12, 0.92)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              borderRadius: 8,
+              padding: '8px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              zIndex: 40,
+              pointerEvents: 'none',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Maximize2 size={15} color="#38bdf8" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+                Zoom: {Math.round(zoomLevel * 100)}%
+              </span>
+              <span style={{ fontSize: 11, color: '#aaaaaa' }}>
+                ({zoomLevel.toFixed(2)}×)
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+              Hold Z + Drag Up/Down • Double-Click with Z or 0 to Reset
+            </div>
+          </div>
+        )}
+
+        {/* Floating Mouse Scrubbing / Seeking HUD */}
+        {isScrubbingMouse && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 24,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(12, 12, 12, 0.92)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(56, 189, 248, 0.5)',
+              borderRadius: 8,
+              padding: '8px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              zIndex: 40,
+              pointerEvents: 'none',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Film size={15} color="#38bdf8" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+                {formatTimecode(currentTime, fps)} / {formatTimecode(duration, fps)}
+              </span>
+              <span style={{ fontSize: 11, color: '#38bdf8' }}>
+                [Frame {currentFrame}]
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+              ↔ Scrubbing Timeline (Drag Left / Right)
             </div>
           </div>
         )}
@@ -915,6 +1149,18 @@ export default function VideoPlayer({
               }}
             >
               EXP: {exposure >= 0 ? `+${exposure.toFixed(2)}` : exposure.toFixed(2)} EV
+            </span>
+          )}
+          {zoomLevel !== 1.0 && (
+            <span
+              className="loop-indicator-badge"
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.4)'
+              }}
+            >
+              ZOOM: {Math.round(zoomLevel * 100)}%
             </span>
           )}
         </div>
