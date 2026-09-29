@@ -79,11 +79,16 @@ try {
 
   const nsisBundleDir = path.join(rootDir, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
   if (fs.existsSync(nsisBundleDir)) {
-    const setupFile = fs.readdirSync(nsisBundleDir).find(f => f.endsWith('.exe'));
+    const files = fs.readdirSync(nsisBundleDir);
+    const setupFile = files.find(f => f.includes(cleanVersion) && f.endsWith('.exe')) ||
+                      files.filter(f => f.endsWith('.exe')).sort((a, b) => {
+                        return fs.statSync(path.join(nsisBundleDir, b)).mtimeMs - fs.statSync(path.join(nsisBundleDir, a)).mtimeMs;
+                      })[0];
     if (setupFile) {
       fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`));
+      fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, `CG-Artist-File-Browser-Setup-${cleanVersion}.exe`));
       fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, setupFile));
-      console.log(`✓ Copied installer binaries to release/`);
+      console.log(`✓ Copied installer binaries to release/: ${setupFile}`);
     }
   }
 } catch (e) {
