@@ -220,6 +220,47 @@ body {
   white-space: nowrap;
 }
 
+.filters-bar .filter-btn {
+  height: 28px;
+  padding: 0 9px;
+}
+
+.filters-bar .filter-btn.icon-only {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}
+
+.filter-expand-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  width: 24px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.filter-expand-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-medium);
+}
+
+.filter-expand-btn.expanded {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
 .filter-btn:hover {
   background: var(--bg-hover);
   color: var(--text-main);
