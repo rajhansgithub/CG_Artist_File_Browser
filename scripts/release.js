@@ -56,10 +56,35 @@ if (fs.existsSync(cargoPath)) {
   console.log(`✓ Updated Cargo.toml`);
 }
 
-// 4. Run frontend build check
-console.log(`\n📦 Verifying build...`);
-execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
-console.log(`✓ Frontend build passed`);
+// 4. Run frontend build check & Local Tauri build
+console.log(`\n📦 Building local binaries with Tauri...`);
+try {
+  execSync('npx tauri build', { cwd: rootDir, stdio: 'inherit' });
+  const releaseDir = path.join(rootDir, 'release');
+  if (!fs.existsSync(releaseDir)) fs.mkdirSync(releaseDir, { recursive: true });
+
+  const targetExe = path.join(rootDir, 'src-tauri', 'target', 'release', 'cg-artist-file-browser.exe');
+  if (fs.existsSync(targetExe)) {
+    fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-v${cleanVersion}-Standalone.exe`));
+    fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`));
+    fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-Portable.exe`));
+    fs.copyFileSync(targetExe, path.join(releaseDir, `cg-artist-file-browser.exe`));
+    console.log(`✓ Copied portable binaries to release/`);
+  }
+
+  const nsisBundleDir = path.join(rootDir, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
+  if (fs.existsSync(nsisBundleDir)) {
+    const setupFile = fs.readdirSync(nsisBundleDir).find(f => f.endsWith('.exe'));
+    if (setupFile) {
+      fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`));
+      fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, setupFile));
+      console.log(`✓ Copied installer binaries to release/`);
+    }
+  }
+} catch (e) {
+  console.warn('⚠️ Local Tauri build failed or skipped, running npm run build check:', e.message);
+  execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
+}
 
 // 5. Git Commit, Tag & Push
 console.log(`\n📤 Publishing to GitHub...`);

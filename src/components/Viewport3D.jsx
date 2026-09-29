@@ -101,8 +101,9 @@ export default function Viewport3D({
       const key = new THREE.DirectionalLight(0xffffff, 2.0);
       key.position.set(5, 8, 5);
       key.castShadow = true;
-      key.shadow.mapSize.width = 2048;
-      key.shadow.mapSize.height = 2048;
+      key.shadow.mapSize.width = 1024;
+      key.shadow.mapSize.height = 1024;
+      key.shadow.bias = -0.0002;
       group.add(key);
 
       const fill = new THREE.DirectionalLight(0xa0a0a0, 0.8);
@@ -119,6 +120,9 @@ export default function Viewport3D({
       const dir1 = new THREE.DirectionalLight(0xffffff, 1.2);
       dir1.position.set(4, 8, 4);
       dir1.castShadow = true;
+      dir1.shadow.mapSize.width = 1024;
+      dir1.shadow.mapSize.height = 1024;
+      dir1.shadow.bias = -0.0002;
       group.add(dir1);
 
       const dir2 = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -131,6 +135,9 @@ export default function Viewport3D({
       const sun = new THREE.DirectionalLight(0xffffff, 3.2);
       sun.position.set(8, 6, 4);
       sun.castShadow = true;
+      sun.shadow.mapSize.width = 1024;
+      sun.shadow.mapSize.height = 1024;
+      sun.shadow.bias = -0.0002;
       group.add(sun);
     } else if (preset === 'rim_only') {
       const amb = new THREE.AmbientLight(0xffffff, 0.2);
@@ -168,9 +175,11 @@ export default function Viewport3D({
       powerPreference: 'high-performance'
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     rendererRef.current = renderer;
@@ -207,31 +216,44 @@ export default function Viewport3D({
       cameraRef.current.aspect = w / h;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
+      rendererRef.current.shadowMap.needsUpdate = true;
     });
 
     resizeObserver.observe(containerRef.current);
 
-    // Render loop
+    // Render loop with smart render-on-demand
     let animFrameId;
+    let needsRender = true;
+    const requestRender = () => { needsRender = true; };
+    controls.addEventListener('change', requestRender);
+
     const animate = () => {
       animFrameId = requestAnimationFrame(animate);
 
       const delta = clockRef.current.getDelta();
+      const isTurntableActive = turntableRef.current;
+      const isAnimActive = !!(mixerRef.current && isPlayingRef.current);
 
-      if (mixerRef.current && isPlayingRef.current) {
+      if (isAnimActive) {
         mixerRef.current.update(delta);
         if (actionRef.current) {
           setAnimTime(actionRef.current.time);
         }
       }
 
-      controls.update();
-      renderer.render(scene, camera);
+      // controls.update() returns true while damping or autoRotate is in motion
+      const controlsMoving = controls.update();
+
+      if (isTurntableActive || isAnimActive || controlsMoving || needsRender) {
+        renderer.render(scene, camera);
+        needsRender = false;
+      }
     };
 
     animate();
 
     return () => {
+      controls.removeEventListener('change', requestRender);
       resizeObserver.disconnect();
       cancelAnimationFrame(animFrameId);
       renderer.dispose();
@@ -240,6 +262,9 @@ export default function Viewport3D({
 
   useEffect(() => {
     updateLighting(lightingPreset, lightsGroupRef.current);
+    if (rendererRef.current) {
+      rendererRef.current.shadowMap.needsUpdate = true;
+    }
   }, [lightingPreset]);
 
   // Load Model Asset
@@ -258,6 +283,10 @@ export default function Viewport3D({
           child.userData.wireframeLine.geometry?.dispose();
           child.userData.wireframeLine.material?.dispose();
         }
+        if (child.userData.highPolyWireOverlay) {
+          child.userData.highPolyWireOverlay.material?.dispose();
+        }
+        if (child.userData.highPolyPureWireMat) child.userData.highPolyPureWireMat.dispose();
         if (child.userData.wireframeOccluderMat) child.userData.wireframeOccluderMat.dispose();
         if (child.userData.normalsMat) child.userData.normalsMat.dispose();
         if (child.userData.clayMat) child.userData.clayMat.dispose();
@@ -391,31 +420,78 @@ export default function Viewport3D({
           setMatPolygonOffset(child.material, isWireframeActive);
         }
 
-        // 2. Wireframe Line Geometry & Visibility
-        if (!child.userData.wireframeLine) {
-          try {
-            const wireGeom = new THREE.WireframeGeometry(child.geometry);
-            const lineMat = new THREE.LineBasicMaterial({
-              color: 0x38bdf8,
-              transparent: true,
-              opacity: 0.85,
-              depthTest: true,
-              depthWrite: false
-            });
-            const line = new THREE.LineSegments(wireGeom, lineMat);
-            line.renderOrder = 10;
-            child.add(line);
-            child.userData.wireframeLine = line;
-          } catch (e) {
-            console.warn('Failed to build wireframe geometry:', e);
-          }
-        }
+        // 2. Wireframe Line Geometry & Visibility (Adaptive High-Poly & Strictly On-Demand)
+        if (isWireframeActive) {
+          const triCount = child.geometry.index
+            ? child.geometry.index.count / 3
+            : (child.geometry.attributes?.position ? child.geometry.attributes.position.count / 3 : 0);
 
-        if (child.userData.wireframeLine) {
-          child.userData.wireframeLine.visible = isWireframeActive;
-          child.userData.wireframeLine.material.color.setHex(0x38bdf8);
-          child.userData.wireframeLine.material.opacity = isPureWireframe ? 0.95 : 0.8;
-          child.userData.wireframeLine.material.needsUpdate = true;
+          if (triCount > 300000) {
+            // High-poly optimization (>300k triangles, e.g. 2.4M Meshy FBX):
+            // Use WebGL native wireframe shader to avoid allocating millions of line vertices in JS memory!
+            if (isPureWireframe) {
+              if (!child.userData.highPolyPureWireMat) {
+                child.userData.highPolyPureWireMat = new THREE.MeshBasicMaterial({
+                  color: 0x38bdf8,
+                  wireframe: true
+                });
+              }
+              child.material = child.userData.highPolyPureWireMat;
+            } else {
+              if (!child.userData.highPolyWireOverlay) {
+                const wireMesh = new THREE.Mesh(
+                  child.geometry,
+                  new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.75,
+                    depthTest: true
+                  })
+                );
+                wireMesh.renderOrder = 10;
+                child.add(wireMesh);
+                child.userData.highPolyWireOverlay = wireMesh;
+              }
+              if (child.userData.highPolyWireOverlay) {
+                child.userData.highPolyWireOverlay.visible = true;
+              }
+            }
+          } else {
+            // Standard poly count: use clean WireframeGeometry line overlay
+            if (!child.userData.wireframeLine) {
+              try {
+                const wireGeom = new THREE.WireframeGeometry(child.geometry);
+                const lineMat = new THREE.LineBasicMaterial({
+                  color: 0x38bdf8,
+                  transparent: true,
+                  opacity: 0.85,
+                  depthTest: true,
+                  depthWrite: false
+                });
+                const line = new THREE.LineSegments(wireGeom, lineMat);
+                line.renderOrder = 10;
+                child.add(line);
+                child.userData.wireframeLine = line;
+              } catch (e) {
+                console.warn('Failed to build wireframe geometry:', e);
+              }
+            }
+            if (child.userData.wireframeLine) {
+              child.userData.wireframeLine.visible = true;
+              child.userData.wireframeLine.material.color.setHex(0x38bdf8);
+              child.userData.wireframeLine.material.opacity = isPureWireframe ? 0.95 : 0.8;
+              child.userData.wireframeLine.material.needsUpdate = true;
+            }
+          }
+        } else {
+          // Wireframe is disabled: turn off all wire overlays
+          if (child.userData.wireframeLine) {
+            child.userData.wireframeLine.visible = false;
+          }
+          if (child.userData.highPolyWireOverlay) {
+            child.userData.highPolyWireOverlay.visible = false;
+          }
         }
       }
     });
