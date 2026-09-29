@@ -2,8 +2,8 @@
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/rajhansgithub/CG_Artist_File_Browser_Tauri?include_prereleases&color=00e5ff&style=flat-square)](https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-blue?style=flat-square)](https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri)
+[![Release](https://img.shields.io/github/v/release/rajhansgithub/CG_Artist_File_Browser?include_prereleases&color=00e5ff&style=flat-square)](https://github.com/rajhansgithub/CG_Artist_File_Browser/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-blue?style=flat-square)](https://github.com/rajhansgithub/CG_Artist_File_Browser)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-r186-black?style=flat-square&logo=three.js)](https://threejs.org/)
@@ -82,7 +82,7 @@
 
 Pre-compiled standalone Windows executables and installers are published with every update on GitHub Releases.
 
-1. Navigate to the [Releases](https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/releases) page.
+1. Navigate to the [Releases](https://github.com/rajhansgithub/CG_Artist_File_Browser/releases) page.
 2. Download the latest release:
    - **`CG-Artist-File-Browser-Setup-*.exe`**: Full Windows installer with desktop shortcut and uninstaller.
    - **`CG-Artist-File-Browser-*-Portable.exe`**: Standalone portable executable (runs without installation).
@@ -101,8 +101,8 @@ Pre-compiled standalone Windows executables and installers are published with ev
 
 ```bash
 # Clone the repository
-git clone https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri.git
-cd CG_Artist_File_Browser_Tauri
+git clone https://github.com/rajhansgithub/CG_Artist_File_Browser.git
+cd CG_Artist_File_Browser
 
 # Install frontend dependencies
 npm install

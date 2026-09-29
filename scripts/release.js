@@ -105,8 +105,8 @@ try {
   execSync(`git push origin ${tag}`, { cwd: rootDir, stdio: 'inherit' });
 
   console.log(`\n🎉 Successfully pushed release ${tag} to GitHub!`);
-  console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/releases`);
-  console.log(`🔗 Action Runs: https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/actions\n`);
+  console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases`);
+  console.log(`🔗 Action Runs: https://github.com/rajhansgithub/CG_Artist_File_Browser/actions\n`);
 } catch (err) {
   console.error('Error during git push:', err);
   process.exit(1);

@@ -4,11 +4,11 @@
   "description": "High-Performance 3D & HDR/EXR File Browser and Inspector for CG & VFX Artists",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri.git"
+    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser.git"
   },
-  "homepage": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri#readme",
+  "homepage": "https://github.com/rajhansgithub/CG_Artist_File_Browser#readme",
   "bugs": {
-    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser_Tauri/issues"
+    "url": "https://github.com/rajhansgithub/CG_Artist_File_Browser/issues"
   },
   "main": "electron/main.js",
   "scripts": {
@@ -48,10 +48,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "CG Artist File Browser",
-      "artifactName": "CG-Artist-File-Browser-Setup-1.0.3.exe"
+      "artifactName": "CG-Artist-File-Browser-Setup-1.0.4.exe"
     },
     "portable": {
-      "artifactName": "CG-Artist-File-Browser-1.0.3-Portable.exe"
+      "artifactName": "CG-Artist-File-Browser-1.0.4-Portable.exe"
     }
   },
   "keywords": [
