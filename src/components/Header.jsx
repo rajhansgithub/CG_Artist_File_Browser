@@ -6,8 +6,6 @@ import {
   SunMedium,
   Image as ImageIcon,
   Grid,
-  Columns,
-  LayoutGrid,
   Star,
   Settings,
   FolderOpen,
@@ -230,39 +228,8 @@ export default function Header({
         </button>
       </div>
 
-      {/* View Mode & Utility Actions */}
+      {/* Utility Actions */}
       <div className="header-actions">
-        <button
-          className={`icon-btn ${viewMode === 'grid' ? 'active' : ''}`}
-          onClick={() => setViewMode('grid')}
-          title="Grid Gallery View"
-        >
-          <LayoutGrid size={14} />
-        </button>
-        <button
-          className={`icon-btn ${viewMode === 'studio3d' ? 'active' : ''}`}
-          onClick={() => setViewMode('studio3d')}
-          title="3D Model Studio"
-        >
-          <Box size={14} />
-        </button>
-        <button
-          className={`icon-btn ${viewMode === 'hdrexr' ? 'active' : ''}`}
-          onClick={() => setViewMode('hdrexr')}
-          title="HDR / EXR Studio Inspector"
-        >
-          <SunMedium size={14} />
-        </button>
-        <button
-          className={`icon-btn ${viewMode === 'compare' ? 'active' : ''}`}
-          onClick={() => setViewMode('compare')}
-          title="Image Comparison"
-        >
-          <Columns size={14} />
-        </button>
-
-        <div style={{ width: 1, height: 18, background: 'var(--border-subtle)', margin: '0 2px' }} />
-
         <button
           className="icon-btn"
           onClick={onOpenSettings}

@@ -1574,15 +1574,17 @@ select option {
 }
 
 .media-viewer-header {
-  height: 48px;
   min-height: 48px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 6px 16px;
   z-index: 20;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .media-viewport-stage {

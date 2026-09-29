@@ -7,6 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
+const cargoBin = path.join(process.env.USERPROFILE || 'C:\\Users\\RajhansMiniPC', '.cargo', 'bin');
+if (fs.existsSync(cargoBin) && !process.env.PATH.includes(cargoBin)) {
+  process.env.PATH = `${cargoBin};${process.env.PATH}`;
+}
+
 const targetVersion = process.argv[2];
 
 if (!targetVersion) {

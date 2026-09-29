@@ -15,9 +15,35 @@ import {
   Repeat,
   Sliders,
   Grid,
-  Film
+  Film,
+  SunMedium,
+  Layers
 } from 'lucide-react';
 import { formatBytes, formatDuration, formatTimecode } from '../utils/formatHelpers';
+
+// Color Matrix computation for Channel soloing (RGB, R, G, B, Alpha, Lum) and Exposure EV
+function getVideoColorMatrix(channel, exposure) {
+  const E = Math.pow(2, exposure);
+  switch (channel) {
+    case 'r':
+      return `${E} 0 0 0 0  ${E} 0 0 0 0  ${E} 0 0 0 0  0 0 0 0 1`;
+    case 'g':
+      return `0 ${E} 0 0 0  0 ${E} 0 0 0  0 ${E} 0 0 0  0 0 0 0 1`;
+    case 'b':
+      return `0 0 ${E} 0 0  0 0 ${E} 0 0  0 0 ${E} 0 0  0 0 0 0 1`;
+    case 'alpha':
+      return `0 0 0 ${E} 0  0 0 0 ${E} 0  0 0 0 ${E} 0  0 0 0 0 1`;
+    case 'lum': {
+      const r = (0.2126 * E).toFixed(4);
+      const g = (0.7152 * E).toFixed(4);
+      const b = (0.0722 * E).toFixed(4);
+      return `${r} ${g} ${b} 0 0  ${r} ${g} ${b} 0 0  ${r} ${g} ${b} 0 0  0 0 0 0 1`;
+    }
+    case 'rgb':
+    default:
+      return `${E} 0 0 0 0  0 ${E} 0 0 0  0 0 ${E} 0 0  0 0 0 1 0`;
+  }
+}
 
 export default function VideoPlayer({
   asset,
@@ -55,6 +81,24 @@ export default function VideoPlayer({
   // Video resolution metadata
   const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
 
+  // Viewport Fit mode: 'best', '1:1', 'width', 'height', 'fill', 'off' (default: 'best')
+  const [fitMode, setFitMode] = useState('best');
+
+  // Exposure control in EV (-7.0 to +7.0, default 0.0)
+  const [exposure, setExposure] = useState(0.0);
+  const [isEActive, setIsEActive] = useState(false);
+  const [isDraggingExposure, setIsDraggingExposure] = useState(false);
+
+  // Channel soloing: 'rgb', 'r', 'g', 'b', 'alpha', 'lum' (default: 'rgb')
+  const [activeChannel, setActiveChannel] = useState('rgb');
+
+  // Refs for drag & shortcut handling
+  const isEKeyPressedRef = useRef(false);
+  const isDraggingExposureRef = useRef(false);
+  const wasDraggingExposureRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const startExposureRef = useRef(0);
+
   // Filter video assets in current folder for playlist stepping
   const videoAssets = allFolderItems.filter(
     (item) => !item.isDirectory && item.category === 'video'
@@ -74,7 +118,40 @@ export default function VideoPlayer({
     setLoopIn(null);
     setLoopOut(null);
     setLoopEnabled(false);
+    setExposure(0);
+    setActiveChannel('rgb');
   }, [asset]);
+
+  // Global mousemove and mouseup listeners for interactive Exposure Drag (Hold E + Left-Click Drag)
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (isDraggingExposureRef.current) {
+        e.preventDefault();
+        const deltaX = e.clientX - dragStartXRef.current;
+        // ~140px horizontal movement per 1.0 EV change
+        const sensitivity = 0.007;
+        const newEv = Math.max(-7.0, Math.min(7.0, startExposureRef.current + deltaX * sensitivity));
+        setExposure(parseFloat(newEv.toFixed(2)));
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDraggingExposureRef.current) {
+        isDraggingExposureRef.current = false;
+        setIsDraggingExposure(false);
+        setTimeout(() => {
+          wasDraggingExposureRef.current = false;
+        }, 80);
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
 
   // Video event handlers
   const handleLoadedMetadata = () => {
@@ -187,12 +264,24 @@ export default function VideoPlayer({
       canvas.width = v.videoWidth || 1920;
       canvas.height = v.videoHeight || 1080;
       const ctx = canvas.getContext('2d');
+
+      // Apply SVG filter on snapshot if exposure or channel isolation is active
+      if (activeChannel !== 'rgb' || exposure !== 0) {
+        try {
+          ctx.filter = 'url(#video-color-filter)';
+        } catch {
+          ctx.filter = 'none';
+        }
+      }
+
       ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
 
       const frameNum = Math.round(currentTime * fps);
       const dataUrl = canvas.toDataURL('image/png');
       const baseName = asset?.name ? asset.name.replace(/\.[^/.]+$/, '') : 'video';
-      const defaultFilename = `${baseName}_frame_${frameNum}.png`;
+      const channelSuffix = activeChannel !== 'rgb' ? `_${activeChannel}` : '';
+      const expSuffix = exposure !== 0 ? `_ev${exposure >= 0 ? '+' : ''}${exposure.toFixed(1)}` : '';
+      const defaultFilename = `${baseName}_frame_${frameNum}${channelSuffix}${expSuffix}.png`;
 
       if (window.electronAPI?.saveImageFileDialog) {
         const res = await window.electronAPI.saveImageFileDialog(defaultFilename, dataUrl);
@@ -236,10 +325,58 @@ export default function VideoPlayer({
     }
   };
 
-  // Keyboard navigation
+  // Keyboard navigation & Shortcuts (Exposure hold E, Channel Soloing 1-6/C, Playback)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+      // E Key for Exposure interactive drag
+      if (e.key === 'e' || e.key === 'E') {
+        isEKeyPressedRef.current = true;
+        setIsEActive(true);
+      }
+
+      // If holding E, allow quick adjustments or reset
+      if (isEKeyPressedRef.current) {
+        if (e.key === '0') {
+          e.preventDefault();
+          setExposure(0);
+          return;
+        }
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setExposure((prev) => Math.min(7.0, parseFloat((prev + 0.5).toFixed(1))));
+          return;
+        }
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          setExposure((prev) => Math.max(-7.0, parseFloat((prev - 0.5).toFixed(1))));
+          return;
+        }
+      }
+
+      // Channel Soloing Shortcuts (when not holding E)
+      if (!isEKeyPressedRef.current) {
+        if (e.key === '1') {
+          setActiveChannel('rgb');
+        } else if (e.key === '2') {
+          setActiveChannel('r');
+        } else if (e.key === '3') {
+          setActiveChannel('g');
+        } else if (e.key === '4') {
+          setActiveChannel('b');
+        } else if (e.key === '5') {
+          setActiveChannel('alpha');
+        } else if (e.key === '6') {
+          setActiveChannel('lum');
+        } else if (e.key === 'c' || e.key === 'C') {
+          const channels = ['rgb', 'r', 'g', 'b', 'alpha', 'lum'];
+          setActiveChannel((prev) => {
+            const idx = channels.indexOf(prev);
+            return channels[(idx + 1) % channels.length];
+          });
+        }
+      }
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -289,9 +426,36 @@ export default function VideoPlayer({
       }
     };
 
+    const handleKeyUp = (e) => {
+      if (e.key === 'e' || e.key === 'E') {
+        isEKeyPressedRef.current = false;
+        setIsEActive(false);
+        if (isDraggingExposureRef.current) {
+          isDraggingExposureRef.current = false;
+          setIsDraggingExposure(false);
+          setTimeout(() => {
+            wasDraggingExposureRef.current = false;
+          }, 80);
+        }
+      }
+    };
+
+    const handleBlur = () => {
+      isEKeyPressedRef.current = false;
+      setIsEActive(false);
+      isDraggingExposureRef.current = false;
+      setIsDraggingExposure(false);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTime, duration, fps, loopEnabled, loopIn, loopOut, isFullscreen, currentIndex]);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [currentTime, duration, fps, loopEnabled, loopIn, loopOut, isFullscreen, currentIndex, activeChannel, exposure]);
 
   const currentFrame = Math.round(currentTime * fps);
   const totalFrames = Math.round(duration * fps);
@@ -300,8 +464,112 @@ export default function VideoPlayer({
   const inPercent = loopIn !== null && duration > 0 ? (loopIn / duration) * 100 : null;
   const outPercent = loopOut !== null && duration > 0 ? (loopOut / duration) * 100 : null;
 
+  // Color Matrix Filter string for Exposure & Channel Soloing
+  const colorMatrixValues = getVideoColorMatrix(activeChannel, exposure);
+  const filterStyle = (activeChannel !== 'rgb' || exposure !== 0)
+    ? 'url(#video-color-filter)'
+    : 'none';
+
+  // Interactive mouse handlers for E + Left Click Drag Exposure control
+  const handleStageMouseDown = (e) => {
+    if (e.button === 0 && isEKeyPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingExposureRef.current = true;
+      wasDraggingExposureRef.current = true;
+      dragStartXRef.current = e.clientX;
+      startExposureRef.current = exposure;
+      setIsDraggingExposure(true);
+    }
+  };
+
+  const handleStageClick = () => {
+    if (wasDraggingExposureRef.current || isEKeyPressedRef.current) {
+      wasDraggingExposureRef.current = false;
+      return;
+    }
+    togglePlay();
+  };
+
+  // Compute Video styles based on fitMode
+  const getVideoStyle = () => {
+    const base = {
+      filter: filterStyle,
+      transition: isDraggingExposure ? 'none' : 'filter 0.08s ease'
+    };
+
+    switch (fitMode) {
+      case '1:1':
+        return {
+          ...base,
+          width: videoDims.width > 0 ? `${videoDims.width}px` : 'auto',
+          height: videoDims.height > 0 ? `${videoDims.height}px` : 'auto',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          objectFit: 'none',
+          flexShrink: 0
+        };
+      case 'width':
+        return {
+          ...base,
+          width: '100%',
+          height: 'auto',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          objectFit: 'contain'
+        };
+      case 'height':
+        return {
+          ...base,
+          height: '100%',
+          width: 'auto',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          objectFit: 'contain'
+        };
+      case 'fill':
+        return {
+          ...base,
+          width: '100%',
+          height: '100%',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          objectFit: 'fill'
+        };
+      case 'off':
+        return {
+          ...base,
+          width: 'auto',
+          height: 'auto',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          objectFit: 'none',
+          flexShrink: 0
+        };
+      case 'best':
+      default:
+        return {
+          ...base,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          width: 'auto',
+          height: 'auto',
+          objectFit: 'contain'
+        };
+    }
+  };
+
   return (
     <div ref={containerRef} className="media-viewer-container">
+      {/* SVG Color Matrix Filter for Exposure & Channel Soloing */}
+      <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none', visibility: 'hidden' }}>
+        <defs>
+          <filter id="video-color-filter" colorInterpolationFilters="sRGB">
+            <feColorMatrix type="matrix" values={colorMatrixValues} />
+          </filter>
+        </defs>
+      </svg>
+
       {/* Top Header Bar */}
       <div className="media-viewer-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -331,9 +599,110 @@ export default function VideoPlayer({
         </div>
 
         {/* Header Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {/* Channel Soloing: RGB, R, G, B, Alpha, Lum */}
+          <div
+            style={{
+              display: 'flex',
+              background: 'var(--bg-tertiary)',
+              padding: 2,
+              borderRadius: 5,
+              border: '1px solid var(--border-subtle)',
+              height: 28
+            }}
+            title="Channel Soloing (Keys 1-6, C to cycle)"
+          >
+            {[
+              { id: 'rgb', label: 'RGB', title: 'Full RGB Color [1]' },
+              { id: 'r', label: 'R', title: 'Solo Red Channel [2]' },
+              { id: 'g', label: 'G', title: 'Solo Green Channel [3]' },
+              { id: 'b', label: 'B', title: 'Solo Blue Channel [4]' },
+              { id: 'alpha', label: 'Alpha', title: 'Solo Alpha Channel (Transparency Matte) [5]' },
+              { id: 'lum', label: 'Lum', title: 'Luminance Channel (Perceptual Grayscale) [6]' }
+            ].map((ch) => (
+              <button
+                key={ch.id}
+                className={`filter-btn ${activeChannel === ch.id ? 'active' : ''}`}
+                style={{
+                  height: 22,
+                  padding: '0 6px',
+                  fontSize: 10,
+                  fontWeight: activeChannel === ch.id ? 700 : 500
+                }}
+                onClick={() => setActiveChannel(ch.id)}
+                title={ch.title}
+              >
+                {ch.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Exposure Control */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              background: 'var(--bg-tertiary)',
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: exposure !== 0 ? '1px solid #f59e0b' : '1px solid var(--border-subtle)',
+              height: 28
+            }}
+            title="Exposure: Hold [E] + Left Click & Drag horizontally to adjust. Press 0 to reset."
+          >
+            <SunMedium size={12} color={exposure !== 0 ? '#f59e0b' : 'var(--text-muted)'} />
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: 'var(--font-mono)',
+                color: exposure !== 0 ? '#ffffff' : 'var(--text-secondary)',
+                minWidth: 46,
+                textAlign: 'center'
+              }}
+            >
+              {exposure >= 0 ? `+${exposure.toFixed(1)}` : exposure.toFixed(1)} EV
+            </span>
+            <input
+              type="range"
+              min="-5"
+              max="5"
+              step="0.1"
+              value={exposure}
+              onChange={(e) => setExposure(parseFloat(e.target.value))}
+              style={{ width: 50, height: 4, cursor: 'pointer' }}
+              title={`Exposure: ${exposure >= 0 ? '+' : ''}${exposure.toFixed(1)} EV`}
+            />
+            {exposure !== 0 && (
+              <button
+                className="icon-btn"
+                style={{ width: 18, height: 18, marginLeft: 1 }}
+                onClick={() => setExposure(0)}
+                title="Reset Exposure to 0.0 EV"
+              >
+                <RotateCcw size={10} />
+              </button>
+            )}
+          </div>
+
+          {/* Fit Mode Selector */}
+          <select
+            value={fitMode}
+            onChange={(e) => setFitMode(e.target.value)}
+            className="filter-btn"
+            style={{ height: 28, fontSize: 11 }}
+            title="Video Viewport Fit Mode"
+          >
+            <option value="best" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Best</option>
+            <option value="1:1" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: 1:1</option>
+            <option value="width" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Width</option>
+            <option value="height" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Height</option>
+            <option value="fill" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Fill</option>
+            <option value="off" style={{ color: '#000', backgroundColor: '#fff' }}>Fit: Off</option>
+          </select>
+
           {/* FPS Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border-subtle)', height: 28 }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>FPS:</span>
             <select
               value={fps}
@@ -406,11 +775,34 @@ export default function VideoPlayer({
       </div>
 
       {/* Main Video Viewport Stage */}
-      <div className="media-viewport-stage" onClick={togglePlay}>
+      <div
+        className="media-viewport-stage"
+        style={{
+          overflow: fitMode === 'best' || fitMode === 'fill' ? 'hidden' : 'auto',
+          cursor: isEActive || isDraggingExposure ? 'ew-resize' : 'pointer'
+        }}
+        onMouseDown={handleStageMouseDown}
+        onClick={handleStageClick}
+      >
+        {/* Subtle Checkerboard background for alpha transparency inspection (MOV with Alpha) */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: 0.25,
+            backgroundImage:
+              'linear-gradient(45deg, #202020 25%, transparent 25%), linear-gradient(-45deg, #202020 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #202020 75%), linear-gradient(-45deg, transparent 75%, #202020 75%)',
+            backgroundSize: '24px 24px',
+            backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0px',
+            pointerEvents: 'none'
+          }}
+        />
+
         <video
           ref={videoRef}
           src={streamUrl}
           className="video-element"
+          style={getVideoStyle()}
           crossOrigin="anonymous"
           preload="auto"
           onLoadedMetadata={handleLoadedMetadata}
@@ -447,6 +839,43 @@ export default function VideoPlayer({
           </div>
         )}
 
+        {/* Floating Exposure HUD when adjusting or holding E */}
+        {(isEActive || isDraggingExposure) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 24,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(12, 12, 12, 0.92)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.22)',
+              borderRadius: 8,
+              padding: '8px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              zIndex: 40,
+              pointerEvents: 'none',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SunMedium size={15} color="#f59e0b" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+                Exposure: {exposure >= 0 ? `+${exposure.toFixed(2)}` : exposure.toFixed(2)} EV
+              </span>
+              <span style={{ fontSize: 11, color: '#aaaaaa' }}>
+                ({Math.pow(2, exposure).toFixed(2)}×)
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+              Hold E + Drag Left/Right to Adjust • Press 0 to Reset
+            </div>
+          </div>
+        )}
+
         {/* Floating Quick Action Overlay on Hover */}
         <div
           className="video-stage-badge"
@@ -462,6 +891,30 @@ export default function VideoPlayer({
           {loopEnabled && (
             <span className="loop-indicator-badge">
               A-B LOOP ACTIVE ({loopIn !== null ? formatTimecode(loopIn, fps) : '0'} → {loopOut !== null ? formatTimecode(loopOut, fps) : 'End'})
+            </span>
+          )}
+          {activeChannel !== 'rgb' && (
+            <span
+              className="loop-indicator-badge"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.3)'
+              }}
+            >
+              CHANNEL: {activeChannel.toUpperCase()}
+            </span>
+          )}
+          {exposure !== 0 && (
+            <span
+              className="loop-indicator-badge"
+              style={{
+                background: 'rgba(245, 158, 11, 0.2)',
+                color: '#fbbf24',
+                border: '1px solid rgba(245, 158, 11, 0.4)'
+              }}
+            >
+              EXP: {exposure >= 0 ? `+${exposure.toFixed(2)}` : exposure.toFixed(2)} EV
             </span>
           )}
         </div>
