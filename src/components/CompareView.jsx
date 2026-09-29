@@ -21,8 +21,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { loadImageAsset } from '../utils/imageDecoder';
-import { formatBytes } from '../utils/formatHelpers';
-import Viewport3D from './Viewport3D';
+import { formatBytes, isComparableImage } from '../utils/formatHelpers';
 
 export default function CompareView({
   folderItems = [],
@@ -31,26 +30,36 @@ export default function CompareView({
   onClose,
   onRevealInExplorer
 }) {
-  // All non-directory items eligible for comparison
-  const eligibleItems = (folderItems || []).filter((i) => !i.isDirectory);
+  // All non-directory items eligible for image comparison (excludes HDR/EXR, 3D, Video, Audio)
+  const eligibleItems = (folderItems || []).filter(isComparableImage);
 
-  // Asset selection state
-  const [assetA, setAssetA] = useState(
-    initialAssetA || eligibleItems[0] || null
-  );
-  const [assetB, setAssetB] = useState(
-    initialAssetB || (eligibleItems.length > 1 ? eligibleItems[1] : eligibleItems[0]) || null
-  );
-
-  useEffect(() => {
-    if (initialAssetA) setAssetA(initialAssetA);
-  }, [initialAssetA?.path]);
+  // Asset selection state - only pick valid 2D comparable images
+  const [assetA, setAssetA] = useState(() => {
+    if (initialAssetA && isComparableImage(initialAssetA)) return initialAssetA;
+    return eligibleItems[0] || null;
+  });
+  const [assetB, setAssetB] = useState(() => {
+    if (initialAssetB && isComparableImage(initialAssetB)) return initialAssetB;
+    return eligibleItems.length > 1 ? eligibleItems[1] : (eligibleItems[0] || null);
+  });
 
   useEffect(() => {
-    if (initialAssetB) setAssetB(initialAssetB);
-  }, [initialAssetB?.path]);
+    if (initialAssetA && isComparableImage(initialAssetA)) {
+      setAssetA(initialAssetA);
+    } else if (!assetA && eligibleItems.length > 0) {
+      setAssetA(eligibleItems[0]);
+    }
+  }, [initialAssetA?.path, eligibleItems]);
 
-  // Comparison mode: 'wipe' (iCAT Wipe Slider), 'split' (Side-by-Side), 'toggle' (A/B Flicker), 'diff' (Difference Map)
+  useEffect(() => {
+    if (initialAssetB && isComparableImage(initialAssetB)) {
+      setAssetB(initialAssetB);
+    } else if (!assetB && eligibleItems.length > 1) {
+      setAssetB(eligibleItems[1]);
+    }
+  }, [initialAssetB?.path, eligibleItems]);
+
+  // Comparison mode: 'wipe' (Split-Screen Wipe Slider), 'split' (Side-by-Side), 'toggle' (A/B Flicker), 'diff' (Difference Map)
   const [compareMode, setCompareMode] = useState('wipe');
 
   // Zoom and Pan state
@@ -114,10 +123,6 @@ export default function CompareView({
       setDataA(null);
       return;
     }
-    if (assetA.category === '3d') {
-      setDataA({ is3D: true, width: 0, height: 0 });
-      return;
-    }
 
     let isMounted = true;
     setLoadingA(true);
@@ -137,10 +142,6 @@ export default function CompareView({
   useEffect(() => {
     if (!assetB) {
       setDataB(null);
-      return;
-    }
-    if (assetB.category === '3d') {
-      setDataB({ is3D: true, width: 0, height: 0 });
       return;
     }
 
@@ -248,8 +249,7 @@ export default function CompareView({
   };
 
   // Compute scale and position for Image A and Image B
-  const isBoth3D = assetA?.category === '3d' && assetB?.category === '3d';
-  const hasImages = !isBoth3D && dataA?.url && dataB?.url;
+  const hasImages = Boolean(dataA?.url && dataB?.url);
 
   // Viewport dimensions
   const vpWidth = compareMode === 'split' ? containerSize.width / 2 : containerSize.width;
@@ -305,7 +305,7 @@ export default function CompareView({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* ─── TOP CONTROL BAR (NVIDIA iCAT WORKSTATION HEADER) ─── */}
+      {/* ─── TOP CONTROL BAR (IMAGE COMPARISON HEADER) ─── */}
       <div
         style={{
           minHeight: 52,
@@ -337,7 +337,7 @@ export default function CompareView({
             <Split size={14} color="#ffffff" />
           </div>
           <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', color: '#eeeeee' }}>
-            iCAT IMAGE COMPARISON
+            IMAGE COMPARISON
           </span>
         </div>
 
@@ -496,7 +496,7 @@ export default function CompareView({
             className={`filter-btn ${compareMode === 'wipe' ? 'active' : ''}`}
             style={{ height: 26, fontSize: 11, padding: '0 8px' }}
             onClick={() => setCompareMode('wipe')}
-            title="NVIDIA iCAT Wipe Slider (Split-Screen Drag Handle) [Key 1]"
+            title="Split-Screen Wipe Slider (Drag Handle) [Key 1]"
           >
             <Split size={12} style={{ marginRight: 4 }} />
             Wipe
@@ -611,24 +611,38 @@ export default function CompareView({
         </div>
       </div>
 
-      {/* ─── DUAL 3D MODEL FALLBACK ─── */}
-      {isBoth3D ? (
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#222222' }}>
-          <div style={{ position: 'relative', background: '#0a0a0a', overflow: 'hidden' }}>
-            <div className="compare-badge-overlay" style={{ top: 12, left: 12 }}>
-              [A] {assetA?.name}
-            </div>
-            <Viewport3D asset={assetA} onRevealInExplorer={onRevealInExplorer} />
-          </div>
-          <div style={{ position: 'relative', background: '#0a0a0a', overflow: 'hidden' }}>
-            <div className="compare-badge-overlay" style={{ top: 12, left: 12 }}>
-              [B] {assetB?.name}
-            </div>
-            <Viewport3D asset={assetB} onRevealInExplorer={onRevealInExplorer} />
-          </div>
+      {/* ─── MAIN IMAGE COMPARISON VIEWPORT OR EMPTY STATE ─── */}
+      {eligibleItems.length === 0 ? (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#888888',
+            gap: 12,
+            background: '#0a0a0a',
+            padding: 24
+          }}
+        >
+          <ImageIcon size={48} color="#555555" />
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#cccccc' }}>
+            No Comparable Images in This Folder
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              maxWidth: 460,
+              textAlign: 'center',
+              color: '#777777',
+              lineHeight: 1.5
+            }}
+          >
+            Image Comparison supports standard 2D image and texture formats (PNG, JPG, WebP, TIF, TGA, DDS, PSD, BMP). 360° HDR and EXR skybox maps are inspected in the dedicated HDR/EXR Studio Inspector.
+          </span>
         </div>
       ) : (
-        /* ─── MAIN IMAGE COMPARISON VIEWPORT ─── */
         <div
           ref={containerRef}
           style={{
@@ -655,7 +669,7 @@ export default function CompareView({
             }}
           />
 
-          {/* ═════════════════ MODE 1: WIPE SLIDER (iCAT SIGNATURE) ═════════════════ */}
+          {/* ═════════════════ MODE 1: SPLIT WIPE SLIDER ═════════════════ */}
           {compareMode === 'wipe' && hasImages && (
             <>
               {/* Layer B (Right side of wipe) */}

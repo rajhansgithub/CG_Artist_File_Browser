@@ -13,7 +13,7 @@ import {
   Film,
   Music
 } from 'lucide-react';
-import { formatBytes, formatDate, getFileBadgeClass } from '../utils/formatHelpers';
+import { formatBytes, formatDate, getFileBadgeClass, isComparableImage } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail } from '../utils/thumbnailService';
 
 function AssetCard({
@@ -146,12 +146,12 @@ function AssetCard({
       <div className="card-preview">
         <span className={`card-badge ${badgeClass}`}>{ext || 'FILE'}</span>
 
-        {compareAssetA?.path === item.path && (
+        {isComparableImage(item) && compareAssetA?.path === item.path && (
           <span className="slot-badge-card slot-badge-a" style={{ left: 50 }}>
             SLOT A
           </span>
         )}
-        {compareAssetB?.path === item.path && (
+        {isComparableImage(item) && compareAssetB?.path === item.path && (
           <span className="slot-badge-card slot-badge-b" style={{ left: 50 }}>
             SLOT B
           </span>
@@ -286,7 +286,7 @@ function AssetCard({
           >
             <Eye size={12} />
           </button>
-          {!item.isDirectory && (
+          {isComparableImage(item) && (
             <>
               <button
                 className={`icon-btn ${compareAssetA?.path === item.path ? 'active' : ''}`}
@@ -303,7 +303,7 @@ function AssetCard({
                   e.stopPropagation();
                   if (onSetCompareA) onSetCompareA(item);
                 }}
-                title={compareAssetA?.path === item.path ? 'Assigned as Image A' : 'Set as Image A (iCAT Compare)'}
+                title={compareAssetA?.path === item.path ? 'Assigned as Image A' : 'Set as Image A (Image Comparison)'}
               >
                 A
               </button>
@@ -322,7 +322,7 @@ function AssetCard({
                   e.stopPropagation();
                   if (onSetCompareB) onSetCompareB(item);
                 }}
-                title={compareAssetB?.path === item.path ? 'Assigned as Image B' : 'Set as Image B (iCAT Compare)'}
+                title={compareAssetB?.path === item.path ? 'Assigned as Image B' : 'Set as Image B (Image Comparison)'}
               >
                 B
               </button>

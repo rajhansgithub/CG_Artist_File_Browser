@@ -17,7 +17,8 @@ import {
   isImageFormat,
   isTextureFormat,
   isVideoFormat,
-  isAudioFormat
+  isAudioFormat,
+  isComparableImage
 } from './utils/formatHelpers';
 import { ChevronRight, Folder, FolderOpen, ArrowLeft, ArrowLeftRight, Split } from 'lucide-react';
 
@@ -253,11 +254,15 @@ export default function App() {
   };
 
   const handleSetCompareA = (item) => {
-    setCompareAssetA(item);
+    if (isComparableImage(item)) {
+      setCompareAssetA(item);
+    }
   };
 
   const handleSetCompareB = (item) => {
-    setCompareAssetB(item);
+    if (isComparableImage(item)) {
+      setCompareAssetB(item);
+    }
   };
 
   const handleSwapCompareSlots = () => {
@@ -272,6 +277,7 @@ export default function App() {
   };
 
   const handleAddToCompare = (item) => {
+    if (!isComparableImage(item)) return;
     if (!compareAssetA) {
       setCompareAssetA(item);
     } else if (!compareAssetB) {
@@ -381,12 +387,9 @@ export default function App() {
       });
     }
 
-    // Case 2: Two files dropped simultaneously -> launch compare view directly if both are visual images/HDRs
+    // Case 2: Two files dropped simultaneously -> launch compare view directly if both are comparable images
     if (resolvedItems.length >= 2) {
-      const isACompatible = ['image', 'texture', 'hdr'].includes(resolvedItems[0].category);
-      const isBCompatible = ['image', 'texture', 'hdr'].includes(resolvedItems[1].category);
-
-      if (isACompatible && isBCompatible) {
+      if (isComparableImage(resolvedItems[0]) && isComparableImage(resolvedItems[1])) {
         setCompareAssetA(resolvedItems[0]);
         setCompareAssetB(resolvedItems[1]);
         setViewMode('compare');
@@ -394,9 +397,9 @@ export default function App() {
       }
     }
 
-    // Case 3: Dropped in Compare view - Slot targeting for images/HDRs
+    // Case 3: Dropped in Compare view - Slot targeting for comparable images only
     if (viewModeRef.current === 'compare') {
-      if (['image', 'texture', 'hdr'].includes(firstItem.category)) {
+      if (isComparableImage(firstItem)) {
         if (slot === 'B') {
           setCompareAssetB(firstItem);
         } else if (slot === 'A') {
@@ -411,7 +414,7 @@ export default function App() {
         }
         return;
       }
-      // If a 3D model, video, or audio is dropped in compare mode, seamlessly switch below!
+      // If a non-image file (e.g. 3D model, HDR/EXR, video, audio) is dropped in compare mode, seamlessly switch below!
     }
 
     // Smart Auto-Switching: regardless of current viewer (3D, HDR, Image, Video, Audio, Grid),
@@ -751,7 +754,7 @@ export default function App() {
                   if (data) {
                     try {
                       const item = JSON.parse(data);
-                      if (item) setCompareAssetA(item);
+                      if (item && isComparableImage(item)) setCompareAssetA(item);
                     } catch (_) {}
                   }
                 }}
@@ -793,7 +796,7 @@ export default function App() {
                   if (data) {
                     try {
                       const item = JSON.parse(data);
-                      if (item) setCompareAssetB(item);
+                      if (item && isComparableImage(item)) setCompareAssetB(item);
                     } catch (_) {}
                   }
                 }}
@@ -816,10 +819,10 @@ export default function App() {
               <button
                 className="dock-launch-btn"
                 onClick={() => setViewMode('compare')}
-                title="Launch iCAT Comparison Tool"
+                title="Launch Image Comparison"
               >
                 <Split size={14} />
-                <span>Compare A & B</span>
+                <span>Compare Images</span>
               </button>
 
               <button
@@ -882,8 +885,8 @@ export default function App() {
           {viewMode === 'compare' && (
             <CompareView
               folderItems={folderItems}
-              initialAssetA={compareAssetA || selectedAsset}
-              initialAssetB={compareAssetB}
+              initialAssetA={isComparableImage(compareAssetA) ? compareAssetA : (isComparableImage(selectedAsset) ? selectedAsset : null)}
+              initialAssetB={isComparableImage(compareAssetB) ? compareAssetB : null}
               onClose={() => setViewMode('grid')}
               onRevealInExplorer={handleRevealInExplorer}
             />

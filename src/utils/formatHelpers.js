@@ -55,6 +55,13 @@ export function isTextureFormat(ext) {
   return ['.tif', '.tiff', '.tga', '.dds', '.psd'].includes(e);
 }
 
+// Strictly 2D image and texture files eligible for Image Comparison (excludes 360 skybox HDR/EXR)
+export function isComparableImage(item) {
+  if (!item || item.isDirectory) return false;
+  const ext = (item.extension || (item.name && item.name.includes('.') ? item.name.slice(item.name.lastIndexOf('.')) : '')).toLowerCase();
+  return (isImageFormat(ext) || isTextureFormat(ext)) && !isHdrFormat(ext);
+}
+
 export function isVideoFormat(ext) {
   const e = (ext || '').toLowerCase();
   return ['.mp4', '.webm', '.mov', '.mkv', '.avi'].includes(e);

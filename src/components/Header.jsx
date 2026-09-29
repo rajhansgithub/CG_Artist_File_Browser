@@ -198,7 +198,7 @@ export default function Header({
         <button
           className={`icon-btn ${viewMode === 'compare' ? 'active' : ''}`}
           onClick={() => setViewMode('compare')}
-          title="Side-by-Side Comparison"
+          title="Image Comparison"
         >
           <Columns size={14} />
         </button>
