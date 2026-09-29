@@ -1,6 +1,6 @@
 [package]
 name = "cg-artist-file-browser"
-version = "1.0.5"
+version = "1.0.6"
 description = "High-Performance 3D & HDR/EXR File Browser for CG Artists"
 authors = ["Antigravity"]
 license = "MIT"
