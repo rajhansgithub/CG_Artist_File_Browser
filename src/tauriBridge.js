@@ -75,6 +75,10 @@ export function setupTauriBridge() {
 
     readFileBuffer: async (filePath) => {
       const bytes = await invoke('read_file_buffer', { filePath });
+      // Raw ipc::Response arrives as an ArrayBuffer (no JSON array round trip)
+      if (bytes instanceof ArrayBuffer) {
+        return bytes;
+      }
       if (bytes instanceof Uint8Array) {
         return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       }

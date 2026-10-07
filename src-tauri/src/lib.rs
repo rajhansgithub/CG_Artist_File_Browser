@@ -385,9 +385,16 @@ fn get_item_details(target_path: String) -> Result<FileItem, String> {
 }
 
 // IPC: Read binary buffer (fast byte transfer)
+// Returned as a raw ipc::Response so the webview receives an ArrayBuffer directly.
+// A plain Vec<u8> would be serialised as a JSON array of numbers (several times larger and slow to parse).
+// Async + spawn_blocking keeps the disk read off the main thread.
 #[tauri::command]
-fn read_file_buffer(file_path: String) -> Result<Vec<u8>, String> {
-    fs::read(&file_path).map_err(|e| e.to_string())
+async fn read_file_buffer(file_path: String) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || fs::read(&file_path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| e.to_string())
 }
 
 // IPC: Show in folder / explorer
