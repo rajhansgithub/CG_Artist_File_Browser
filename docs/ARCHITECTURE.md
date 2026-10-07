@@ -291,13 +291,38 @@ git remote -v
 git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browser.git
 ```
 
+### 🏷️ Release Versioning Rules (SemVer Standard)
+
+All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version:
+
+| Release Type | Next Version Example (from v1.0.10) | Criteria & Rules |
+| :--- | :--- | :--- |
+| **Patch Release** *(Most common next step)* | `v1.0.11` | Bug fixes, small UI adjustments, dependency updates, and maintenance. |
+| **Minor Release** *(Feature milestone)* | `v1.1.0` | Introducing new features or significant enhancements (e.g. implementing items from [`docs/ROADMAP.md`](ROADMAP.md) like USD hierarchy inspection, image sequence playback, or batch converter). |
+| **Major Release** | `v2.0.0` | Complete overhaul or breaking changes in workflow/architecture. |
+
+> [!IMPORTANT]
+> **Why `v1.0.11` and NOT `v1.0.1` or `v1.1`?**
+> Software version numbers are **dot-separated integers**, not decimal numbers:
+> - The `10` is an integer representing the 10th patch.
+> - Incrementing `10` produces `11`, which makes the next patch **`1.0.11`** (followed by `1.0.12`, `1.0.13`, etc.).
+> - It does **not** roll over to `1.0.1` (which was an earlier release) or jump to `1.1.0` unless new features are added.
+
+### 🤖 Guidelines for AI Assistants (Antigravity & Claude Code)
+When performing development tasks, versioning, builds, or refactoring in this repository:
+1. **Root Directory Hygiene**: Only `README.md` and `LICENSE` belong in the root directory. All architecture docs, specifications, and roadmaps must be placed under `docs/`.
+2. **Version Bump Rule**: Check current version in `package.json`. If making fixes/chores, increment the patch (`1.0.10` → `1.0.11`). If implementing new feature sets from `docs/ROADMAP.md`, bump the minor (`1.0.10` → `1.1.0`).
+3. **Build Verification**: Always verify both the frontend (`npm run build`) and the Rust backend (`cargo check --manifest-path src-tauri/Cargo.toml`) before tagging or releasing.
+4. **Automated Release**: Always use `npm run release <version>` (e.g., `npm run release 1.0.11`) to ensure `package.json`, `tauri.conf.json`, `Cargo.toml`, and Git tags remain 100% synchronized.
+
 ### Releasing a New Version (`scripts/release.js`)
 To bump version, build production binaries, organize the `release/` folder, create Git tags, and trigger GitHub Releases:
 ```bash
-npm run release <version>
-
-# Example:
+# For a patch release:
 npm run release 1.0.11
+
+# For a feature milestone:
+npm run release 1.1.0
 ```
 
 **What this automated script does**:

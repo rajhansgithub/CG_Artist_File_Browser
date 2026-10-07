@@ -123,16 +123,14 @@ Compiled output will be placed in `src-tauri/target/release/bundle/nsis/`.
 
 ## 🗺️ Incremental Versioning Roadmap
 
-We follow an iterative release cadence with standalone testable builds for each milestone:
+We follow an iterative release cadence with standalone testable builds for each milestone adhering to [Semantic Versioning rules](docs/ARCHITECTURE.md#-release-versioning-rules-semver-standard):
 
 - [x] **v1.0.0-beta**: Initial Tauri v2 desktop release. Full native drag & drop integration, 3D Studio, 32-bit float HDR/EXR inspector, and iCAT comparison dock.
-- [ ] **v1.0.1**: Enhanced EXR multilayer pass selector and custom LUT support.
-- [ ] **v1.0.2**: Deep search with regex, tag-based asset filtering, and bookmarking.
-- [ ] **v1.0.3**: PBR texture set auto-detection (`_BaseColor`, `_Normal`, `_Roughness`, `_Metallic`) and multi-channel preview.
 - [x] **v1.0.8**: Viewport wireframe overhaul, dynamic polygonOffset, USD/Alembic embedded converter, and performance tuning.
 - [x] **v1.0.9**: Multi-threaded folder indexing (Rayon), native Rust thumbnail pipeline (HDR, EXR, TIFF, TGA, PNG, JPEG, WebP, BMP), raw IPC ArrayBuffer streaming, and Hold-E exposure EV grading in HDR/EXR inspector.
 - [x] **v1.0.10**: Seamless viewport lifecycle management — auto-closes any open asset viewer when navigating to folders from sidebar, pinned favorites, drives, or breadcrumbs.
-- [ ] **v1.1.0**: Stable milestone release.
+- [ ] **v1.0.11**: Next patch release (bug fixes, small UI adjustments, dependency updates, and maintenance).
+- [ ] **v1.1.0**: Next feature milestone release (features from [`docs/ROADMAP.md`](docs/ROADMAP.md) like USD hierarchy inspection, image sequence playback, batch converter).
 
 ---
 

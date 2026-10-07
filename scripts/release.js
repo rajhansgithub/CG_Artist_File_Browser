@@ -19,8 +19,12 @@ if (fs.existsSync(nodeBin) && !process.env.PATH.includes(nodeBin)) {
 const targetVersion = process.argv[2];
 
 if (!targetVersion) {
-  console.error('Usage: node scripts/release.js <version>');
-  console.error('Example: node scripts/release.js 1.0.1');
+  console.error('Usage: npm run release <version>');
+  console.error('\nRelease Versioning Rules (SemVer MAJOR.MINOR.PATCH):');
+  console.error('  Patch (bug fixes, maintenance):       npm run release 1.0.11');
+  console.error('  Minor (new features from ROADMAP.md):  npm run release 1.1.0');
+  console.error('  Major (architectural overhaul):       npm run release 2.0.0');
+  console.error('\nNote: v1.0.10 is followed by v1.0.11 (dot-separated integers, not decimals).\n');
   process.exit(1);
 }
 
