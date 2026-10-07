@@ -188,6 +188,8 @@ export default function App() {
       return;
     }
 
+    // Opening a folder from anywhere (sidebar, pinned, drives, breadcrumbs) closes any open viewer
+    setViewMode('grid');
     setIsLoadingDir(true);
     const res = await window.electronAPI.readDirectory(targetPath, {
       filter: filterType === 'all' ? 'all' : filterType,
