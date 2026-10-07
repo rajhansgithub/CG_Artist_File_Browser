@@ -87,11 +87,11 @@ jobs:
             ---
 
             ### ✨ What's New in this Release:
-            - **High-Poly Viewport Optimization**: Render-on-demand, cached shadow maps, and native WebGL wireframe shader handling 2M+ triangle meshes smoothly.
-            - **USD / USDA / USDC / USDZ 3D File Support**: Embedded background Blender conversion script directly into the native binary, eliminating missing script errors on all machines.
-            - **Multi-layer EXR Beauty Thumbnails**: Multi-layer EXR and multi-pass AOV files now auto-detect and render their Beauty / Combined pass thumbnails in the file grid.
-            - **3D Viewport Wireframe Fixed**: Completely overhauled wireframe rendering with full topology `WireframeGeometry`, dynamic `polygonOffset` on base materials to eliminate Z-fighting, and high-contrast cyan lines.
-            - **Native Drag & Drop & Snapshot Export**: Fully functional native drag & drop and PNG snapshot saving across all viewports.
+            - **Native PDF Document Support**: Browse, search, filter, and inspect PDF files alongside 3D, HDR, and image assets.
+            - **First-Page PDF Thumbnails**: Fast background rendering of first-page PDF previews cached to disk for instant grid browsing.
+            - **Virtualized Multi-Page PDF Viewer**: High-performance continuous vertical reader with virtualized offscreen canvas disposal keeping RAM usage minimal even on 50+ page documents.
+            - **Interactive PDF Controls**: Page Down / Page Up navigation, page jump box (n / total pages), Ctrl+wheel zoom, Fit Width (Ctrl+0), Fit Page (F), 90° clockwise rotation (R), drag-to-pan, and Esc dismiss.
+            - **Dedicated PDF Category Filter**: Quick filter toggle in the header navigation bar.
           releaseDraft: false
           prerelease: false
 
