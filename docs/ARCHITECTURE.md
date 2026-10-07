@@ -1,4 +1,4 @@
-# CG Artist File Browser — Project Architecture & Starter Blueprint
+# CG Artist File Browser — Architecture & Setup
 
 > **Master Reference & Developer Blueprint**  
 > This document preserves the complete architectural design, IPC bridging, native performance pipelines, and build/release workflows for **CG Artist File Browser**. Use this guide to understand the entire codebase, onboard new developers or AI agents (Claude Code, Antigravity), or spin up a new high-performance desktop application without starting from scratch.
@@ -70,7 +70,7 @@ The application follows a clean separation between the **React UI** and the **Ru
 ```
 
 ### The Bridge Pattern (`src/tauriBridge.js`)
-To maintain complete component compatibility across frontend modules, [`src/tauriBridge.js`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/tauriBridge.js) exposes `window.electronAPI`:
+To maintain complete component compatibility across frontend modules, [`src/tauriBridge.js`](../src/tauriBridge.js) exposes `window.electronAPI`:
 - Calls `invoke('command_name', { args })` under the hood.
 - Shims `@tauri-apps/plugin-dialog` (`openFolderDialog`, `saveImageFileDialog`).
 - Bridges Tauri Webview native OS drag-and-drop events (`webview.onDragDropEvent`).
@@ -80,7 +80,7 @@ To maintain complete component compatibility across frontend modules, [`src/taur
 
 ## 3. Rust Native Backend & IPC Command Map
 
-The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src-tauri/src/lib.rs) and registered via `tauri::generate_handler!`:
+The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) and registered via `tauri::generate_handler!`:
 
 | IPC Command | Arguments | Returns | Description |
 | :--- | :--- | :--- | :--- |
@@ -109,7 +109,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_P
 - **Solution**: `read_file_buffer` returns `Vec<u8>`, which Tauri streams directly as binary memory. In `src/tauriBridge.js`, it is sliced directly into `ArrayBuffer` without deserialization overhead.
 
 ### Pillar 2: Multi-Threaded Parallel Directory Indexing
-- **Implementation**: [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src-tauri/src/lib.rs)
+- **Implementation**: [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - Uses `std::fs::read_dir` combined with metadata caching.
 - Skips expensive per-file `stat` calls where directory entry metadata is already available.
 - Ignores system hidden folders (`$RECYCLE.BIN`, `System Volume Information`, `node_modules`).
@@ -129,7 +129,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_P
 
 ## 5. Frontend Workspaces & Creative DCC Features
 
-### 🧊 3D Studio Viewport ([`src/components/Viewport3D.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/Viewport3D.jsx))
+### 🧊 3D Studio Viewport ([`src/components/Viewport3D.jsx`](../src/components/Viewport3D.jsx))
 - **Supported 3D Formats**: `.obj`, `.fbx`, `.gltf`, `.glb`, `.stl`, `.ply`, `.usd`, `.usda`, `.usdc`, `.usdz`, `.abc`.
 - **Shading Modes**:
   - Lit PBR (Studio 3-point, neutral diffuse, sunset rim, high-contrast key)
@@ -138,7 +138,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_P
   - Full Wireframe & Optimized Wireframe Overlay (uses pre-allocated typed arrays for fast line segments without V8 heap spikes)
 - **Features**: Turntable 360° spin, skeletal animation playback, real-time vertex/triangle/mesh statistics, bounding box framing.
 
-### 🌅 32-Bit Float HDR & EXR Inspector ([`src/components/HdrExrInspector.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/HdrExrInspector.jsx))
+### 🌅 32-Bit Float HDR & EXR Inspector ([`src/components/HdrExrInspector.jsx`](../src/components/HdrExrInspector.jsx))
 - **Equirectangular Skybox & Flat Viewer**: Interactive spherical environment preview.
 - **Exposure (EV) Controls**: Real-time slider from EV -60 to +60.
 - **Hold-E Interactive EV Drag**: Hold **`E`** and drag mouse left/right to adjust exposure interactively (like professional DCCs). Keys `+`/`-` step by 0.5 EV, `0` resets.
@@ -146,7 +146,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_P
 - **Precision Color Eyedropper**: Inspects raw 32-bit linear floating-point RGB, normalized hex, and luminance per pixel.
 - **RGB Channel Soloing**: Isolate Red, Green, Blue, Alpha, or Luminance channels on the fly.
 
-### ⚖️ NVIDIA iCAT-Style Image Comparison ([`src/components/CompareView.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/CompareView.jsx))
+### ⚖️ NVIDIA iCAT-Style Image Comparison ([`src/components/CompareView.jsx`](../src/components/CompareView.jsx))
 - Side-by-side dual viewport (Slot A vs Slot B).
 - Split-screen interactive wipe curtain.
 - Difference blend mode with gain multiplier.
@@ -154,15 +154,15 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](file:///D:/ANTIGRAVITY_P
 - Synchronized pan and zoom.
 
 ### 🎬 Media Review Players
-- **Video Player ([`src/components/VideoPlayer.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
-- **Audio Player ([`src/components/AudioPlayer.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
-- **Image Viewer ([`src/components/ImageViewer.jsx`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
+- **Video Player ([`src/components/VideoPlayer.jsx`](../src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
+- **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
+- **Image Viewer ([`src/components/ImageViewer.jsx`](../src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
 
 ---
 
 ## 6. External Integrations (Blender Headless Engine)
 
-The background conversion script ([`scripts/blender_convert.py`](file:///D:/ANTIGRAVITY_PROJECTS/Local_WebFileBrowser_Tauri/scripts/blender_convert.py)) is embedded directly into the Rust binary at compile-time:
+The background conversion script ([`scripts/blender_convert.py`](../scripts/blender_convert.py)) is embedded directly into the Rust binary at compile-time:
 ```rust
 const BLENDER_CONVERT_SCRIPT: &str = include_str!("../../scripts/blender_convert.py");
 ```
@@ -184,6 +184,9 @@ Local_WebFileBrowser_Tauri/
 │   └── workflows/
 │       ├── ci.yml                 # Cargo check & lint verification
 │       └── release.yml            # Automated GitHub release build on tag push (v*)
+├── docs/
+│   ├── ARCHITECTURE.md            # This document
+│   └── ROADMAP.md                 # Feature ideas and prioritized roadmap
 ├── release/                       # Output folder for compiled .exe and installers
 ├── scripts/
 │   ├── blender_convert.py         # Headless Blender 3D conversion & render script
@@ -220,10 +223,9 @@ Local_WebFileBrowser_Tauri/
 │   │   └── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)
 │   └── tauri.conf.json            # Window dimensions, bundle targets, asset protocol
-├── GITHUB.md                      # Official repository reference and remote config
 ├── package.json                   # Pure Tauri scripts and dependencies
 ├── vite.config.mjs                # Vite build configuration
-└── README.md                      # Public documentation and roadmap
+└── README.md                      # Public documentation and versioned roadmap
 ```
 
 ---
@@ -271,8 +273,11 @@ When `npm run tauri:build` completes:
 ## 9. Git Repository Configuration & Release Automation
 
 ### Canonical Repository
-- **Official URL**: `https://github.com/rajhansgithub/CG_Artist_File_Browser.git`
-- **Releases**: `https://github.com/rajhansgithub/CG_Artist_File_Browser/releases`
+- **Repository**: `rajhansgithub/CG_Artist_File_Browser` (primary branch `main`; previously named `CG_Artist_File_Browser_Tauri`)
+- **Clone (HTTPS)**: `https://github.com/rajhansgithub/CG_Artist_File_Browser.git`
+- **Releases**: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases
+- **Actions (CI/CD)**: https://github.com/rajhansgithub/CG_Artist_File_Browser/actions
+- **Issues**: https://github.com/rajhansgithub/CG_Artist_File_Browser/issues
 
 ### Verifying Git Remote
 Always ensure your local repository's `origin` points to the canonical repo:
@@ -281,6 +286,9 @@ git remote -v
 # Output should be:
 # origin  https://github.com/rajhansgithub/CG_Artist_File_Browser.git (fetch)
 # origin  https://github.com/rajhansgithub/CG_Artist_File_Browser.git (push)
+
+# If the remote needs to be updated:
+git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browser.git
 ```
 
 ### Releasing a New Version (`scripts/release.js`)

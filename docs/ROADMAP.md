@@ -1,4 +1,4 @@
-# CG Artist File Browser — Recommended Feature List
+# CG Artist File Browser — Roadmap & Feature Ideas
 
 This document outlines proposed new features, user interface enhancements, and pipeline integrations designed specifically for CG, 3D, and VFX studio workflows.
 
@@ -23,7 +23,7 @@ This document outlines proposed new features, user interface enhancements, and p
 ### 1.1 Native Drag-and-Drop into External DCCs (Blender, Maya, Unreal, Photoshop)
 - **Concept**: Enable direct OS-level drag-and-drop from the browser's asset grid into external digital content creation applications.
 - **Workflow Benefit**: Drag `.fbx`, `.obj`, `.blend`, `.gltf`, `.exr`, video reference clips, or audio files directly onto a Blender 3D viewport, Maya workspace, Unreal Engine Content Browser, or Photoshop window.
-- **Technical Target**: Electron native drag API (`event.sender.startDrag({ file: filePath, icon: iconPath })`) in `electron/main.js` triggered by `onDragStart` in `src/components/AssetGrid.jsx`.
+- **Technical Target**: A native OS drag-out from the Rust/Tauri side (e.g. a Tauri drag plugin or a custom command), triggered by `onDragStart` in `src/components/AssetGrid.jsx`. (The original Electron `startDrag` approach no longer applies.)
 
 ### 1.2 List / Table Details View (Alongside Grid View)
 - **Concept**: A toggleable detailed table view alongside the thumbnail grid.
@@ -271,7 +271,7 @@ Sound designers and game developers need fast, zero-latency inspection of game a
 ## 9. Prioritized Implementation Roadmap
 
 ### Phase 1: High-Impact Quick Wins (P1)
-- [ ] **Native Drag-and-Drop into DCCs**: Implement Electron drag API for 3D, HDR, video, and audio assets.
+- [ ] **Native Drag-and-Drop into DCCs**: Implement native OS drag-out (Tauri) for 3D, HDR, video, and audio assets.
 - [ ] **Collapsible Quick Inspector Drawer**: Add right-hand metadata drawer in `AssetGrid`.
 - [x] **Video Player & Playblast Scrubbing**: Integrated frame-accurate player for `.mp4`, `.mov`, `.webm`.
 - [ ] **Interactive Lighting Rotation**: Add `Shift + RMB` environment rotation to `Viewport3D`.
@@ -282,12 +282,12 @@ Sound designers and game developers need fast, zero-latency inspection of game a
 - [ ] **MatCap Shading Presets**: Integrate Red Wax, Chrome, Zebra, and Clay into `Viewport3D`.
 - [ ] **Synchronized Media Comparison**: Dual 3D camera sync and dual video playblast scrub sync.
 - [ ] **Spacebar Quick Look**: Floating preview modal for instant 3D/HDR/Video/Audio inspection.
-- [ ] **360° Studio Lighting Reference Spheres**: Add mirror ball and gray ball to panoramic inspector.
+- [x] **360° Studio Lighting Reference Spheres**: Add mirror ball and gray ball to panoramic inspector.
 - [ ] **Bottom Studio Status Bar**: Display folder totals, asset categories, and disk headroom.
 
 ### Phase 3: Advanced Studio & Pipeline Tools (P3)
 - [ ] **List / Table Details View**: Add toggleable table view with sortable columns.
 - [ ] **Right-Click Custom Context Menu**: Context menu for quick file operations.
-- [ ] **Split-Screen Wipe / Curtain Comparison**: Draggable divider comparison in `CompareView`.
-- [ ] **Multi-Pass EXR Channel Selector**: AOV extraction and channel switching.
+- [x] **Split-Screen Wipe / Curtain Comparison**: Draggable divider comparison in `CompareView`.
+- [x] **Multi-Pass EXR Channel Selector**: AOV extraction and channel switching.
 - [ ] **"Send to DCC" Direct Launchers**: Configure external program launchers in Settings.

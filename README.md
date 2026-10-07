@@ -154,6 +154,13 @@ We follow an iterative release cadence with standalone testable builds for each 
 
 ---
 
+## 📚 Documentation
+
+- [Architecture & Setup](docs/ARCHITECTURE.md): how the React UI, the Tauri bridge and the Rust backend fit together, the IPC command map, build and release steps.
+- [Roadmap & Feature Ideas](docs/ROADMAP.md): proposed features and the prioritized plan.
+
+---
+
 ## 📄 License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
