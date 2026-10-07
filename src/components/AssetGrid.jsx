@@ -43,17 +43,7 @@ function AssetCard({
         if (entries[0].isIntersecting) {
           observer.disconnect();
 
-          // Standard images load directly via toAssetUrl
-          const ext = (item.extension || '').toLowerCase();
-          if (['.png', '.jpg', '.jpeg', '.webp', '.bmp'].includes(ext)) {
-            const directUrl = window.electronAPI?.toAssetUrl
-              ? window.electronAPI.toAssetUrl(item.path)
-              : item.path;
-            setThumbUrl(directUrl);
-            return;
-          }
-
-          // HDR, EXR, or 3D files decode through thumbnailService
+          // All file types go through thumbnailService (native thumbnails first, with fallbacks)
           setIsLoadingThumb(true);
           getOrGenerateThumbnail(item)
             .then((url) => {

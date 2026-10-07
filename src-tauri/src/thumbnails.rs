@@ -7,7 +7,7 @@
 
 use std::fs;
 use std::io::BufWriter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const THUMB_W: usize = 256;
 pub const THUMB_H: usize = 128;
@@ -31,30 +31,42 @@ pub fn thumbnail_rgb(src: &Path) -> Result<Vec<u8>, String> {
     }
 }
 
-/// Thumbnails are written to a temporary name first, then renamed, so a half-written file is never
-/// picked up by the cache lookup in `read_directory`.
-pub fn generate_thumbnail(src: &Path, out: &Path) -> Result<(), String> {
-    write_jpeg(&thumbnail_rgb(src)?, out)
+/// Generates the thumbnail for `src` and writes it as `<out_stem>.jpg` (or `<out_stem>.png` for standard
+/// images that have transparency). Returns the path written. Files are written to a temporary name first,
+/// then renamed, so a half-written file is never picked up by the cache lookup in `read_directory`.
+pub fn generate_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, String> {
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "bmp") {
+        return standard_image_thumbnail(src, out_stem);
+    }
+
+    let out = out_stem.with_extension("jpg");
+    write_jpeg(&thumbnail_rgb(src)?, &out)?;
+    Ok(out)
+}
+
+/// Existing cached thumbnail for `out_stem`, if any (`.jpg` first, then `.png`, as `read_directory` does).
+pub fn cached_thumbnail(out_stem: &Path) -> Option<PathBuf> {
+    ["jpg", "png"]
+        .iter()
+        .map(|ext| out_stem.with_extension(ext))
+        .find(|p| p.exists())
 }
 
 fn write_jpeg(rgb: &[u8], out: &Path) -> Result<(), String> {
-    let tmp = out.with_extension("jpg.tmp");
-    {
-        let file = fs::File::create(&tmp).map_err(|e| e.to_string())?;
-        let writer = BufWriter::new(file);
-        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, JPEG_QUALITY);
+    write_atomic(out, |file| {
         image::ImageEncoder::write_image(
-            encoder,
+            image::codecs::jpeg::JpegEncoder::new_with_quality(file, JPEG_QUALITY),
             rgb,
             THUMB_W as u32,
             THUMB_H as u32,
             image::ExtendedColorType::Rgb8,
         )
-        .map_err(|e| e.to_string())?;
-    }
-    fs::rename(&tmp, out).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        e.to_string()
     })
 }
 
@@ -273,4 +285,83 @@ fn ldr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Standard images (PNG / JPEG / WebP / BMP)
+// ---------------------------------------------------------------------------------------------------
+
+// Cards show the image with `object-fit: contain` in a 2:1 box up to ~500px wide, so a thumbnail that fits
+// inside 512x256 looks the same as the full-resolution file did, at a fraction of the decode/memory cost.
+const IMAGE_THUMB_MAX_W: u32 = 512;
+const IMAGE_THUMB_MAX_H: u32 = 256;
+
+fn standard_image_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, String> {
+    use image::ImageDecoder;
+
+    let mut decoder = image::ImageReader::open(src)
+        .map_err(|e| e.to_string())?
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?
+        .into_decoder()
+        .map_err(|e| e.to_string())?;
+
+    // The webview honours EXIF orientation when showing a JPEG, so the thumbnail has to as well.
+    let orientation = decoder.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut img = image::DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+    img.apply_orientation(orientation);
+
+    if img.width() == 0 || img.height() == 0 {
+        return Err("Empty image".into());
+    }
+
+    let has_alpha = img.color().has_alpha();
+    if img.width() > IMAGE_THUMB_MAX_W || img.height() > IMAGE_THUMB_MAX_H {
+        img = img.resize(IMAGE_THUMB_MAX_W, IMAGE_THUMB_MAX_H, image::imageops::FilterType::Triangle);
+    }
+
+    if has_alpha {
+        // Keep transparency (the card background shows through, as it did with the original file).
+        let out = out_stem.with_extension("png");
+        let rgba = img.to_rgba8();
+        write_atomic(&out, |file| {
+            image::ImageEncoder::write_image(
+                image::codecs::png::PngEncoder::new(file),
+                rgba.as_raw(),
+                rgba.width(),
+                rgba.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+        })?;
+        Ok(out)
+    } else {
+        let out = out_stem.with_extension("jpg");
+        let rgb = img.to_rgb8();
+        write_atomic(&out, |file| {
+            image::ImageEncoder::write_image(
+                image::codecs::jpeg::JpegEncoder::new_with_quality(file, JPEG_QUALITY),
+                rgb.as_raw(),
+                rgb.width(),
+                rgb.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+        })?;
+        Ok(out)
+    }
+}
+
+fn write_atomic<F>(out: &Path, encode: F) -> Result<(), String>
+where
+    F: FnOnce(BufWriter<fs::File>) -> image::ImageResult<()>,
+{
+    let tmp = out.with_extension("tmp");
+    let file = fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    if let Err(e) = encode(BufWriter::new(file)) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.to_string());
+    }
+    fs::rename(&tmp, out).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
 }

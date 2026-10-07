@@ -45,7 +45,7 @@ const queue = new ThumbnailQueue(3);
 
 // Native thumbnails decode off the UI thread, so they can run a little wider than the JS decoders.
 const nativeQueue = new ThumbnailQueue(4);
-const NATIVE_THUMBNAIL_EXTENSIONS = ['.hdr', '.exr', '.tga', '.tif', '.tiff'];
+const NATIVE_THUMBNAIL_EXTENSIONS = ['.hdr', '.exr', '.tga', '.tif', '.tiff', '.png', '.jpg', '.jpeg', '.webp', '.bmp'];
 
 // Convert raw number or half-float to float
 function toFloat(val, isHalfFloat) {
@@ -337,23 +337,24 @@ export async function getOrGenerateThumbnail(item) {
 
   const ext = (item.extension || '').toLowerCase();
 
-  // Standard web images don't need decoding — load directly!
-  if (['.png', '.jpg', '.jpeg', '.webp', '.bmp'].includes(ext)) {
-    const directUrl = window.electronAPI?.toAssetUrl
-      ? window.electronAPI.toAssetUrl(item.path)
-      : item.path;
-    memoryCache.set(item.path, directUrl);
-    return directUrl;
-  }
-
-  // HDR / EXR / TGA / TIFF: try the native (Rust) decoder first; it falls through to the JS decoders below
-  // when the file is not supported natively (or when running outside the desktop app).
+  // Try the native (Rust) thumbnail first. It decodes off the UI thread and caches a small JPEG/PNG. On failure
+  // (or outside the desktop app) fall through to the previous behaviour below: JS decoders for HDR/EXR/TGA/TIFF,
+  // the original file itself for standard images.
   if (NATIVE_THUMBNAIL_EXTENSIONS.includes(ext) && window.electronAPI?.generateThumbnail) {
     const nativeUrl = await nativeQueue.enqueue(() => window.electronAPI.generateThumbnail(item.path));
     if (nativeUrl) {
       memoryCache.set(item.path, nativeUrl);
       return nativeUrl;
     }
+  }
+
+  // Standard web images don't need decoding — fall back to loading the file directly
+  if (['.png', '.jpg', '.jpeg', '.webp', '.bmp'].includes(ext)) {
+    const directUrl = window.electronAPI?.toAssetUrl
+      ? window.electronAPI.toAssetUrl(item.path)
+      : item.path;
+    memoryCache.set(item.path, directUrl);
+    return directUrl;
   }
 
   // Handle TIFF textures (.tif, .tiff)

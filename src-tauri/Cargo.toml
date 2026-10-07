@@ -29,4 +29,4 @@ md5 = "0.7"
 hex = "0.4"
 base64 = "0.22"
 exr = "1"
-image = { version = "0.25", default-features = false, features = ["jpeg", "hdr", "tga", "tiff"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "hdr", "tga", "tiff"] }

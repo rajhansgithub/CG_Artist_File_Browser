@@ -887,19 +887,21 @@ fn thumbnail_cache_hash(file_path: &str, meta: &fs::Metadata) -> String {
     format!("{:x}", md5::compute(format!("v2_{}_{}_{}", file_path, modified, meta.len())))
 }
 
-// IPC: Generate a thumbnail natively for HDR / EXR / TGA / TIFF files and write it to the thumbnail cache.
-// Returns the cached JPEG path. An error means "not handled natively" and the UI falls back to its
-// JavaScript decoders, so unsupported files (e.g. DWA-compressed EXR) still get a thumbnail.
+// IPC: Generate a thumbnail natively (HDR / EXR / TGA / TIFF / PNG / JPEG / WebP / BMP) and write it to the
+// thumbnail cache. Returns the cached thumbnail path. An error means "not handled natively" and the UI falls
+// back to its previous behaviour (JavaScript decoders, or the original file for standard images), so
+// unsupported files still show something.
 #[tauri::command]
 async fn generate_thumbnail(app: tauri::AppHandle, file_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let src = Path::new(&file_path);
         let meta = src.metadata().map_err(|e| e.to_string())?;
         let hash = thumbnail_cache_hash(&file_path, &meta);
-        let out = get_cache_dir(&app).join("thumbs").join(format!("{}.jpg", hash));
-        if !out.exists() {
-            thumbnails::generate_thumbnail(src, &out)?;
-        }
+        let out_stem = get_cache_dir(&app).join("thumbs").join(hash);
+        let out = match thumbnails::cached_thumbnail(&out_stem) {
+            Some(existing) => existing,
+            None => thumbnails::generate_thumbnail(src, &out_stem)?,
+        };
         Ok(out.to_string_lossy().to_string())
     })
     .await
