@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use rayon::prelude::*;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 use std::time::UNIX_EPOCH;
 use sysinfo::Disks;
 use tauri::Manager;
@@ -194,10 +197,158 @@ fn list_drives() -> Vec<DriveInfo> {
     drives
 }
 
-// IPC: Read Directory
-#[tauri::command]
-fn read_directory(
-    app: tauri::AppHandle,
+// Serialises read-modify-write cycles on studio_config.json (recent folders, favorites, Blender path)
+// now that folder reads record their recent-folder entry in the background.
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
+
+fn lock_config() -> MutexGuard<'static, ()> {
+    CONFIG_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn record_recent_folder(app: &tauri::AppHandle, dir_path: &str) {
+    let _guard = lock_config();
+    let mut cfg = load_config(app);
+    if cfg.recent_folders.first().map(String::as_str) == Some(dir_path) {
+        return;
+    }
+    cfg.recent_folders.retain(|p| p != dir_path);
+    cfg.recent_folders.insert(0, dir_path.to_string());
+    cfg.recent_folders.truncate(15);
+    save_config(app, &cfg);
+}
+
+// Names of every cached thumbnail, read once per folder listing instead of two exists() calls per file.
+fn cached_thumbnail_names(thumbs_dir: &Path) -> HashSet<String> {
+    match fs::read_dir(thumbs_dir) {
+        Ok(rd) => rd
+            .flatten()
+            .filter_map(|e| e.file_name().into_string().ok())
+            .collect(),
+        Err(_) => HashSet::new(),
+    }
+}
+
+struct ScanContext<'a> {
+    filter: &'a str,
+    search: &'a str,
+    recursive: bool,
+    max_depth: usize,
+    thumbs_dir: &'a Path,
+    cached_thumbs: &'a HashSet<String>,
+}
+
+fn pass_category_filter(filter: &str, category: &str) -> bool {
+    match filter {
+        "3d" => category == "3d",
+        "hdr" => category == "hdr",
+        "image" => category == "image",
+        "texture" => category == "texture",
+        "video" => category == "video",
+        "audio" => category == "audio",
+        "assets" => ["3d", "hdr", "image", "texture", "video", "audio"].contains(&category),
+        _ => true,
+    }
+}
+
+// Items produced by one directory entry: nothing, the entry itself, or (when recursing) a whole subtree.
+fn scan_entry(ctx: &ScanContext, entry: &fs::DirEntry, depth: usize) -> Vec<FileItem> {
+    let name = entry.file_name().to_string_lossy().to_string();
+
+    if name.starts_with('.') || name.starts_with('$') || name == "node_modules" || name == "System Volume Information" {
+        return Vec::new();
+    }
+
+    let file_type = match entry.file_type() {
+        Ok(ft) => ft,
+        Err(_) => return Vec::new(),
+    };
+
+    let full_path = entry.path();
+
+    if file_type.is_dir() {
+        if !ctx.recursive {
+            return vec![FileItem {
+                name,
+                path: full_path.to_string_lossy().to_string(),
+                is_directory: true,
+                category: "folder".into(),
+                extension: "".into(),
+                size: 0,
+                modified: 0.0,
+                thumbnail: None,
+            }];
+        }
+        if depth < ctx.max_depth {
+            return scan_dir(ctx, &full_path, depth + 1);
+        }
+        return Vec::new();
+    }
+
+    let ext = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!(".{}", e.to_lowercase()))
+        .unwrap_or_default();
+
+    let category = get_category(&ext);
+
+    if !pass_category_filter(ctx.filter, category) {
+        return Vec::new();
+    }
+
+    if !ctx.search.is_empty() && !name.to_lowercase().contains(ctx.search) {
+        return Vec::new();
+    }
+
+    let full_path_str = full_path.to_string_lossy().to_string();
+    let meta = entry.metadata().ok();
+    let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+    let modified = meta
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs_f64() * 1000.0)
+        .unwrap_or(0.0);
+
+    // Thumbnail resolution (same cache key as before: md5 of "v2_path_modified_size")
+    let hash = format!("{:x}", md5::compute(format!("v2_{}_{}_{}", full_path_str, modified, size)));
+    let jpg_name = format!("{}.jpg", hash);
+    let png_name = format!("{}.png", hash);
+    let thumbnail = if ctx.cached_thumbs.contains(&jpg_name) {
+        Some(ctx.thumbs_dir.join(jpg_name).to_string_lossy().to_string())
+    } else if ctx.cached_thumbs.contains(&png_name) {
+        Some(ctx.thumbs_dir.join(png_name).to_string_lossy().to_string())
+    } else {
+        None
+    };
+
+    vec![FileItem {
+        name,
+        path: full_path_str,
+        is_directory: false,
+        category: category.to_string(),
+        extension: ext,
+        size,
+        modified,
+        thumbnail,
+    }]
+}
+
+// Entries are processed in parallel but collected in directory order, so the result order is unchanged.
+fn scan_dir(ctx: &ScanContext, curr: &Path, depth: usize) -> Vec<FileItem> {
+    let entries: Vec<fs::DirEntry> = match fs::read_dir(curr) {
+        Ok(rd) => rd.flatten().collect(),
+        Err(_) => return Vec::new(),
+    };
+
+    entries
+        .par_iter()
+        .with_min_len(64)
+        .flat_map_iter(|entry| scan_entry(ctx, entry, depth))
+        .collect()
+}
+
+fn read_directory_blocking(
+    app: &tauri::AppHandle,
     dir_path: String,
     options: Option<ReadDirOptions>,
 ) -> Result<DirectoryResult, String> {
@@ -218,128 +369,19 @@ fn read_directory(
     let recursive = opts.recursive.unwrap_or(false);
     let max_depth = opts.max_depth.unwrap_or(2);
 
-    let cache_dir = get_cache_dir(&app);
-    let thumbs_dir = cache_dir.join("thumbs");
+    let thumbs_dir = get_cache_dir(app).join("thumbs");
+    let cached_thumbs = cached_thumbnail_names(&thumbs_dir);
 
-    let mut items = Vec::new();
+    let ctx = ScanContext {
+        filter: &filter,
+        search: &search_lower,
+        recursive,
+        max_depth,
+        thumbs_dir: &thumbs_dir,
+        cached_thumbs: &cached_thumbs,
+    };
 
-    fn scan_dir(
-        curr: &Path,
-        depth: usize,
-        max_d: usize,
-        rec: bool,
-        filter: &str,
-        search: &str,
-        thumbs_dir: &Path,
-        out: &mut Vec<FileItem>,
-    ) {
-        let entries = match fs::read_dir(curr) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-
-        for entry in entries.flatten() {
-            let name_os = entry.file_name();
-            let name = name_os.to_string_lossy().to_string();
-
-            if name.starts_with('.') || name.starts_with('$') || name == "node_modules" || name == "System Volume Information" {
-                continue;
-            }
-
-            let file_type = match entry.file_type() {
-                Ok(ft) => ft,
-                Err(_) => continue,
-            };
-
-            let full_path = entry.path();
-            let full_path_str = full_path.to_string_lossy().to_string();
-
-            if file_type.is_dir() {
-                if !rec {
-                    out.push(FileItem {
-                        name: name.clone(),
-                        path: full_path_str,
-                        is_directory: true,
-                        category: "folder".into(),
-                        extension: "".into(),
-                        size: 0,
-                        modified: 0.0,
-                        thumbnail: None,
-                    });
-                } else if depth < max_d {
-                    scan_dir(&full_path, depth + 1, max_d, rec, filter, search, thumbs_dir, out);
-                }
-            } else {
-                let ext = full_path.extension()
-                    .and_then(|e| e.to_str())
-                    .map(|e| format!(".{}", e.to_lowercase()))
-                    .unwrap_or_default();
-
-                let category = get_category(&ext);
-
-                // Category filter
-                let pass_filter = match filter {
-                    "3d" => category == "3d",
-                    "hdr" => category == "hdr",
-                    "image" => category == "image",
-                    "texture" => category == "texture",
-                    "video" => category == "video",
-                    "audio" => category == "audio",
-                    "assets" => ["3d", "hdr", "image", "texture", "video", "audio"].contains(&category),
-                    _ => true,
-                };
-                if !pass_filter {
-                    continue;
-                }
-
-                // Search filter
-                if !search.is_empty() && !name.to_lowercase().contains(search) {
-                    continue;
-                }
-
-                let meta = entry.metadata().ok();
-                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-                let modified = meta.and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs_f64() * 1000.0)
-                    .unwrap_or(0.0);
-
-                // Thumbnail resolution
-                let hash = format!("{:x}", md5::compute(format!("v2_{}_{}_{}", full_path_str, modified, size)));
-                let cached_jpg = thumbs_dir.join(format!("{}.jpg", hash));
-                let cached_png = thumbs_dir.join(format!("{}.png", hash));
-
-                let thumbnail = if cached_jpg.exists() {
-                    Some(cached_jpg.to_string_lossy().to_string())
-                } else if cached_png.exists() {
-                    Some(cached_png.to_string_lossy().to_string())
-                } else {
-                    None
-                };
-
-                out.push(FileItem {
-                    name,
-                    path: full_path_str,
-                    is_directory: false,
-                    category: category.to_string(),
-                    extension: ext,
-                    size,
-                    modified,
-                    thumbnail,
-                });
-            }
-        }
-    }
-
-    scan_dir(path, 0, max_depth, recursive, &filter, &search_lower, &thumbs_dir, &mut items);
-
-    // Save recent folder
-    let mut cfg = load_config(&app);
-    cfg.recent_folders.retain(|p| p != &dir_path);
-    cfg.recent_folders.insert(0, dir_path.clone());
-    cfg.recent_folders.truncate(15);
-    save_config(&app, &cfg);
-
+    let items = scan_dir(&ctx, path, 0);
     let parent_path = path.parent().map(|p| p.to_string_lossy().to_string());
 
     Ok(DirectoryResult {
@@ -347,6 +389,26 @@ fn read_directory(
         parent_path,
         items,
     })
+}
+
+// IPC: Read Directory
+// Async so the scan runs on a worker thread instead of blocking the window's main thread.
+// The recent-folders config write happens after the listing has been returned.
+#[tauri::command]
+async fn read_directory(
+    app: tauri::AppHandle,
+    dir_path: String,
+    options: Option<ReadDirOptions>,
+) -> Result<DirectoryResult, String> {
+    let scan_app = app.clone();
+    let scan_path = dir_path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || read_directory_blocking(&scan_app, scan_path, options))
+        .await
+        .map_err(|e| e.to_string())??;
+
+    drop(tauri::async_runtime::spawn_blocking(move || record_recent_folder(&app, &dir_path)));
+
+    Ok(result)
 }
 
 // IPC: Single item details
@@ -462,6 +524,7 @@ fn get_blender_status(app: tauri::AppHandle) -> BlenderStatus {
 #[tauri::command]
 fn set_blender_path(app: tauri::AppHandle, new_path: String) -> Result<BlenderStatus, String> {
     if Path::new(&new_path).exists() {
+        let _guard = lock_config();
         let mut cfg = load_config(&app);
         cfg.blender_path = Some(new_path.clone());
         save_config(&app, &cfg);
@@ -724,6 +787,7 @@ fn get_favorites(app: tauri::AppHandle) -> Vec<serde_json::Value> {
 
 #[tauri::command]
 fn toggle_favorite(app: tauri::AppHandle, item: serde_json::Value) -> Vec<serde_json::Value> {
+    let _guard = lock_config();
     let mut cfg = load_config(&app);
     let item_path = item.get("path").and_then(|p| p.as_str()).unwrap_or_default();
     if let Some(pos) = cfg.favorites.iter().position(|f| {
