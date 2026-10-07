@@ -4,6 +4,7 @@ import { EXRLoader } from './exrLoaderExtended.js';
 import { TIFFLoader } from 'three/addons/loaders/TIFFLoader.js';
 import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { load3DModel } from './assetLoader.js';
+import { openPdfDocument } from './pdfLoader.js';
 
 // In-memory cache for ultra-fast UI rendering
 const memoryCache = new Map();
@@ -355,6 +356,39 @@ export async function getOrGenerateThumbnail(item) {
       : item.path;
     memoryCache.set(item.path, directUrl);
     return directUrl;
+  }
+
+  // PDF: render the first page with pdf.js (lazy-loaded) and cache it like every other thumbnail
+  if (ext === '.pdf') {
+    return queue.enqueue(async () => {
+      let pdf = null;
+      try {
+        pdf = await openPdfDocument(item.path);
+        const page = await pdf.getPage(1);
+        const base = page.getViewport({ scale: 1 });
+        const maxDim = Math.max(base.width, base.height) || 256;
+        const scale = 256 / maxDim;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(viewport.width));
+        canvas.height = Math.max(1, Math.round(viewport.height));
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        memoryCache.set(item.path, dataUrl);
+        if (window.electronAPI?.saveThumbnail) {
+          window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
+        }
+        return dataUrl;
+      } catch (err) {
+        console.warn(`PDF thumbnail failed for ${item.name}:`, err);
+        return null;
+      } finally {
+        if (pdf) pdf.destroy().catch(() => {});
+      }
+    });
   }
 
   // Handle TIFF textures (.tif, .tiff)

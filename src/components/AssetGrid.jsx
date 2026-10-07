@@ -10,7 +10,8 @@ import {
   ExternalLink,
   Eye,
   Film,
-  Music
+  Music,
+  FileText
 } from 'lucide-react';
 import { formatBytes, formatDate, getFileBadgeClass, isComparableImage } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail } from '../utils/thumbnailService';
@@ -230,6 +231,14 @@ function AssetCard({
                   <span style={{ width: 2, height: 14, background: '#aaa', borderRadius: 1 }} />
                   <span style={{ width: 2, height: 5, background: '#555', borderRadius: 1 }} />
                 </div>
+              </div>
+            )}
+            {item.category === 'pdf' && (
+              <div
+                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
+                style={{ color: '#888888' }}
+              >
+                <FileText size={36} strokeWidth={1.2} />
               </div>
             )}
             {item.category === 'other' && (
