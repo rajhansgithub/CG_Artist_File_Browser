@@ -72,6 +72,10 @@ function getWhiteBalanceMultiplier(kelvin) {
   ];
 }
 
+// Hold-E exposure drag: EV per pixel of horizontal drag, and the clamp (matches the sidebar EV slider range)
+const EV_DRAG_SENSITIVITY = 0.01;
+const EV_DRAG_LIMIT = 24;
+
 export default function HdrExrInspector({
   asset,
   onClose,
@@ -102,6 +106,15 @@ export default function HdrExrInspector({
   const startFovRef = useRef(60);
   const startDistRef = useRef(2.0);
   const lastClickTimeRef = useRef(0);
+
+  // Exposure control via Hold E + Drag Left/Right (same interaction as the video player's exposure control)
+  const [isEActive, setIsEActive] = useState(false);
+  const isEPressedRef = useRef(false);
+  const isDraggingEvRef = useRef(false);
+  const evDragStartXRef = useRef(0);
+  const startEvRef = useRef(0);
+  const evRef = useRef(0);
+  evRef.current = ev;
 
   // Sidebar Visibility and Collapsible Sections State (Collapsed by default!)
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -974,7 +987,23 @@ export default function HdrExrInspector({
   }, [samplePixelAtUv, isProbePinned, ev, kelvin, tint]);
 
   // Pointer move probe detection and Z zoom drag
+  // Orbit/pan controls stay off while Z or E is held so a drag adjusts zoom/exposure instead of moving the view
+  const syncOrbitControls = () => {
+    if (controlsRef.current) {
+      controlsRef.current.enabled = !(isZPressedRef.current || isEPressedRef.current);
+    }
+  };
+
   const handlePointerMove = (e) => {
+    // 0. EV Drag (Hold E + Left-Click Drag Left/Right): drag right brightens, drag left darkens
+    if (isDraggingEvRef.current) {
+      e.preventDefault();
+      const deltaX = e.clientX - evDragStartXRef.current;
+      const nextEv = startEvRef.current + deltaX * EV_DRAG_SENSITIVITY;
+      setEv(parseFloat(Math.max(-EV_DRAG_LIMIT, Math.min(EV_DRAG_LIMIT, nextEv)).toFixed(2)));
+      return;
+    }
+
     // 1. Z Zoom Drag (Hold Z + Left-Click Drag Left/Right)
     if (isDraggingZoomRef.current) {
       e.preventDefault();
@@ -1082,6 +1111,21 @@ export default function HdrExrInspector({
     const isQuickDoubleClick = (e.detail === 2) || (now - lastClickTimeRef.current < 400);
     lastClickTimeRef.current = now;
 
+    // Hold E + Left-Click Drag adjusts exposure; double-click (with E held) resets it to 0 EV
+    if (e.button === 0 && isEPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isQuickDoubleClick) {
+        setEv(0.0);
+        isDraggingEvRef.current = false;
+        return;
+      }
+      isDraggingEvRef.current = true;
+      evDragStartXRef.current = e.clientX;
+      startEvRef.current = evRef.current;
+      return;
+    }
+
     if (e.button === 0 && isZPressedRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -1107,6 +1151,7 @@ export default function HdrExrInspector({
   };
 
   const handleDoubleClick = (e) => {
+    if (isEPressedRef.current || isDraggingEvRef.current) return; // E + double-click resets EV, not zoom
     if (e.target.closest('.viewport-hud') || e.target.closest('.hdr-controls-panel') || e.target.closest('.pixel-probe-hud') || e.target.closest('.hdr-inspector-sidebar')) {
       return;
     }
@@ -1118,6 +1163,7 @@ export default function HdrExrInspector({
   // Canvas click to pin / unpin eyedropper probe
   const handleCanvasClick = (e) => {
     if (isDraggingWipeRef.current || isZPressedRef.current || isDraggingZoomRef.current) return;
+    if (isEPressedRef.current || isDraggingEvRef.current) return;
     if (e.detail === 2) return;
     if (e.target.closest('.viewport-hud') || e.target.closest('.hdr-controls-panel') || e.target.closest('.pixel-probe-hud') || e.target.closest('.hdr-inspector-sidebar')) {
       return;
@@ -1145,11 +1191,10 @@ export default function HdrExrInspector({
   };
 
   const handlePointerUp = () => {
+    isDraggingEvRef.current = false;
     if (isDraggingZoomRef.current) {
       isDraggingZoomRef.current = false;
-      if (controlsRef.current && !isZPressedRef.current) {
-        controlsRef.current.enabled = true;
-      }
+      syncOrbitControls();
     }
     isDraggingWipeRef.current = false;
   };
@@ -1183,7 +1228,33 @@ export default function HdrExrInspector({
       if (e.key === 'z' || e.key === 'Z') {
         isZPressedRef.current = true;
         setIsZActive(true);
-        if (controlsRef.current) controlsRef.current.enabled = false;
+        syncOrbitControls();
+      }
+
+      // E Key for interactive exposure (EV) drag
+      if (e.key === 'e' || e.key === 'E') {
+        isEPressedRef.current = true;
+        setIsEActive(true);
+        syncOrbitControls();
+      }
+
+      // While holding E: 0 resets EV, + / - step EV by 0.5
+      if (isEPressedRef.current) {
+        if (e.key === '0') {
+          e.preventDefault();
+          setEv(0.0);
+          return;
+        }
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setEv((prev) => Math.min(EV_DRAG_LIMIT, Math.round((prev + 0.5) * 10) / 10));
+          return;
+        }
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          setEv((prev) => Math.max(-EV_DRAG_LIMIT, Math.round((prev - 0.5) * 10) / 10));
+          return;
+        }
       }
 
       if (e.key === '0') {
@@ -1212,7 +1283,13 @@ export default function HdrExrInspector({
         isZPressedRef.current = false;
         setIsZActive(false);
         isDraggingZoomRef.current = false;
-        if (controlsRef.current) controlsRef.current.enabled = true;
+        syncOrbitControls();
+      }
+      if (e.key === 'e' || e.key === 'E') {
+        isEPressedRef.current = false;
+        setIsEActive(false);
+        isDraggingEvRef.current = false;
+        syncOrbitControls();
       }
     };
 
@@ -1220,7 +1297,10 @@ export default function HdrExrInspector({
       isZPressedRef.current = false;
       setIsZActive(false);
       isDraggingZoomRef.current = false;
-      if (controlsRef.current) controlsRef.current.enabled = true;
+      isEPressedRef.current = false;
+      setIsEActive(false);
+      isDraggingEvRef.current = false;
+      syncOrbitControls();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -1267,7 +1347,7 @@ export default function HdrExrInspector({
     <div
       className="viewport-wrapper"
       style={{
-        cursor: isZActive || isDraggingZoomRef.current ? 'ew-resize' : undefined
+        cursor: isEActive || isZActive || isDraggingZoomRef.current ? 'ew-resize' : undefined
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -1276,6 +1356,43 @@ export default function HdrExrInspector({
       onDoubleClick={handleDoubleClick}
     >
       <div ref={containerRef} className="canvas-container" />
+
+      {/* Floating Exposure HUD when holding E (same look as the video player's exposure HUD) */}
+      {isEActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 64,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(12, 12, 12, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.22)',
+            borderRadius: 8,
+            padding: '8px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 50,
+            pointerEvents: 'none',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SunMedium size={15} color="#f59e0b" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+              Exposure: {ev >= 0 ? `+${ev.toFixed(2)}` : ev.toFixed(2)} EV
+            </span>
+            <span style={{ fontSize: 11, color: '#aaaaaa' }}>
+              ({Math.pow(2, ev).toFixed(2)}×)
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
+            Hold E + Drag Left/Right • Double-Click with E or 0 to Reset
+          </div>
+        </div>
+      )}
 
       {/* Floating Zoom HUD when holding Z or dragging zoom */}
       {(isZActive || isDraggingZoomRef.current) && (
