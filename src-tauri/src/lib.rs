@@ -157,6 +157,7 @@ fn get_category(ext: &str) -> &'static str {
         ".tif" | ".tiff" | ".tga" | ".dds" | ".psd" => "texture",
         ".mp4" | ".webm" | ".mov" | ".mkv" | ".avi" => "video",
         ".wav" | ".mp3" | ".ogg" | ".flac" | ".aac" | ".aiff" | ".m4a" => "audio",
+        ".pdf" => "pdf",
         _ => "other",
     }
 }
@@ -247,7 +248,8 @@ fn pass_category_filter(filter: &str, category: &str) -> bool {
         "texture" => category == "texture",
         "video" => category == "video",
         "audio" => category == "audio",
-        "assets" => ["3d", "hdr", "image", "texture", "video", "audio"].contains(&category),
+        "pdf" => category == "pdf",
+        "assets" => ["3d", "hdr", "image", "texture", "video", "audio", "pdf"].contains(&category),
         _ => true,
     }
 }

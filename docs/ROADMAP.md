@@ -273,6 +273,7 @@ Sound designers and game developers need fast, zero-latency inspection of game a
 ### Phase 1: High-Impact Quick Wins (P1)
 - [ ] **Native Drag-and-Drop into DCCs**: Implement native OS drag-out (Tauri) for 3D, HDR, video, and audio assets.
 - [ ] **Collapsible Quick Inspector Drawer**: Add right-hand metadata drawer in `AssetGrid`.
+- [x] **PDF Viewer & Thumbnails**: Continuous-scroll viewer (page jump, zoom, fit, rotate, pan) and first-page grid thumbnails for `.pdf`.
 - [x] **Video Player & Playblast Scrubbing**: Integrated frame-accurate player for `.mp4`, `.mov`, `.webm`.
 - [ ] **Interactive Lighting Rotation**: Add `Shift + RMB` environment rotation to `Viewport3D`.
 - [ ] **Folder History Back / Forward**: Add `<` and `>` buttons to breadcrumb bar.

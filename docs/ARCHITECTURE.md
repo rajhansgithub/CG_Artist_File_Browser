@@ -30,6 +30,7 @@
 | :--- | :--- | :--- | :--- |
 | **Desktop Framework** | [Tauri](https://tauri.app/) | `v2.12` | Native OS windowing, IPC bridge, security sandboxing, WebView2 host |
 | **Backend Language** | [Rust](https://www.rust-lang.org/) | `2024 edition` (v1.90+) | Multi-threaded file indexing, native thumbnail decoding, disk caching |
+| **PDF Rendering** | [pdf.js](https://mozilla.github.io/pdf.js/) (`pdfjs-dist`) | `4.10` | Lazy-loaded PDF viewer and first-page thumbnails |
 | **Frontend Framework** | [React](https://react.dev/) | `19.3` | Reactive user interface and DCC component hierarchy |
 | **Bundler & Dev Server** | [Vite](https://vite.dev/) | `8.3` | Instant HMR and ES-module compilation |
 | **3D & WebGL Engine** | [Three.js](https://threejs.org/) | `r186` | Real-time PBR shading, OrbitControls, wireframe geometry, skybox spheres |
@@ -157,6 +158,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **Video Player ([`src/components/VideoPlayer.jsx`](../src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
 - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
 - **Image Viewer ([`src/components/ImageViewer.jsx`](../src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
+- **PDF Viewer ([`src/components/PdfViewer.jsx`](../src/components/PdfViewer.jsx))**: Continuous-scroll PDF reader built on [pdf.js](https://mozilla.github.io/pdf.js/) (`pdfjs-dist`). Bytes arrive through the same raw `read_file_buffer` IPC; pages are rasterised only while near the viewport, so large documents stay light. Page jump and counter, zoom (`Ctrl`+wheel, `+`/`-`), fit width, fit page, 100%, rotate, drag-to-pan, previous/next PDF in the folder. The engine and its worker are loaded lazily by [`src/utils/pdfLoader.js`](../src/utils/pdfLoader.js) the first time a PDF is opened or thumbnailed, so startup and the main bundle are unaffected. Grid thumbnails render page 1 and use the same disk cache as every other thumbnail. Not included (yet): text selection/search, annotations, form filling.
 
 ---
 
@@ -201,6 +203,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── HdrExrInspector.jsx    # 360° skybox, EV grade, eyedropper, false color
 │   │   ├── Header.jsx             # Search bar, filter pills, theme toggle
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
+│   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
 │   │   ├── SettingsModal.jsx      # Blender path settings & cache management
 │   │   ├── Sidebar.jsx            # Drive list, pinned favorites, recent folders
 │   │   ├── VideoPlayer.jsx        # SMPTE frame-accurate video review player
@@ -212,6 +215,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
+│   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
 │   │   └── thumbnailService.js    # Thumbnail generation queue & cache lookup
 │   ├── App.jsx                    # Root view routing & global state
 │   ├── main.jsx                   # React 19 entrypoint
