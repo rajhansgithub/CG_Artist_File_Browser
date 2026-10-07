@@ -7,6 +7,7 @@ import HdrExrInspector from './components/HdrExrInspector';
 import ImageViewer from './components/ImageViewer';
 import VideoPlayer from './components/VideoPlayer';
 import AudioPlayer from './components/AudioPlayer';
+import PdfViewer from './components/PdfViewer';
 import CompareView from './components/CompareView';
 import SettingsModal from './components/SettingsModal';
 import DropErrorModal from './components/DropErrorModal';
@@ -18,6 +19,7 @@ import {
   isTextureFormat,
   isVideoFormat,
   isAudioFormat,
+  isPdfFormat,
   isComparableImage
 } from './utils/formatHelpers';
 import { FolderOpen, ArrowLeft, ArrowLeftRight, Split } from 'lucide-react';
@@ -54,7 +56,7 @@ export default function App() {
   const [favorites, setFavorites] = useState([]);
 
   // Views & UI State
-  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'compare'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'video', 'audio', 'pdf', 'compare'
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
@@ -159,6 +161,8 @@ export default function App() {
         cat = 'video';
       } else if (['.wav', '.mp3', '.ogg', '.flac', '.aac', '.aiff', '.m4a'].includes(ext)) {
         cat = 'audio';
+      } else if (ext === '.pdf') {
+        cat = 'pdf';
       }
 
       const item = {
@@ -252,6 +256,8 @@ export default function App() {
       setViewMode('video');
     } else if (item.category === 'audio') {
       setViewMode('audio');
+    } else if (item.category === 'pdf') {
+      setViewMode('pdf');
     }
   };
 
@@ -339,6 +345,8 @@ export default function App() {
       cat = 'video';
     } else if (isAudioFormat(ext)) {
       cat = 'audio';
+    } else if (isPdfFormat(ext)) {
+      cat = 'pdf';
     }
 
     return {
@@ -436,12 +444,15 @@ export default function App() {
     } else if (firstItem.category === 'audio') {
       setSelectedAsset(firstItem);
       setViewMode('audio');
+    } else if (firstItem.category === 'pdf') {
+      setSelectedAsset(firstItem);
+      setViewMode('pdf');
     } else {
       // Truly unsupported non-media file (e.g. .exe, .zip, .dll, etc.)
       setDropError({
         fileName: firstItem.name,
         currentViewerTitle: 'Universal Media Viewport',
-        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac)',
+        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac), PDF Documents (.pdf)',
         suggestedViewer: null,
         fileItem: firstItem
       });
@@ -850,6 +861,16 @@ export default function App() {
 
           {viewMode === 'video' && (
             <VideoPlayer
+              asset={selectedAsset}
+              allFolderItems={folderItems}
+              onClose={() => setViewMode('grid')}
+              onSelectAsset={(item) => setSelectedAsset(item)}
+              onRevealInExplorer={handleRevealInExplorer}
+            />
+          )}
+
+          {viewMode === 'pdf' && (
+            <PdfViewer
               asset={selectedAsset}
               allFolderItems={folderItems}
               onClose={() => setViewMode('grid')}

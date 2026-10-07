@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   Film,
   Volume2,
+  FileText,
   ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
@@ -88,7 +89,7 @@ export default function Header({
         <input
           type="text"
           className="search-input"
-          placeholder="Filter 3D, HDR, Video (.mp4), Audio (.wav)..."
+          placeholder="Filter 3D, HDR, Video (.mp4), Audio (.wav), PDF..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -201,6 +202,19 @@ export default function Header({
         >
           <Volume2 size={13} />
           {expandFilterLabels && <span>Audio</span>}
+        </button>
+
+        <button
+          className={`filter-btn ${!expandFilterLabels ? 'icon-only' : ''} ${filterType === 'pdf' ? 'active' : ''}`}
+          onClick={() => {
+            setFilterType('pdf');
+            setShowFavoritesOnly(false);
+          }}
+          title="PDF Documents (.pdf)"
+          aria-label="PDF"
+        >
+          <FileText size={13} />
+          {expandFilterLabels && <span>PDF</span>}
         </button>
 
         <button
