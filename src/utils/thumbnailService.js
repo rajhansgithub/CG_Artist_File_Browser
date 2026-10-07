@@ -43,6 +43,10 @@ class ThumbnailQueue {
 
 const queue = new ThumbnailQueue(3);
 
+// Native thumbnails decode off the UI thread, so they can run a little wider than the JS decoders.
+const nativeQueue = new ThumbnailQueue(4);
+const NATIVE_THUMBNAIL_EXTENSIONS = ['.hdr', '.exr', '.tga', '.tif', '.tiff'];
+
 // Convert raw number or half-float to float
 function toFloat(val, isHalfFloat) {
   if (val === undefined || val === null) return 0;
@@ -340,6 +344,16 @@ export async function getOrGenerateThumbnail(item) {
       : item.path;
     memoryCache.set(item.path, directUrl);
     return directUrl;
+  }
+
+  // HDR / EXR / TGA / TIFF: try the native (Rust) decoder first; it falls through to the JS decoders below
+  // when the file is not supported natively (or when running outside the desktop app).
+  if (NATIVE_THUMBNAIL_EXTENSIONS.includes(ext) && window.electronAPI?.generateThumbnail) {
+    const nativeUrl = await nativeQueue.enqueue(() => window.electronAPI.generateThumbnail(item.path));
+    if (nativeUrl) {
+      memoryCache.set(item.path, nativeUrl);
+      return nativeUrl;
+    }
   }
 
   // Handle TIFF textures (.tif, .tiff)

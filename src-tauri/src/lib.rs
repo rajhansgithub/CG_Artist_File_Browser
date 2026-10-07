@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+mod thumbnails;
+
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
@@ -874,6 +876,36 @@ fn save_thumbnail(
     Ok(thumb_path.to_string_lossy().to_string())
 }
 
+// Cache key shared with read_directory / save_thumbnail: md5 of "v2_path_modified_size".
+fn thumbnail_cache_hash(file_path: &str, meta: &fs::Metadata) -> String {
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs_f64() * 1000.0)
+        .unwrap_or(0.0);
+    format!("{:x}", md5::compute(format!("v2_{}_{}_{}", file_path, modified, meta.len())))
+}
+
+// IPC: Generate a thumbnail natively for HDR / EXR / TGA / TIFF files and write it to the thumbnail cache.
+// Returns the cached JPEG path. An error means "not handled natively" and the UI falls back to its
+// JavaScript decoders, so unsupported files (e.g. DWA-compressed EXR) still get a thumbnail.
+#[tauri::command]
+async fn generate_thumbnail(app: tauri::AppHandle, file_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src = Path::new(&file_path);
+        let meta = src.metadata().map_err(|e| e.to_string())?;
+        let hash = thumbnail_cache_hash(&file_path, &meta);
+        let out = get_cache_dir(&app).join("thumbs").join(format!("{}.jpg", hash));
+        if !out.exists() {
+            thumbnails::generate_thumbnail(src, &out)?;
+        }
+        Ok(out.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // IPC: Save image file from base64 data URL
 #[tauri::command]
 fn save_image_file(file_path: String, data_url: String) -> Result<bool, String> {
@@ -928,6 +960,7 @@ pub fn run() {
             get_cache_stats,
             clear_cache,
             save_thumbnail,
+            generate_thumbnail,
             save_image_file
         ])
         .run(tauri::generate_context!())

@@ -227,6 +227,17 @@ export function setupTauriBridge() {
       }
     },
 
+    // Native (Rust) thumbnail for HDR / EXR / TGA / TIFF. Resolves to a renderable URL, or null when the
+    // file is not handled natively so callers can fall back to the JavaScript decoders.
+    generateThumbnail: async (filePath) => {
+      try {
+        const thumbPath = await invoke('generate_thumbnail', { filePath });
+        return thumbPath ? convertFileSrc(thumbPath) : null;
+      } catch (err) {
+        return null;
+      }
+    },
+
     saveThumbnail: async (filePath, dataUrl) => {
       const thumbPath = await invoke('save_thumbnail', { filePath, dataUrl });
       return {
