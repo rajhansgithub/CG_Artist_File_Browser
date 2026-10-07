@@ -28,3 +28,15 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check Rust backend
+        working-directory: src-tauri
+        run: cargo check --locked --all-targets
