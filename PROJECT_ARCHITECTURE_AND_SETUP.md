@@ -298,7 +298,6 @@ npm run release 1.0.11
 3. Updates `src-tauri/Cargo.toml` to the target version.
 4. Executes `npx tauri build` to compile the optimized binary and NSIS installer.
 5. Populates `release/` with all release-ready filenames:
-   - `CG-Artist-File-Browser-Setup-<version>.exe`
    - `CG-Artist-File-Browser-Setup-v<version>.exe`
    - `CG-Artist-File-Browser-v<version>-Portable.exe`
    - `CG-Artist-File-Browser-Portable.exe` (Latest permanent link)

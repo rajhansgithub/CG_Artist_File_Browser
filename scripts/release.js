@@ -33,14 +33,6 @@ console.log(`\n🚀 Preparing release ${tag}...\n`);
 const pkgPath = path.join(rootDir, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 pkg.version = cleanVersion;
-if (pkg.build) {
-  if (pkg.build.nsis) {
-    pkg.build.nsis.artifactName = `CG-Artist-File-Browser-Setup-${cleanVersion}.exe`;
-  }
-  if (pkg.build.portable) {
-    pkg.build.portable.artifactName = `CG-Artist-File-Browser-${cleanVersion}-Portable.exe`;
-  }
-}
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`✓ Updated package.json to ${cleanVersion}`);
 
@@ -74,10 +66,8 @@ try {
 
   const targetExe = path.join(rootDir, 'src-tauri', 'target', 'release', 'cg-artist-file-browser.exe');
   if (fs.existsSync(targetExe)) {
-    fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-v${cleanVersion}-Standalone.exe`));
     fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`));
     fs.copyFileSync(targetExe, path.join(releaseDir, `CG-Artist-File-Browser-Portable.exe`));
-    fs.copyFileSync(targetExe, path.join(releaseDir, `cg-artist-file-browser.exe`));
     console.log(`✓ Copied portable binaries to release/`);
   }
 
@@ -90,9 +80,7 @@ try {
                       })[0];
     if (setupFile) {
       fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`));
-      fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, `CG-Artist-File-Browser-Setup-${cleanVersion}.exe`));
-      fs.copyFileSync(path.join(nsisBundleDir, setupFile), path.join(releaseDir, setupFile));
-      console.log(`✓ Copied installer binaries to release/: ${setupFile}`);
+      console.log(`✓ Copied installer to release/: ${setupFile}`);
     }
   }
 } catch (e) {

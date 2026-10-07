@@ -4,7 +4,6 @@ package-lock.json.bak
 
 # Build and distribution outputs
 dist/
-dist-electron/
 release/
 build/
 out/
