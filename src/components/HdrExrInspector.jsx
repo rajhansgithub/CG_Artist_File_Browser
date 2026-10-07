@@ -21,7 +21,6 @@ import {
   Check,
   Lock,
   Unlock,
-  Crosshair,
   BarChart3,
   Loader2,
   ExternalLink,

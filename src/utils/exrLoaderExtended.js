@@ -5,7 +5,6 @@ import {
 	HalfFloatType,
 	LinearFilter,
 	LinearSRGBColorSpace,
-	RedFormat,
 	RGFormat,
 	RGBAFormat
 } from 'three';

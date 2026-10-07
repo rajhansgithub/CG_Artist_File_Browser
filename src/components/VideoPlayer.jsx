@@ -12,12 +12,8 @@ import {
   Camera,
   Check,
   ExternalLink,
-  Repeat,
-  Sliders,
-  Grid,
   Film,
-  SunMedium,
-  Layers
+  SunMedium
 } from 'lucide-react';
 import { formatBytes, formatDuration, formatTimecode } from '../utils/formatHelpers';
 

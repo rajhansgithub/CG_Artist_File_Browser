@@ -5,11 +5,9 @@ import {
   Split,
   ZoomIn,
   ZoomOut,
-  Maximize2,
   RotateCcw,
   Link as LinkIcon,
   Unlink,
-  Eye,
   Film,
   ChevronDown,
   ChevronUp,
@@ -17,7 +15,6 @@ import {
   ChevronRight,
   Sliders,
   Layers,
-  Box,
   Image as ImageIcon
 } from 'lucide-react';
 import { loadImageAsset } from '../utils/imageDecoder';

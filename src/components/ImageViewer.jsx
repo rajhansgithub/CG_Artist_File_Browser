@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Info,
   Camera,
   Check
 } from 'lucide-react';
@@ -366,10 +365,6 @@ export default function ImageViewer({
       height: e.target.naturalHeight
     });
   };
-
-  const imageSrc = window.electronAPI?.toAssetUrl
-    ? window.electronAPI.toAssetUrl(asset?.path)
-    : asset?.path;
 
   const handleExportPng = async () => {
     if (!displaySrc) return;

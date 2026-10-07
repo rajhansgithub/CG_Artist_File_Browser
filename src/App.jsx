@@ -20,7 +20,7 @@ import {
   isAudioFormat,
   isComparableImage
 } from './utils/formatHelpers';
-import { ChevronRight, Folder, FolderOpen, ArrowLeft, ArrowLeftRight, Split } from 'lucide-react';
+import { FolderOpen, ArrowLeft, ArrowLeftRight, Split } from 'lucide-react';
 
 export default function App() {
   const [drives, setDrives] = useState([]);

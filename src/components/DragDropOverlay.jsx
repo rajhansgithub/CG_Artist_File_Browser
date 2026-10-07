@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, SunMedium, Image as ImageIcon, Film, Volume2, Split, FolderOpen } from 'lucide-react';
+import { Box, SunMedium, Image as ImageIcon, Film, Volume2 } from 'lucide-react';
 
 export default function DragDropOverlay({ viewMode, dropTargetSlot }) {
   return (

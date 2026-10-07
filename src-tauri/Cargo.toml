@@ -21,12 +21,10 @@ log = "0.4"
 tauri = { version = "2.12.0", features = ["protocol-asset"] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-opener = "2"
 rayon = "1.10"
 walkdir = "2.5"
 sysinfo = "0.33"
 md5 = "0.7"
-hex = "0.4"
 base64 = "0.22"
 exr = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "hdr", "tga", "tiff"] }

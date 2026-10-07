@@ -4,19 +4,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { load3DModel, normalizeModel, focusCameraOnModel } from '../utils/assetLoader';
 import {
   RotateCw,
-  Eye,
   Grid,
-  Sun,
   Camera,
   Play,
   Pause,
   Maximize2,
   Box,
-  Layers,
-  Sparkles,
-  Info,
-  Sliders,
-  ChevronDown,
   Check,
   ExternalLink
 } from 'lucide-react';
@@ -473,7 +466,6 @@ export default function Viewport3D({
     if (!modelRef.current) return;
 
     const isWireframeActive = showWireframe || renderMode === 'wire_overlay' || renderMode === 'wireframe';
-    const isPureWireframe = renderMode === 'wireframe';
 
     const setMatPolygonOffset = (mat, enable) => {
       if (!mat) return;

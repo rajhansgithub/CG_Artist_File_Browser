@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, CheckCircle2, AlertCircle, Trash2, HardDrive, RefreshCw } from 'lucide-react';
+import { Settings, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 
 export default function SettingsModal({ isOpen, onClose }) {
   const [blenderPath, setBlenderPath] = useState('');

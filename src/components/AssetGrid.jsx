@@ -9,7 +9,6 @@ import {
   Star,
   ExternalLink,
   Eye,
-  Maximize2,
   Film,
   Music
 } from 'lucide-react';

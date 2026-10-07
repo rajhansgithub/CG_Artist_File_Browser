@@ -187,9 +187,7 @@ Local_WebFileBrowser_Tauri/
 ├── release/                       # Output folder for compiled .exe and installers
 ├── scripts/
 │   ├── blender_convert.py         # Headless Blender 3D conversion & render script
-│   ├── release.js                 # Release orchestrator (bumps versions, builds, tags)
-│   ├── benchmark_node.mjs         # Benchmark test runner
-│   └── run_benchmark_node.mjs
+│   └── release.js                 # Release orchestrator (bumps versions, builds, tags)
 ├── src/
 │   ├── components/
 │   │   ├── AssetGrid.jsx          # File & folder thumbnail cards, drag-and-drop

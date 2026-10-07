@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Play,
   Pause,
-  RotateCcw,
   Volume2,
   VolumeX,
   Repeat,
@@ -11,7 +10,6 @@ import {
   ExternalLink,
   Music,
   Activity,
-  Sliders,
   Square
 } from 'lucide-react';
 import { formatBytes, formatDuration } from '../utils/formatHelpers';

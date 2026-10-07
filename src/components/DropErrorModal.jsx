@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ExternalLink, ArrowRight, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, X } from 'lucide-react';
 
 export default function DropErrorModal({
   errorInfo,
@@ -8,7 +8,7 @@ export default function DropErrorModal({
 }) {
   if (!errorInfo) return null;
 
-  const { fileName, currentViewerTitle, expectedTypes, suggestedViewer, fileItem } = errorInfo;
+  const { fileName, expectedTypes, suggestedViewer, fileItem } = errorInfo;
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
