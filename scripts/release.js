@@ -110,7 +110,28 @@ try {
   execSync('git push origin main', { cwd: rootDir, stdio: 'inherit' });
   execSync(`git push origin ${tag}`, { cwd: rootDir, stdio: 'inherit' });
 
-  console.log(`\n🎉 Successfully pushed release ${tag} to GitHub!`);
+  // 6. Direct GitHub Release Creation & Upload via gh CLI
+  console.log(`\n🚀 Uploading locally built binaries directly to GitHub Releases...`);
+  try {
+    const releaseAssets = [
+      path.join(rootDir, 'release', `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`),
+      path.join(rootDir, 'release', `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`),
+      path.join(rootDir, 'release', 'CG-Artist-File-Browser-Portable.exe'),
+    ].filter(fs.existsSync);
+
+    if (releaseAssets.length > 0) {
+      const assetArgs = releaseAssets.map(p => `"${p}"`).join(' ');
+      execSync(
+        `gh release create ${tag} ${assetArgs} --title "CG Artist File Browser ${tag} (Installer & Portable)" --notes "Automated local production release for ${tag}."`,
+        { cwd: rootDir, stdio: 'inherit' }
+      );
+      console.log(`✓ Published ${tag} to GitHub Releases immediately!`);
+    }
+  } catch (ghErr) {
+    console.warn(`Note: gh release upload fallback/update: ${ghErr.message}`);
+  }
+
+  console.log(`\n🎉 Successfully published release ${tag} to GitHub!`);
   console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases`);
   console.log(`🔗 Action Runs: https://github.com/rajhansgithub/CG_Artist_File_Browser/actions\n`);
 } catch (err) {
