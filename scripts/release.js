@@ -11,6 +11,10 @@ const cargoBin = path.join(process.env.USERPROFILE || 'C:\\Users\\RajhansMiniPC'
 if (fs.existsSync(cargoBin) && !process.env.PATH.includes(cargoBin)) {
   process.env.PATH = `${cargoBin};${process.env.PATH}`;
 }
+const nodeBin = 'C:\\Program Files\\nodejs';
+if (fs.existsSync(nodeBin) && !process.env.PATH.includes(nodeBin)) {
+  process.env.PATH = `${nodeBin};${process.env.PATH}`;
+}
 
 const targetVersion = process.argv[2];
 
