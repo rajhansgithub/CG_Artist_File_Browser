@@ -131,6 +131,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 - [ ] **v1.0.3**: PBR texture set auto-detection (`_BaseColor`, `_Normal`, `_Roughness`, `_Metallic`) and multi-channel preview.
 - [x] **v1.0.8**: Viewport wireframe overhaul, dynamic polygonOffset, USD/Alembic embedded converter, and performance tuning.
 - [x] **v1.0.9**: Multi-threaded folder indexing (Rayon), native Rust thumbnail pipeline (HDR, EXR, TIFF, TGA, PNG, JPEG, WebP, BMP), raw IPC ArrayBuffer streaming, and Hold-E exposure EV grading in HDR/EXR inspector.
+- [x] **v1.0.10**: Seamless viewport lifecycle management — auto-closes any open asset viewer when navigating to folders from sidebar, pinned favorites, drives, or breadcrumbs.
 - [ ] **v1.1.0**: Stable milestone release.
 
 ---
