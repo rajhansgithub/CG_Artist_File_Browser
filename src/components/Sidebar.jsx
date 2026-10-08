@@ -65,7 +65,10 @@ export default function Sidebar({
         </div>
         <div className="drives-grid">
           {drives.map((d) => {
-            const isSelected = currentPath && currentPath.toUpperCase().startsWith(d.mount.toUpperCase());
+            const isSelected =
+              currentPath &&
+              (currentPath.toUpperCase().startsWith(d.mount.toUpperCase()) ||
+                (d.isNetwork && currentPath.toUpperCase().startsWith(d.name.toUpperCase())));
             return (
               <div
                 key={d.mount}
@@ -106,34 +109,36 @@ export default function Sidebar({
           <div className="nav-list">
             {networkLocations.map((loc) => (
               <div
-                key={loc}
-                className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.toLowerCase()) ? 'active' : ''}`}
-                onClick={() => onNavigate(loc)}
-                title={loc}
+                key={loc.path}
+                className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.path.toLowerCase()) ? 'active' : ''}`}
+                onClick={() => onNavigate(loc.path)}
+                title={loc.name ? `${loc.name} (${loc.path})` : loc.path}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {loc.replace(/\\$/, '')}
+                  {loc.name || loc.path.replace(/\\$/, '')}
                 </span>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveNetworkLocation(loc);
-                  }}
-                  title="Remove from list"
-                >
-                  <X size={11} />
-                </button>
+                {loc.removable && (
+                  <button
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveNetworkLocation(loc.path);
+                    }}
+                    title="Remove from list"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
               </div>
             ))}
           </div>

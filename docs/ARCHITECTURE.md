@@ -85,9 +85,9 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 
 | IPC Command | Arguments | Returns | Description |
 | :--- | :--- | :--- | :--- |
-| `list_drives` | — | `Vec<DriveInfo>` | Enumerates Windows drives (`C:`, `D:`, etc.) with labels and free/total GB using `sysinfo`, plus mapped network drives (`Z:` → `\\server\share`). Network drives are queried in parallel with a 2.5 s cap, so an unreachable share is listed as offline instead of blocking the list. |
+| `list_drives` | — | `Vec<DriveInfo>` | Enumerates Windows drives (`C:`, `D:`, etc.) with labels and free/total GB using `sysinfo`, plus every other drive letter Windows reports (mapped network drives such as `Z:` → `\\server\share`, subst and virtual drives), then falls back to the drive mappings Windows remembers for the user (`HKCU\Network`) for letters the live list hides, e.g. when the app runs elevated. Network drives are queried in parallel with a 2.5 s cap, so an unreachable share is listed as offline instead of blocking the list. |
 | `resolve_path` | `input` | `ResolvedPath` | Validates a path typed into the address bar (`\\mypc\library`, `//mypc/library`, `D:/x`), returns it in Windows form and remembers reachable network shares. Gives up after 15 s with a readable reason. |
-| `get_network_locations` / `remove_network_location` | — / `path` | `Vec<String>` | Network shares remembered for the sidebar (`network_locations` in `studio_config.json`, newest first, max 10). |
+| `get_network_locations` / `remove_network_location` | — / `path` | `Vec<NetworkLocation>` | Network shares for the sidebar: typed shares remembered in `network_locations` in `studio_config.json` (newest first, max 10, removable) plus the "network locations" Windows Explorer already has under `%APPDATA%\Microsoft\Windows\Network Shortcuts` (read-only). |
 | `read_directory` | `dir_path`, `options` | `DirectoryResult` | Reads folders off the main thread; resolves cached thumbnails immediately. |
 | `get_item_details` | `target_path` | `FileItem` | Resolves single item size, modified timestamp, category, and extension. |
 | `read_file_buffer` | `file_path` | `Vec<u8>` | Streams raw binary files into JavaScript as `ArrayBuffer` without JSON/Base64 overhead. |
@@ -228,7 +228,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── src/
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
-│   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, mapped network drives
+│   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, extra/network drives, Explorer network shortcuts
 │   │   └── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)
 │   └── tauri.conf.json            # Window dimensions, bundle targets, asset protocol
