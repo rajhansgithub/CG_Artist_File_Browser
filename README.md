@@ -1,4 +1,4 @@
-# CG Artist File Browser (Tauri Edition)
+# CG Artist File Browser
 
 <div align="center">
 
