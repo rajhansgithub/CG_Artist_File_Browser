@@ -85,7 +85,9 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 
 | IPC Command | Arguments | Returns | Description |
 | :--- | :--- | :--- | :--- |
-| `list_drives` | — | `Vec<DriveInfo>` | Enumerates Windows drives (`C:`, `D:`, etc.) with labels and free/total GB using `sysinfo`. |
+| `list_drives` | — | `Vec<DriveInfo>` | Enumerates Windows drives (`C:`, `D:`, etc.) with labels and free/total GB using `sysinfo`, plus mapped network drives (`Z:` → `\\server\share`). Network drives are queried in parallel with a 2.5 s cap, so an unreachable share is listed as offline instead of blocking the list. |
+| `resolve_path` | `input` | `ResolvedPath` | Validates a path typed into the address bar (`\\mypc\library`, `//mypc/library`, `D:/x`), returns it in Windows form and remembers reachable network shares. Gives up after 15 s with a readable reason. |
+| `get_network_locations` / `remove_network_location` | — / `path` | `Vec<String>` | Network shares remembered for the sidebar (`network_locations` in `studio_config.json`, newest first, max 10). |
 | `read_directory` | `dir_path`, `options` | `DirectoryResult` | Reads folders off the main thread; resolves cached thumbnails immediately. |
 | `get_item_details` | `target_path` | `FileItem` | Resolves single item size, modified timestamp, category, and extension. |
 | `read_file_buffer` | `file_path` | `Vec<u8>` | Streams raw binary files into JavaScript as `ArrayBuffer` without JSON/Base64 overhead. |
@@ -205,7 +207,8 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
 │   │   ├── SettingsModal.jsx      # Blender path settings & cache management
-│   │   ├── Sidebar.jsx            # Drive list, pinned favorites, recent folders
+│   │   ├── PathInput.jsx          # Address-bar text box for typed folder / network paths
+│   │   ├── Sidebar.jsx            # Drive list, network locations, pinned favorites
 │   │   ├── VideoPlayer.jsx        # SMPTE frame-accurate video review player
 │   │   └── Viewport3D.jsx         # Three.js 3D viewport (PBR, wireframe, clay, turntable)
 │   ├── styles/
@@ -215,6 +218,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
+│   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
 │   │   └── thumbnailService.js    # Thumbnail generation queue & cache lookup
 │   ├── App.jsx                    # Root view routing & global state
@@ -224,6 +228,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── src/
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
+│   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, mapped network drives
 │   │   └── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)
 │   └── tauri.conf.json            # Window dimensions, bundle targets, asset protocol

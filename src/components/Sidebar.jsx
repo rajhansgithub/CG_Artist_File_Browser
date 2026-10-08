@@ -1,6 +1,8 @@
 import React from 'react';
 import {
   HardDrive,
+  Network,
+  X,
   Folder,
   Star,
   ChevronRight,
@@ -12,6 +14,13 @@ import {
   Volume2
 } from 'lucide-react';
 
+// "Z:" plus the share name, e.g. "Z: library" for Z:\ -> \\mypc\library
+function networkDriveName(drive) {
+  const letter = drive.mount.replace(/\\$/, '');
+  const share = drive.label && drive.label.startsWith('\\\\') ? drive.label.split('\\').filter(Boolean).pop() : '';
+  return share ? `${letter} ${share}` : letter;
+}
+
 export default function Sidebar({
   drives,
   currentPath,
@@ -22,7 +31,9 @@ export default function Sidebar({
   onOpenSettings,
   onRefresh,
   collapsed,
-  onToggleFavorite
+  onToggleFavorite,
+  networkLocations,
+  onRemoveNetworkLocation
 }) {
   const folders = (folderItems || []).filter((item) => item.isDirectory);
   const starredFolders = (favorites || []).filter((item) => item.isDirectory);
@@ -63,21 +74,71 @@ export default function Sidebar({
                 title={`${d.label} (${d.mount})`}
               >
                 <div className="drive-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <HardDrive size={12} color="var(--text-secondary)" />
-                    <span>{d.mount}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    {d.isNetwork ? (
+                      <Network size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
+                    ) : (
+                      <HardDrive size={12} color="var(--text-secondary)" />
+                    )}
+                    <span style={d.isNetwork ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}>
+                      {d.isNetwork ? networkDriveName(d) : d.mount}
+                    </span>
                   </div>
                 </div>
                 {d.freeGB && d.totalGB ? (
                   <span className="drive-free">{d.freeGB} GB free</span>
                 ) : (
-                  <span className="drive-free">Local Disk</span>
+                  <span className="drive-free">{d.isNetwork ? (d.offline ? 'Offline' : 'Network Drive') : 'Local Disk'}</span>
                 )}
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* Network locations typed into the address bar (\\server\share) */}
+      {networkLocations && networkLocations.length > 0 && (
+        <div>
+          <div className="sidebar-section-title">
+            <span>NETWORK LOCATIONS</span>
+            <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{networkLocations.length}</span>
+          </div>
+          <div className="nav-list">
+            {networkLocations.map((loc) => (
+              <div
+                key={loc}
+                className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.toLowerCase()) ? 'active' : ''}`}
+                onClick={() => onNavigate(loc)}
+                title={loc}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {loc.replace(/\\$/, '')}
+                </span>
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveNetworkLocation(loc);
+                  }}
+                  title="Remove from list"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pinned Folders Section */}
       {starredFolders.length > 0 && (

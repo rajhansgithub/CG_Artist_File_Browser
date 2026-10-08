@@ -488,6 +488,41 @@ select option {
   font-size: 10px;
 }
 
+/* Empty space in the breadcrumb bar: click to type a path */
+.breadcrumb-fill {
+  flex: 1;
+  align-self: stretch;
+  min-width: 24px;
+  cursor: text;
+}
+
+.path-input {
+  flex: 1;
+  min-width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-xs);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.path-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-error {
+  color: #f28b82;
+  cursor: default;
+}
+
 /* Asset Grid View */
 .grid-container {
   flex: 1;

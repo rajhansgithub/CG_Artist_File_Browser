@@ -30,6 +30,7 @@
 - **Context-Aware Routing**: Dropping a 3D model switches to the 3D Studio; dropping an HDR/EXR opens the 360° inspector; dropping an image or video switches to their respective viewers; dropping a folder instantly navigates into it.
 - **Multi-File Compare Drop**: Drop two images or HDR maps simultaneously to automatically launch the side-by-side comparison workspace.
 - **In-App Dragging**: Drag asset cards within the browser directly onto the floating Compare Dock slots.
+- **Network Drives & Shares**: Mapped network drives (`Z:`) show up next to local drives. Click the empty part of the path bar (or press `Ctrl`+`L`) and type a path such as `\\mypc\library` or `//mypc/library`, just like File Explorer; opened shares are remembered in the sidebar. Slow or offline shares never freeze the app.
 
 ### 🧊 3D Studio Viewport (WebGL / Three.js)
 - **Interactive Orbit Controls**: Smooth orbit, pan, and zoom with auto-centering and framing bounding boxes.

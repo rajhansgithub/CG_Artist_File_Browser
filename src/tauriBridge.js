@@ -34,6 +34,19 @@ export function setupTauriBridge() {
       return res;
     },
 
+    // Validates a typed path (\\server\share, //server/share, D:/x) and returns it in Windows form
+    resolvePath: async (input) => {
+      return await invoke('resolve_path', { input });
+    },
+
+    getNetworkLocations: async () => {
+      return await invoke('get_network_locations');
+    },
+
+    removeNetworkLocation: async (path) => {
+      return await invoke('remove_network_location', { path });
+    },
+
     openFolderDialog: async (defaultPath) => {
       try {
         const selected = await openDialog({
