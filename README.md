@@ -63,7 +63,8 @@
 ### ⚡ Blazing Local Performance
 - **Rust Backend**: Fast multi-threaded disk indexing via `sysinfo`, `walkdir`, and `rayon`.
 - **Persistent Disk Caching**: MD5 hash-keyed thumbnail cache on disk ensures instant loads when reopening large folders.
-- **Ctrl + Wheel Grid Resizing**: Dynamically adjust thumbnail sizes from 120px to 500px in real-time.
+- **Ctrl + Wheel Grid Resizing**: Dynamically adjust thumbnail sizes from 120px to 500px in real-time (Large icons view).
+- **Large icons & Details views**: Switch between the thumbnail grid and a Windows Explorer-style Details list (name, date modified, type, size) from the bar above the files; your choice is remembered.
 
 ---
 
@@ -141,7 +142,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 | Action | Control |
 | :--- | :--- |
 | **Open Asset** | `Double Click` or `Space` on selected asset card |
-| **Grid Resize** | `Ctrl + Mouse Wheel` |
+| **Grid Resize** | `Ctrl + Mouse Wheel` (Large icons view only) |
 | **Orbit 3D Scene** | `Left Click + Drag` |
 | **Pan 3D / Image** | `Right Click + Drag` |
 | **Zoom** | `Mouse Wheel` |

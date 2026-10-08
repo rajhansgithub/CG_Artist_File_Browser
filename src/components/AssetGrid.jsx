@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatBytes, formatDate, getFileBadgeClass, isComparableImage } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail } from '../utils/thumbnailService';
+import DetailsView from './DetailsView';
 
 function AssetCard({
   item,
@@ -393,32 +394,39 @@ export default function AssetGrid({
   onSetCompareA,
   onSetCompareB,
   gridSize = 240,
-  onGridSizeChange
+  onGridSizeChange,
+  folderView = 'icons'
 }) {
-  const containerRef = useRef(null);
+  const wrapRef = useRef(null);
+  const folderViewRef = useRef(folderView);
+  folderViewRef.current = folderView;
   const isFav = (item) => favorites.some((f) => f.path === item.path);
 
-  // Ctrl + Mouse Scroll Wheel to dynamically zoom/resize thumbnail grid (just like Windows Explorer!)
+  // Ctrl + Mouse Scroll Wheel resizes the thumbnails (Large icons view only, like Windows Explorer).
+  // The listener sits on a wrapper that is always rendered. It used to sit on the grid itself, which
+  // does not exist while a folder is empty or still loading, so the listener was never attached and
+  // Ctrl + wheel silently did nothing until the grid happened to remount.
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = wrapRef.current;
+    if (!el) return;
 
     const handleWheel = (e) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-        const delta = e.deltaY < 0 ? 25 : -25;
-        if (onGridSizeChange) {
-          onGridSizeChange((prev) => Math.min(500, Math.max(120, prev + delta)));
-        }
-      }
+      if (!e.ctrlKey) return;
+      e.preventDefault(); // never let the webview zoom the whole page
+      if (folderViewRef.current !== 'icons' || !onGridSizeChange || !e.deltaY) return;
+      // One wheel notch (~100px) is 25px of thumbnail; touchpads and smooth wheels send small deltas
+      const pixels = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      const delta = Math.max(-50, Math.min(50, -pixels * 0.25));
+      onGridSizeChange((prev) => Math.min(500, Math.max(120, Math.round(prev + delta))));
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
   }, [onGridSizeChange]);
 
+  let content;
   if (!items || items.length === 0) {
-    return (
+    content = (
       <div
         style={{
           flex: 1,
@@ -435,33 +443,54 @@ export default function AssetGrid({
         <div style={{ fontSize: 12 }}>Choose another drive or folder from the sidebar</div>
       </div>
     );
+  } else if (folderView === 'details') {
+    content = (
+      <DetailsView
+        items={items}
+        selectedItem={selectedItem}
+        onSelect={onSelect}
+        onOpen={onOpen}
+        onToggleFavorite={onToggleFavorite}
+        favorites={favorites}
+        onRevealInExplorer={onRevealInExplorer}
+        compareAssetA={compareAssetA}
+        compareAssetB={compareAssetB}
+        onSetCompareA={onSetCompareA}
+        onSetCompareB={onSetCompareB}
+      />
+    );
+  } else {
+    content = (
+      <div
+        className="grid-container"
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`
+        }}
+      >
+        {items.map((item) => (
+          <AssetCard
+            key={item.path}
+            item={item}
+            isSelected={selectedItem?.path === item.path}
+            isFavorite={isFav(item)}
+            onSelect={onSelect}
+            onOpen={onOpen}
+            onToggleFavorite={onToggleFavorite}
+            onRevealInExplorer={onRevealInExplorer}
+            onAddToCompare={onAddToCompare}
+            compareAssetA={compareAssetA}
+            compareAssetB={compareAssetB}
+            onSetCompareA={onSetCompareA}
+            onSetCompareB={onSetCompareB}
+          />
+        ))}
+      </div>
+    );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="grid-container"
-      style={{
-        gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`
-      }}
-    >
-      {items.map((item) => (
-        <AssetCard
-          key={item.path}
-          item={item}
-          isSelected={selectedItem?.path === item.path}
-          isFavorite={isFav(item)}
-          onSelect={onSelect}
-          onOpen={onOpen}
-          onToggleFavorite={onToggleFavorite}
-          onRevealInExplorer={onRevealInExplorer}
-          onAddToCompare={onAddToCompare}
-          compareAssetA={compareAssetA}
-          compareAssetB={compareAssetB}
-          onSetCompareA={onSetCompareA}
-          onSetCompareB={onSetCompareB}
-        />
-      ))}
+    <div ref={wrapRef} className="asset-view">
+      {content}
     </div>
   );
 }
