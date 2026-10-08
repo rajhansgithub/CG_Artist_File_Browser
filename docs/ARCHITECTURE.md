@@ -102,6 +102,9 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `render_thumbnail` | `file_path` | `ThumbResult` | Headless Blender EEVEE/Workbench studio thumbnail generation. |
 | `get_favorites` / `toggle_favorite` | `item` | `Vec<Value>` | Manages starred folders and assets. |
 | `get_cache_stats` / `clear_cache` | — | `CacheStats` | Reports and clears `%APPDATA%/AssetStudioCache`. |
+| `get_folder_icons` / `set_folder_icon` | — / `folder_path`, `icon` | `FolderIconState` | The user's folder icon choices (`assignments`, keyed by lower-cased folder path, value `lib:<id>` or `custom:<id>`) and imported icons (`custom`). `set_folder_icon` with no `icon` resets the folder. |
+| `import_folder_icons` / `remove_folder_icon` | `file_paths` / `icon_id` | `FolderIconState` | Copies the user's PNG / SVG / ICO / WebP / JPG files (max 2 MB each) into the icon store, or removes one (folders using it revert to their default icon). |
+| `get_system_folder_icon` | `folder_path` | `Option<String>` | Windows only. The icon File Explorer shows for a folder customised through `desktop.ini` (`IconResource` / `IconFile`, including icons inside `imageres.dll` and similar), exported once as a 96 px PNG under `AssetStudioCache/folder_icons`. `None` for plain folders. |
 
 ---
 
@@ -160,6 +163,13 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **View switcher** (breadcrumb bar, right side) toggles between **Large icons** (the thumbnail grid, default) and **Details** (an Explorer-style list with Name, Date modified, Type and Size columns). The choice is remembered in `localStorage` (`cg_artist_folder_view`). Details rows load no thumbnails, so very large folders stay light, and clicking a column header sorts by it (folders always stay on top).
 - **Ctrl + mouse wheel** resizes thumbnails (120–500 px) in **Large icons only**; in Details it is ignored (the webview's page zoom is still blocked). The wheel listener lives on the always-rendered `.asset-view` wrapper in [`AssetGrid.jsx`](../src/components/AssetGrid.jsx), not on the grid element, because the grid does not exist while a folder is empty or loading and a listener attached then was never re-attached.
 
+### 🎨 Folder Icons (right-click → Change icon)
+- **Windows folder icons**: folders customised in File Explorer show their own icon in the grid, Details view and sidebar. `read_directory` marks only folders that are read-only or system (the only ones Explorer applies a `desktop.ini` to) with `systemIcon: true`, which costs no extra disk access; the webview then asks `get_system_folder_icon` for those folders only, lazily and once per session. [`folder_icons.rs`](../src-tauri/src/folder_icons.rs) parses the `desktop.ini` and extracts the icon with `PrivateExtractIconsW` (raw FFI, no extra crate).
+- **Icon library**: right-click a folder (card, Details row or sidebar entry) → **Change icon…** opens a picker with about 85 neutral icons grouped for CG work (3D, texturing, lighting, compositing & VFX, animation, media, documents, code & tools, general), a search box, and **Use default icon**. The icons are Lucide glyphs plus four drawn for this app (mesh, UV, sculpt, material) in [`src/utils/folderIconLibrary.js`](../src/utils/folderIconLibrary.js); no software logos are bundled (trademarks). Icon ids are saved in the user's settings and must never be renamed.
+- **My icons**: **Import icons…** copies PNG / SVG / ICO / WebP / JPG files into the icon store so users can add software logos or studio marks themselves; they show in the picker and can be removed there.
+- **Storage**: choices live in `folder_icons.json` (plus an `folder_icons/` image folder) and are never written to the folder's `desktop.ini`. The installed build keeps them in the app data folder; the portable exe (no `uninstall.exe` beside it) keeps them in `CG Artist File Browser Data` next to the exe, falling back to app data if that folder is not writable. They are not part of the thumbnail cache, so **Clear cache** does not touch them.
+- **Performance**: nothing loads at startup except one small JSON read; image icons are plain lazy `<img>` tags.
+
 ### 🎬 Media Review Players
 - **Video Player ([`src/components/VideoPlayer.jsx`](../src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
 - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
@@ -207,6 +217,9 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── CompareView.jsx        # Split-screen image comparison tool
 │   │   ├── DragDropOverlay.jsx    # Full-window drag-and-drop overlay
 │   │   ├── DropErrorModal.jsx     # Drop validation modals
+│   │   ├── FolderContextMenu.jsx  # Right-click menu on folders (Change icon / Use default icon)
+│   │   ├── FolderIcon.jsx         # One folder's icon: user pick, Windows custom icon or default
+│   │   ├── FolderIconPicker.jsx   # "Change icon" dialog (library, my icons, search)
 │   │   ├── HdrExrInspector.jsx    # 360° skybox, EV grade, eyedropper, false color
 │   │   ├── Header.jsx             # Search bar, filter pills, theme toggle
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
@@ -221,6 +234,8 @@ Local_WebFileBrowser_Tauri/
 │   ├── utils/
 │   │   ├── assetLoader.js         # Three.js loaders (OBJ, FBX, GLTF, STL, PLY, USDZ, HDR)
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
+│   │   ├── folderIconLibrary.js   # Built-in folder icon set (ids are saved in user settings)
+│   │   ├── folderIconStore.js     # Folder icon state hook, context and Windows-icon lookup
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
@@ -231,6 +246,7 @@ Local_WebFileBrowser_Tauri/
 │   └── tauriBridge.js             # window.electronAPI <-> Tauri v2 IPC bridge
 ├── src-tauri/
 │   ├── src/
+│   │   ├── folder_icons.rs        # Folder icon store (portable-aware) and Windows desktop.ini icon export
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
 │   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, extra/network drives, Explorer network shortcuts

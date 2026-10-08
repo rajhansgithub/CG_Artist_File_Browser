@@ -3,6 +3,14 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { listen } from '@tauri-apps/api/event';
 
+// Imported icons arrive as file paths; the webview needs URLs
+function withIconUrls(state) {
+  return {
+    ...state,
+    custom: (state.custom || []).map((c) => ({ ...c, url: convertFileSrc(c.path) })),
+  };
+}
+
 export function setupTauriBridge() {
   if (!isTauri() && !window.__TAURI_INTERNALS__) {
     return;
@@ -75,6 +83,22 @@ export function setupTauriBridge() {
       } catch (err) {
         console.error('openFileDialog error:', err);
         return null;
+      }
+    },
+
+    openFilesDialog: async (options = {}) => {
+      try {
+        const selected = await openDialog({
+          directory: false,
+          multiple: true,
+          filters: options.filters || undefined,
+          defaultPath: options.defaultPath || undefined,
+        });
+        if (!selected) return [];
+        return Array.isArray(selected) ? selected : [selected];
+      } catch (err) {
+        console.error('openFilesDialog error:', err);
+        return [];
       }
     },
 
@@ -257,6 +281,30 @@ export function setupTauriBridge() {
         success: true,
         thumbnailUrl: convertFileSrc(thumbPath),
       };
+    },
+
+    // Folder icons: the user's picks and imported icons (kept next to the exe in the portable build),
+    // plus the icon Windows already shows for folders customised in File Explorer.
+    getFolderIcons: async () => {
+      return withIconUrls(await invoke('get_folder_icons'));
+    },
+
+    // icon: 'lib:<id>' | 'custom:<id>', or null to go back to the default icon
+    setFolderIcon: async (folderPath, icon) => {
+      return withIconUrls(await invoke('set_folder_icon', { folderPath, icon: icon || null }));
+    },
+
+    importFolderIcons: async (filePaths) => {
+      return withIconUrls(await invoke('import_folder_icons', { filePaths }));
+    },
+
+    removeFolderIcon: async (iconId) => {
+      return withIconUrls(await invoke('remove_folder_icon', { iconId }));
+    },
+
+    getSystemFolderIcon: async (folderPath) => {
+      const iconPath = await invoke('get_system_folder_icon', { folderPath });
+      return iconPath ? convertFileSrc(iconPath) : null;
     },
 
     // Helper to construct local streaming URLs using Tauri's convertFileSrc

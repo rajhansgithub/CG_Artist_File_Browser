@@ -65,6 +65,7 @@
 - **Persistent Disk Caching**: MD5 hash-keyed thumbnail cache on disk ensures instant loads when reopening large folders.
 - **Ctrl + Wheel Grid Resizing**: Dynamically adjust thumbnail sizes from 120px to 500px in real-time (Large icons view).
 - **Large icons & Details views**: Switch between the thumbnail grid and a Windows Explorer-style Details list (name, date modified, type, size) from the bar above the files; your choice is remembered.
+- **Folder icons**: Folders you customised in File Explorer keep their icon here. Right-click any folder → **Change icon…** to pick one from a library made for CG work (3D, texturing, HDRIs, VFX, animation, media, scripts and more) or import your own PNG/SVG/ICO (software logos, studio marks). Your choices are remembered, including in the portable `.exe`.
 
 ---
 
