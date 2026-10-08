@@ -46,7 +46,7 @@ const CELL_WORDS = {
   'slightly-soft': 'Slight',
   good: 'Sharp',
   'more-than-enough': 'Plenty',
-  overkill: 'Over'
+  overkill: 'Overkill'
 };
 
 const ZOOM_CHOICES = ['auto', 1, 2, 4, 8, 16, 32];
@@ -904,7 +904,7 @@ export default function TxTexViewer({
                     ['slightly-soft', 'Slight: a bit soft'],
                     ['good', 'Sharp: just right'],
                     ['more-than-enough', 'Plenty: more than needed'],
-                    ['overkill', 'Over: far more than needed']
+                    ['overkill', 'Overkill: far more than needed']
                   ].map(([k, t]) => (
                     <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: TONE_COLORS[k], display: 'inline-block' }} />

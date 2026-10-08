@@ -2365,7 +2365,7 @@ select option {
 
 .txtex-chart {
   display: grid;
-  grid-template-columns: 78px repeat(5, 1fr);
+  grid-template-columns: 66px repeat(5, 1fr);
   gap: 3px;
   align-items: stretch;
 }
@@ -2390,7 +2390,7 @@ select option {
   border-radius: 3px;
   height: 24px;
   color: #08121a;
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
