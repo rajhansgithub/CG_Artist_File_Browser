@@ -3,6 +3,7 @@ import {
   HardDrive,
   Network,
   X,
+  Plus,
   Star,
   ChevronRight,
   RefreshCw,
@@ -34,7 +35,8 @@ export default function Sidebar({
   collapsed,
   onToggleFavorite,
   networkLocations,
-  onRemoveNetworkLocation
+  onRemoveNetworkLocation,
+  onConnectNetwork
 }) {
   const { openMenu } = useFolderIcons();
   const folders = (folderItems || []).filter((item) => item.isDirectory);
@@ -101,51 +103,63 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Network locations typed into the address bar (\\server\share) */}
-      {networkLocations && networkLocations.length > 0 && (
-        <div>
-          <div className="sidebar-section-title">
-            <span>NETWORK LOCATIONS</span>
-            <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{networkLocations.length}</span>
-          </div>
-          <div className="nav-list">
-            {networkLocations.map((loc) => (
-              <div
-                key={loc.path}
-                className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.path.toLowerCase()) ? 'active' : ''}`}
-                onClick={() => onNavigate(loc.path)}
-                title={loc.name ? `${loc.name} (${loc.path})` : loc.path}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {loc.name || loc.path.replace(/\\$/, '')}
-                </span>
-                {loc.removable && (
-                  <button
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      color: 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveNetworkLocation(loc.path);
-                    }}
-                    title="Remove from list"
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+      {/* Network locations: shares opened by typing a path, signed in with a password, or saved in Explorer */}
+      <div>
+        <div className="sidebar-section-title">
+          <span>NETWORK LOCATIONS</span>
+          <button
+            onClick={onConnectNetwork}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+            title="Connect to network folder (sign in with a username and password)"
+          >
+            <Plus size={12} />
+          </button>
         </div>
-      )}
+        <div className="nav-list">
+          {(!networkLocations || networkLocations.length === 0) && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px', fontStyle: 'italic' }}>
+              No network folders
+            </div>
+          )}
+          {(networkLocations || []).map((loc) => (
+            <div
+              key={loc.path}
+              className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.path.toLowerCase()) ? 'active' : ''}`}
+              onClick={() => onNavigate(loc.path)}
+              title={
+                (loc.name ? `${loc.name} (${loc.path})` : loc.path) +
+                (loc.username ? `\nSigned in as ${loc.username}, reconnects automatically` : '')
+              }
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {loc.name || loc.path.replace(/\\$/, '')}
+              </span>
+              {loc.removable && (
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveNetworkLocation(loc.path);
+                  }}
+                  title={loc.username ? 'Remove from list and forget the saved password' : 'Remove from list'}
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Pinned Folders Section */}
       {starredFolders.length > 0 && (
