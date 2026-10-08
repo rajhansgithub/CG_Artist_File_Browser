@@ -11,6 +11,7 @@ import {
   Check
 } from 'lucide-react';
 import { formatBytes } from '../utils/formatHelpers';
+import { decodeTiffToRGBA } from '../utils/tiffDecoder';
 
 export default function ImageViewer({
   asset,
@@ -115,17 +116,7 @@ export default function ImageViewer({
           } else {
             // TIFF format: attempt direct UTIF decode with IFD context first
             try {
-              const { default: UTIF } = await import('three/addons/libs/utif.module.js');
-              const ifds = UTIF.decode(arrayBuf);
-              if (ifds && ifds.length > 0) {
-                UTIF.decodeImage(arrayBuf, ifds[0], ifds);
-                const rgba = UTIF.toRGBA8(ifds[0]);
-                parsed = {
-                  width: ifds[0].width,
-                  height: ifds[0].height,
-                  data: rgba
-                };
-              }
+              parsed = await decodeTiffToRGBA(arrayBuf);
             } catch (utifErr) {
               console.warn('Direct UTIF decode failed, falling back to TIFFLoader:', utifErr);
             }
