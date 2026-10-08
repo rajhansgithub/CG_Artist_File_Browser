@@ -24,7 +24,7 @@ import {
   isComparableImage
 } from './utils/formatHelpers';
 import { getParentDir, buildBreadcrumbs } from './utils/pathHelpers';
-import { FolderOpen, ArrowLeft, ArrowLeftRight, Split, TextCursorInput } from 'lucide-react';
+import { FolderOpen, ArrowLeft, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
 
 export default function App() {
   const [drives, setDrives] = useState([]);
@@ -77,6 +77,23 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('cg_artist_grid_size', gridSize);
   }, [gridSize]);
+
+  // Folder view: 'icons' (Large icons thumbnail grid, default) or 'details' (Explorer-style list)
+  const [folderView, setFolderView] = useState(() => {
+    try {
+      return localStorage.getItem('cg_artist_folder_view') === 'details' ? 'details' : 'icons';
+    } catch {
+      return 'icons';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cg_artist_folder_view', folderView);
+    } catch {
+      /* storage unavailable: the choice just won't be remembered */
+    }
+  }, [folderView]);
 
   // Synchronize refs with state for stable event listener callbacks
   viewModeRef.current = viewMode;
@@ -781,6 +798,29 @@ export default function App() {
               </span>
             )}
 
+            {viewMode === 'grid' && (
+              <div className="view-switcher" role="group" aria-label="Folder view">
+                <button
+                  className={`view-switch-btn ${folderView === 'icons' ? 'active' : ''}`}
+                  onClick={() => setFolderView('icons')}
+                  title="Large icons (Ctrl + mouse wheel resizes thumbnails)"
+                  aria-label="Large icons"
+                  aria-pressed={folderView === 'icons'}
+                >
+                  <LayoutGrid size={13} />
+                </button>
+                <button
+                  className={`view-switch-btn ${folderView === 'details' ? 'active' : ''}`}
+                  onClick={() => setFolderView('details')}
+                  title="Details"
+                  aria-label="Details"
+                  aria-pressed={folderView === 'details'}
+                >
+                  <List size={13} />
+                </button>
+              </div>
+            )}
+
             {!isEditingPath && (
               <button
                 className="icon-btn"
@@ -816,6 +856,7 @@ export default function App() {
               onSetCompareB={handleSetCompareB}
               gridSize={gridSize}
               onGridSizeChange={setGridSize}
+              folderView={folderView}
             />
           )}
 

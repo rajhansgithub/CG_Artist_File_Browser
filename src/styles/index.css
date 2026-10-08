@@ -536,6 +536,223 @@ select option {
   align-content: start;
 }
 
+/* Wrapper around the folder view (grid or details). Always rendered, so Ctrl + wheel always has a target. */
+.asset-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Large icons / Details switcher in the breadcrumb bar */
+.view-switcher {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.view-switch-btn {
+  width: 26px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.view-switch-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.view-switch-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+/* Details view: Explorer-style list */
+.details-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+
+.details-header,
+.details-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 170px 120px 90px 118px;
+  align-items: center;
+}
+
+.details-header {
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 14px;
+}
+
+.details-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.details-header-cell:first-child {
+  border-left: none;
+}
+
+.details-header-cell:hover,
+.details-header-cell.sorted {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.details-header-cell.right {
+  justify-content: flex-end;
+}
+
+.details-actions-head {
+  cursor: default;
+  pointer-events: none;
+}
+
+.details-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 14px 14px 14px;
+}
+
+.details-row {
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  /* Skip layout and paint for rows that are off screen, keeps huge folders light */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28px;
+}
+
+.details-row:hover {
+  background: var(--bg-hover);
+}
+
+.details-row.selected {
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.details-cell {
+  padding: 0 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.details-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-main);
+}
+
+.details-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.details-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.details-slot-tag {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-xs);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.details-muted {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.details-size {
+  text-align: right;
+}
+
+.details-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+/* Row actions appear on hover or selection; a starred row keeps its star visible */
+.details-action-btn {
+  opacity: 0;
+}
+
+.details-row:hover .details-action-btn,
+.details-row.selected .details-action-btn,
+.details-row:focus-within .details-action-btn,
+.details-action-btn.fav.active {
+  opacity: 1;
+}
+
+.details-action-btn {
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.details-action-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.details-action-btn.active {
+  color: var(--text-main);
+  background: var(--bg-active);
+}
+
 /* Compact, Sleek Asset Card */
 .asset-card {
   background: var(--bg-secondary);

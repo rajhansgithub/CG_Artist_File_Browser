@@ -156,6 +156,10 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - Instant A/B toggle flipping.
 - Synchronized pan and zoom.
 
+### 🗂️ Folder Views (Large icons / Details)
+- **View switcher** (breadcrumb bar, right side) toggles between **Large icons** (the thumbnail grid, default) and **Details** (an Explorer-style list with Name, Date modified, Type and Size columns). The choice is remembered in `localStorage` (`cg_artist_folder_view`). Details rows load no thumbnails, so very large folders stay light, and clicking a column header sorts by it (folders always stay on top).
+- **Ctrl + mouse wheel** resizes thumbnails (120–500 px) in **Large icons only**; in Details it is ignored (the webview's page zoom is still blocked). The wheel listener lives on the always-rendered `.asset-view` wrapper in [`AssetGrid.jsx`](../src/components/AssetGrid.jsx), not on the grid element, because the grid does not exist while a folder is empty or loading and a listener attached then was never re-attached.
+
 ### 🎬 Media Review Players
 - **Video Player ([`src/components/VideoPlayer.jsx`](../src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
 - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
@@ -197,7 +201,8 @@ Local_WebFileBrowser_Tauri/
 │   └── release.js                 # Release orchestrator (bumps versions, builds, tags)
 ├── src/
 │   ├── components/
-│   │   ├── AssetGrid.jsx          # File & folder thumbnail cards, drag-and-drop
+│   │   ├── AssetGrid.jsx          # Folder view host: Large icons thumbnail cards, drag-and-drop, Ctrl+wheel resize
+│   │   ├── DetailsView.jsx        # Explorer-style Details list (name, date modified, type, size)
 │   │   ├── AudioPlayer.jsx        # Waveform visualizer & stereo VU meter
 │   │   ├── CompareView.jsx        # Split-screen image comparison tool
 │   │   ├── DragDropOverlay.jsx    # Full-window drag-and-drop overlay

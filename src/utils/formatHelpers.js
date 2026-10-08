@@ -19,6 +19,14 @@ export function formatDate(timestamp) {
   });
 }
 
+// Explorer-style type text for the Details view: "File folder", "PNG File", "File"
+export function getTypeLabel(item) {
+  if (!item) return '';
+  if (item.isDirectory) return 'File folder';
+  const ext = (item.extension || '').replace(/^\./, '').toUpperCase();
+  return ext ? `${ext} File` : 'File';
+}
+
 export function getFileBadgeClass(ext) {
   const cleanExt = (ext || '').toLowerCase().replace(/^\./, '');
   if (cleanExt === 'obj') return 'badge-obj';
