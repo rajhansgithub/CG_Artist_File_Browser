@@ -273,36 +273,37 @@ fn list_drives_blocking() -> Vec<DriveInfo> {
         });
     }
 
-    // Mapped network drives (Z: -> \\server\share) are not part of the disk listing above
+    // Mapped network drives (Z: -> \\server\share), subst and virtual drives are not part of the disk listing above
     #[cfg(target_os = "windows")]
     {
-        let network = network::mapped_network_drives(Duration::from_millis(2500));
-        if drives.is_empty() {
-            for c in b'C'..=b'Z' {
-                let root = format!("{}:\\", c as char);
-                if network.iter().any(|n| n.root == root) {
-                    continue;
-                }
-                if Path::new(&root).exists() {
-                    drives.push(DriveInfo {
-                        name: root.clone(),
-                        mount: format!("{}:", c as char),
-                        label: format!("Drive ({}:)", c as char),
-                        ..Default::default()
-                    });
-                }
-            }
-        }
-        for n in network {
+        let known: Vec<char> = drives.iter().filter_map(|d| d.mount.chars().next()).collect();
+        let mut listed = known.clone();
+        for n in network::extra_drives(&known, Duration::from_millis(2500)) {
+            listed.extend(n.root.chars().next());
             let gb = |bytes: u64| format!("{:.1}", bytes as f64 / 1_073_741_824.0);
+            let letter = n.root.chars().next().unwrap_or('?');
+            let fallback = if n.is_network { "Network Drive".to_string() } else { format!("Drive ({}:)", letter) };
             drives.push(DriveInfo {
                 name: n.root.clone(),
                 mount: n.root,
-                label: n.remote.unwrap_or_else(|| "Network Drive".to_string()),
+                label: n.remote.unwrap_or(fallback),
                 total_gb: n.total_bytes.map(gb),
                 free_gb: n.free_bytes.map(gb),
-                is_network: true,
+                is_network: n.is_network,
                 offline: n.offline,
+            });
+        }
+        // Mappings Windows remembers for this user but did not list (for example when the app runs elevated)
+        for (letter, share) in network::remembered_mappings() {
+            if listed.iter().any(|k| k.eq_ignore_ascii_case(&letter)) {
+                continue;
+            }
+            drives.push(DriveInfo {
+                name: share.clone(),
+                mount: format!("{}:\\", letter),
+                label: share,
+                is_network: true,
+                ..Default::default()
             });
         }
     }
@@ -584,19 +585,49 @@ fn record_network_location(app: &tauri::AppHandle, share_root: &str) {
     save_config(app, &cfg);
 }
 
-// IPC: Network locations remembered for the sidebar
+#[derive(Serialize)]
+pub struct NetworkLocation {
+    pub path: String,
+    // Explorer's name for a "network location" shortcut; typed shares have none
+    pub name: Option<String>,
+    pub removable: bool,
+}
+
+// Shares typed into the address bar (removable) followed by the network locations
+// Windows Explorer already has (read-only, they live in Explorer)
+fn network_location_list(cfg: &StudioConfig) -> Vec<NetworkLocation> {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
+    let mut list: Vec<NetworkLocation> = cfg
+        .network_locations
+        .iter()
+        .map(|p| NetworkLocation { path: p.clone(), name: None, removable: true })
+        .collect();
+
+    #[cfg(target_os = "windows")]
+    for (name, unc) in network::network_shortcuts() {
+        let root = network::unc_share_root(&unc).unwrap_or_else(|| unc.clone());
+        if !list.iter().any(|l| l.path.eq_ignore_ascii_case(&root) || l.path.eq_ignore_ascii_case(&unc)) {
+            list.push(NetworkLocation { path: unc, name: Some(name), removable: false });
+        }
+    }
+    list
+}
+
+// IPC: Network locations shown in the sidebar
 #[tauri::command]
-fn get_network_locations(app: tauri::AppHandle) -> Vec<String> {
-    load_config(&app).network_locations
+async fn get_network_locations(app: tauri::AppHandle) -> Vec<NetworkLocation> {
+    tauri::async_runtime::spawn_blocking(move || network_location_list(&load_config(&app)))
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-fn remove_network_location(app: tauri::AppHandle, path: String) -> Vec<String> {
+fn remove_network_location(app: tauri::AppHandle, path: String) -> Vec<NetworkLocation> {
     let _guard = lock_config();
     let mut cfg = load_config(&app);
     cfg.network_locations.retain(|p| !p.eq_ignore_ascii_case(&path));
     save_config(&app, &cfg);
-    cfg.network_locations
+    network_location_list(&cfg)
 }
 
 // IPC: Single item details

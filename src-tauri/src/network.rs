@@ -122,25 +122,29 @@ pub fn probe(path: &str, timeout: Duration) -> Result<bool, String> {
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
-pub struct MappedDrive {
+pub struct ExtraDrive {
     /// `Z:\`
     pub root: String,
+    pub is_network: bool,
     /// `\\server\share` the letter points at, when Windows reports it.
     pub remote: Option<String>,
     pub total_bytes: Option<u64>,
     pub free_bytes: Option<u64>,
-    /// No space information came back: disconnected, asleep or too slow.
+    /// Network drive with no space information: disconnected, asleep or too slow.
     pub offline: bool,
 }
 
-/// Drive letters mapped to network shares (what File Explorer shows under "Network locations").
-/// The volume enumeration the disk listing uses skips these entirely.
-/// Every drive is queried on its own thread and the whole call is capped at `timeout`,
+/// Every drive letter Windows knows about that `known` (the disk listing) does not already cover:
+/// mapped network drives (Z: -> \\server\share), subst/virtual drives and drives from third-party
+/// file systems. The volume enumeration the disk listing uses skips all of these.
+/// Each drive is queried on its own thread and the whole call is capped at `timeout`,
 /// so an unreachable share shows as offline instead of freezing the list.
+/// Local-type drives that give no size (empty card readers) are left out.
 #[cfg(windows)]
-pub fn mapped_network_drives(timeout: Duration) -> Vec<MappedDrive> {
+pub fn extra_drives(known: &[char], timeout: Duration) -> Vec<ExtraDrive> {
     use std::time::Instant;
 
+    const DRIVE_NO_ROOT_DIR: u32 = 1;
     const DRIVE_REMOTE: u32 = 4;
 
     enum Msg {
@@ -149,7 +153,7 @@ pub fn mapped_network_drives(timeout: Duration) -> Vec<MappedDrive> {
     }
 
     let mask = unsafe { ffi::GetLogicalDrives() };
-    let mut drives: Vec<MappedDrive> = Vec::new();
+    let mut drives: Vec<ExtraDrive> = Vec::new();
     let (tx, rx) = mpsc::channel();
 
     for i in 0..26u8 {
@@ -157,13 +161,19 @@ pub fn mapped_network_drives(timeout: Duration) -> Vec<MappedDrive> {
             continue;
         }
         let letter = (b'A' + i) as char;
-        let root = format!("{}:\\", letter);
-        if unsafe { ffi::GetDriveTypeW(ffi::wide(&root).as_ptr()) } != DRIVE_REMOTE {
+        if known.iter().any(|k| k.eq_ignore_ascii_case(&letter)) {
             continue;
         }
+        let root = format!("{}:\\", letter);
+        let kind = unsafe { ffi::GetDriveTypeW(ffi::wide(&root).as_ptr()) };
+        if kind <= DRIVE_NO_ROOT_DIR {
+            continue;
+        }
+        let is_network = kind == DRIVE_REMOTE;
         let index = drives.len();
-        drives.push(MappedDrive {
+        drives.push(ExtraDrive {
             root: root.clone(),
+            is_network,
             remote: None,
             total_bytes: None,
             free_bytes: None,
@@ -171,7 +181,9 @@ pub fn mapped_network_drives(timeout: Duration) -> Vec<MappedDrive> {
         });
         let tx = tx.clone();
         thread::spawn(move || {
-            let _ = tx.send(Msg::Remote(index, ffi::remote_name(letter)));
+            if is_network {
+                let _ = tx.send(Msg::Remote(index, ffi::remote_name(letter)));
+            }
             let _ = tx.send(Msg::Space(index, ffi::disk_space(&root)));
         });
     }
@@ -194,7 +206,125 @@ pub fn mapped_network_drives(timeout: Duration) -> Vec<MappedDrive> {
             Err(_) => break,
         }
     }
+    drives.retain(|d| d.is_network || !d.offline);
     drives
+}
+
+/// Drive letters Windows remembers for the current user (`HKCU\\Network\\<letter>\\RemotePath`),
+/// as (letter, `\\\\server\\share`). Works even when the live drive list is hidden from this process,
+/// for example when the app was started elevated and the drive was mapped by the normal user.
+#[cfg(windows)]
+pub fn remembered_mappings() -> Vec<(char, String)> {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("reg")
+        .args(["query", "HKCU\\Network", "/s", "/v", "RemotePath"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map(|out| parse_reg_remote_paths(&String::from_utf8_lossy(&out.stdout)))
+        .unwrap_or_default()
+}
+
+/// Reads the output of `reg query HKCU\Network /s /v RemotePath`.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn parse_reg_remote_paths(text: &str) -> Vec<(char, String)> {
+    let mut found = Vec::new();
+    let mut letter: Option<char> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(key) = line.strip_prefix("HKEY_CURRENT_USER\\Network\\") {
+            let mut chars = key.chars();
+            letter = match (chars.next(), chars.next()) {
+                (Some(c), None) if c.is_ascii_alphabetic() => Some(c.to_ascii_uppercase()),
+                _ => None,
+            };
+        } else if line.starts_with("RemotePath") {
+            let value = line.split_once("REG_SZ").map(|(_, v)| v.trim()).unwrap_or("");
+            if let (Some(c), Some(root)) = (letter, unc_share_root(value)) {
+                found.push((c, root));
+            }
+        }
+    }
+    found
+}
+
+/// Network locations added in File Explorer with "Add a network location" (no drive letter):
+/// `%APPDATA%\Microsoft\Windows\Network Shortcuts\<name>\target.lnk`. Returns (name, `\\server\share`).
+#[cfg(windows)]
+pub fn network_shortcuts() -> Vec<(String, String)> {
+    let Some(appdata) = std::env::var_os("APPDATA") else {
+        return Vec::new();
+    };
+    let dir = std::path::Path::new(&appdata).join("Microsoft\\Windows\\Network Shortcuts");
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let (name, lnk) = if path.is_dir() {
+            (entry.file_name().to_string_lossy().to_string(), path.join("target.lnk"))
+        } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("lnk")) {
+            (path.file_stem().unwrap_or_default().to_string_lossy().to_string(), path)
+        } else {
+            continue;
+        };
+        if let Some(unc) = std::fs::read(&lnk).ok().and_then(|bytes| unc_from_shortcut(&bytes)) {
+            found.push((name, unc));
+        }
+    }
+    found.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    found
+}
+
+/// First `\\server\share` stored in a .lnk file (as ASCII or UTF-16). A shortcut to a network
+/// folder keeps the share name as plain text, so no shell API is needed to read it.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn unc_from_shortcut(bytes: &[u8]) -> Option<String> {
+    let accept = |text: String| unc_share_root(&text).map(|_| normalize_input(&text));
+
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'\\' && bytes[i + 1] == b'\\' {
+            let run: String = bytes[i..]
+                .iter()
+                .take_while(|b| (0x20..0x7f).contains(*b))
+                .map(|&b| b as char)
+                .collect();
+            if let Some(found) = accept(run.clone()) {
+                return Some(found);
+            }
+            i += run.len().max(2);
+        } else {
+            i += 1;
+        }
+    }
+
+    // UTF-16 text can sit at an odd offset, so scan both alignments
+    for offset in 0..2 {
+        let units: Vec<u16> = bytes[offset.min(bytes.len())..]
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        let mut i = 0;
+        while i + 1 < units.len() {
+            if units[i] == 0x5c && units[i + 1] == 0x5c {
+                let run: String = units[i..]
+                    .iter()
+                    .take_while(|u| (0x20..0x7f).contains(*u))
+                    .map(|&u| u as u8 as char)
+                    .collect();
+                if let Some(found) = accept(run.clone()) {
+                    return Some(found);
+                }
+                i += run.len().max(2);
+            } else {
+                i += 1;
+            }
+        }
+    }
+    None
 }
 
 #[cfg(windows)]
@@ -286,6 +416,32 @@ mod tests {
         assert_eq!(unc_parent("\\\\mypc\\library\\a").as_deref(), Some("\\\\mypc\\library\\"));
         assert_eq!(unc_parent("\\\\mypc\\library\\"), None);
         assert_eq!(unc_parent("C:\\x"), None);
+    }
+
+    #[test]
+    fn reads_share_from_shortcut_bytes() {
+        let mut ascii = b"L\0\0\0 header junk \0".to_vec();
+        ascii.extend_from_slice(b"\\\\mypc\\library\0trailing");
+        assert_eq!(unc_from_shortcut(&ascii).as_deref(), Some("\\\\mypc\\library\\"));
+
+        let mut wide = vec![0x4c, 0, 0, 0, 1];
+        wide.extend("\\\\nas\\Media\\Raw".encode_utf16().flat_map(|u| u.to_le_bytes()));
+        wide.extend([0, 0]);
+        assert_eq!(unc_from_shortcut(&wide).as_deref(), Some("\\\\nas\\Media\\Raw"));
+
+        // A bare server name or no UNC text at all is not a share
+        assert_eq!(unc_from_shortcut(b"xx\\\\onlyhost\0"), None);
+        assert_eq!(unc_from_shortcut(b"C:\\Users\\me"), None);
+    }
+
+    #[test]
+    fn reads_remembered_drive_mappings() {
+        let out = "\r\nHKEY_CURRENT_USER\\Network\\Z\r\n    RemotePath    REG_SZ    \\\\RAJHANSPC\\Library\r\n\r\nHKEY_CURRENT_USER\\Network\\y\r\n    RemotePath    REG_SZ    \\\\nas\\Media\\Raw\r\n\r\nEnd of search: 2 match(es) found.\r\n";
+        assert_eq!(
+            parse_reg_remote_paths(out),
+            vec![('Z', "\\\\RAJHANSPC\\Library\\".to_string()), ('Y', "\\\\nas\\Media\\".to_string())]
+        );
+        assert!(parse_reg_remote_paths("ERROR: The system was unable to find the specified registry key").is_empty());
     }
 
     #[test]
