@@ -55,18 +55,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ inputs.tag }}"
+          CLEAN_VER="${TAG#v}"
           echo "Uploading Linux binaries to release ${TAG}..."
           
-          # Upload .deb packages
-          for deb in $(find src-tauri/target/release/bundle/deb -type f -name "*.deb"); do
-            echo "Uploading deb: $deb"
-            gh release upload "$TAG" "$deb" --clobber
+          # Find and upload .deb packages
+          find src-tauri/target/release/bundle/deb -type f -name "*.deb" -print0 | while IFS= read -r -d '' deb; do
+            echo "Found deb: $deb"
+            clean_deb="CG-Artist-File-Browser-v${CLEAN_VER}.deb"
+            cp "$deb" "$clean_deb"
+            gh release upload "$TAG" "$deb" "$clean_deb" --clobber
           done
 
-          # Upload .AppImage packages
-          for appimage in $(find src-tauri/target/release/bundle/appimage -type f -name "*.AppImage"); do
-            echo "Uploading AppImage: $appimage"
-            gh release upload "$TAG" "$appimage" --clobber
+          # Find and upload .AppImage packages
+          find src-tauri/target/release/bundle/appimage -type f -name "*.AppImage" -print0 | while IFS= read -r -d '' appimage; do
+            echo "Found AppImage: $appimage"
+            clean_appimage="CG-Artist-File-Browser-v${CLEAN_VER}.AppImage"
+            latest_appimage="CG-Artist-File-Browser.AppImage"
+            cp "$appimage" "$clean_appimage"
+            cp "$appimage" "$latest_appimage"
+            gh release upload "$TAG" "$appimage" "$clean_appimage" "$latest_appimage" --clobber
           done
 
           echo "Listing release assets:"
