@@ -19,7 +19,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "version:check": "node scripts/version-check.js"
   },
   "keywords": [
     "3d",

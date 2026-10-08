@@ -61,6 +61,9 @@ if (fs.existsSync(cargoPath)) {
   console.log(`✓ Updated Cargo.toml`);
 }
 
+// Verify consistency across all version files
+execSync('npm run version:check', { cwd: rootDir, stdio: 'inherit' });
+
 // 4. Run frontend build check & Local Tauri build
 console.log(`\n📦 Building local binaries with Tauri...`);
 try {
