@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { APP_VERSION } from '../version.js';
 import {
   Layers,
   Search,
@@ -70,7 +71,7 @@ export default function Header({
           <Layers size={15} />
         </div>
         <span>CG ARTIST FILE BROWSER</span>
-        <span className="version-badge">v1.0.4</span>
+        <span className="version-badge">{APP_VERSION}</span>
 
         <button
           className="filter-btn"

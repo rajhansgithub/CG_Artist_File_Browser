@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { APP_VERSION } from '../version.js';
 
 export default function SettingsModal({ isOpen, onClose }) {
   const [blenderPath, setBlenderPath] = useState('');
@@ -82,7 +83,7 @@ export default function SettingsModal({ isOpen, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Settings size={16} color="var(--text-main)" />
             <span>Studio Preferences & Configuration</span>
-            <span className="version-badge">v1.0.1</span>
+            <span className="version-badge">{APP_VERSION}</span>
           </div>
           <button
             className="icon-btn"
