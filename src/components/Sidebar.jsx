@@ -3,7 +3,6 @@ import {
   HardDrive,
   Network,
   X,
-  Folder,
   Star,
   ChevronRight,
   RefreshCw,
@@ -13,6 +12,8 @@ import {
   Film,
   Volume2
 } from 'lucide-react';
+import FolderIcon from './FolderIcon';
+import { useFolderIcons } from '../utils/folderIconStore';
 
 // "Z:" plus the share name, e.g. "Z: library" for Z:\ -> \\mypc\library
 function networkDriveName(drive) {
@@ -35,6 +36,7 @@ export default function Sidebar({
   networkLocations,
   onRemoveNetworkLocation
 }) {
+  const { openMenu } = useFolderIcons();
   const folders = (folderItems || []).filter((item) => item.isDirectory);
   const starredFolders = (favorites || []).filter((item) => item.isDirectory);
   const favoriteFiles = (favorites || []).filter((item) => !item.isDirectory);
@@ -158,10 +160,11 @@ export default function Sidebar({
                 key={sf.path}
                 className="nav-item"
                 onClick={() => onNavigate(sf.path, false)}
+                onContextMenu={(e) => openMenu(e, sf)}
                 title={sf.path}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                <Folder size={13} color="#ffffff" strokeWidth={2} />
+                <FolderIcon item={sf} size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {sf.name}
                 </span>
@@ -231,9 +234,10 @@ export default function Sidebar({
                 key={f.path}
                 className="nav-item"
                 onClick={() => onNavigate(f.path)}
+                onContextMenu={(e) => openMenu(e, f)}
                 title={f.path}
               >
-                <Folder size={13} color="var(--text-secondary)" />
+                <FolderIcon item={f} size={13} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
                 <ChevronRight size={11} style={{ opacity: 0.3 }} />
               </div>

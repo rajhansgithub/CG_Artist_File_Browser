@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Folder,
   Box,
   SunMedium,
   Image as ImageIcon,
@@ -15,7 +14,9 @@ import {
 } from 'lucide-react';
 import { formatBytes, formatDate, getFileBadgeClass, isComparableImage } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail } from '../utils/thumbnailService';
+import { useFolderIcons } from '../utils/folderIconStore';
 import DetailsView from './DetailsView';
+import FolderIcon from './FolderIcon';
 
 function AssetCard({
   item,
@@ -31,6 +32,7 @@ function AssetCard({
   onSetCompareA,
   onSetCompareB
 }) {
+  const { openMenu } = useFolderIcons();
   const [thumbUrl, setThumbUrl] = useState(item.thumbnail || null);
   const [aspectRatio, setAspectRatio] = useState(null);
   const [isLoadingThumb, setIsLoadingThumb] = useState(false);
@@ -98,12 +100,16 @@ function AssetCard({
         className={`asset-card ${isSelected ? 'selected' : ''}`}
         onClick={() => onSelect(item)}
         onDoubleClick={() => onOpen(item)}
+        onContextMenu={(e) => {
+          onSelect(item);
+          openMenu(e, item);
+        }}
       >
         <div
           className="card-preview folder-preview"
           style={{ background: '#161616', cursor: 'pointer' }}
         >
-          <Folder size={40} color="var(--text-secondary)" strokeWidth={1.5} />
+          <FolderIcon item={item} size={40} color="var(--text-secondary)" strokeWidth={1.5} />
           <span className="card-badge" style={{ background: '#222222', borderColor: '#444444' }}>
             FOLDER
           </span>

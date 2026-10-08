@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod folder_icons;
 mod network;
 mod thumbnails;
 
@@ -39,6 +40,9 @@ pub struct FileItem {
     pub size: u64,
     pub modified: f64,
     pub thumbnail: Option<String>,
+    // Folder that may show a custom Windows icon (desktop.ini); the webview asks for the icon only for these
+    #[serde(rename = "systemIcon", default)]
+    pub system_icon: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -390,6 +394,7 @@ fn scan_entry(ctx: &ScanContext, entry: &fs::DirEntry, depth: usize) -> Vec<File
                 size: 0,
                 modified: 0.0,
                 thumbnail: None,
+                system_icon: folder_icons::may_have_system_icon(entry),
             }];
         }
         if depth < ctx.max_depth {
@@ -444,6 +449,7 @@ fn scan_entry(ctx: &ScanContext, entry: &fs::DirEntry, depth: usize) -> Vec<File
         size,
         modified,
         thumbnail,
+        system_icon: false,
     }]
 }
 
@@ -686,6 +692,7 @@ fn get_item_details(target_path: String) -> Result<FileItem, String> {
         size,
         modified,
         thumbnail: None,
+        system_icon: false,
     })
 }
 
@@ -1194,6 +1201,60 @@ fn save_image_file(file_path: String, data_url: String) -> Result<bool, String> 
     Ok(true)
 }
 
+// Where folder icon choices are stored: next to the exe for the portable build, app data otherwise.
+fn folder_icon_dir(app: &tauri::AppHandle) -> (PathBuf, bool) {
+    folder_icons::data_dir(get_app_dir(app))
+}
+
+// IPC: Folder icon choices and imported icons
+#[tauri::command]
+fn get_folder_icons(app: tauri::AppHandle) -> folder_icons::FolderIconState {
+    let (dir, portable) = folder_icon_dir(&app);
+    folder_icons::state(&dir, portable)
+}
+
+// IPC: Pick an icon for a folder (`lib:<id>` or `custom:<id>`), or reset it with no icon
+#[tauri::command]
+fn set_folder_icon(
+    app: tauri::AppHandle,
+    folder_path: String,
+    icon: Option<String>,
+) -> Result<folder_icons::FolderIconState, String> {
+    let (dir, portable) = folder_icon_dir(&app);
+    folder_icons::assign(&dir, portable, &folder_path, icon)
+}
+
+// IPC: Add the user's own PNG/SVG/ICO/WebP/JPG images to the icon library
+#[tauri::command]
+async fn import_folder_icons(
+    app: tauri::AppHandle,
+    file_paths: Vec<String>,
+) -> Result<folder_icons::FolderIconState, String> {
+    let (dir, portable) = folder_icon_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || folder_icons::import(&dir, portable, &file_paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// IPC: Remove an imported icon from the library (folders using it go back to their default icon)
+#[tauri::command]
+fn remove_folder_icon(app: tauri::AppHandle, icon_id: String) -> Result<folder_icons::FolderIconState, String> {
+    let (dir, portable) = folder_icon_dir(&app);
+    folder_icons::remove_custom(&dir, portable, &icon_id)
+}
+
+// IPC: The icon Windows shows for a folder customised in File Explorer, as a PNG path (None = default folder)
+#[tauri::command]
+async fn get_system_folder_icon(app: tauri::AppHandle, folder_path: String) -> Option<String> {
+    let cache_dir = get_cache_dir(&app).join("folder_icons");
+    tauri::async_runtime::spawn_blocking(move || {
+        folder_icons::system_icon(&cache_dir, Path::new(&folder_path)).map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1228,7 +1289,12 @@ pub fn run() {
             clear_cache,
             save_thumbnail,
             generate_thumbnail,
-            save_image_file
+            save_image_file,
+            get_folder_icons,
+            set_folder_icon,
+            import_folder_icons,
+            remove_folder_icon,
+            get_system_folder_icon
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -16,6 +16,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { formatBytes, formatDate, getTypeLabel, isComparableImage } from '../utils/formatHelpers';
+import { useFolderIcons } from '../utils/folderIconStore';
+import FolderIcon from './FolderIcon';
 
 const COLUMNS = [
   { key: 'name', label: 'Name' },
@@ -61,7 +63,8 @@ function DetailsRow({
   onSetCompareA,
   onSetCompareB
 }) {
-  const Icon = item.isDirectory ? Folder : CATEGORY_ICONS[item.category] || FileQuestion;
+  const { openMenu } = useFolderIcons();
+  const Icon = CATEGORY_ICONS[item.category] || FileQuestion;
   const comparable = isComparableImage(item);
 
   return (
@@ -77,9 +80,21 @@ function DetailsRow({
       }}
       onClick={() => onSelect(item)}
       onDoubleClick={() => onOpen(item)}
+      onContextMenu={
+        item.isDirectory
+          ? (e) => {
+              onSelect(item);
+              openMenu(e, item);
+            }
+          : undefined
+      }
     >
       <div className="details-cell details-name" title={item.name}>
-        <Icon size={15} strokeWidth={1.5} className="details-icon" />
+        {item.isDirectory ? (
+          <FolderIcon item={item} size={15} strokeWidth={1.5} className="details-icon" />
+        ) : (
+          <Icon size={15} strokeWidth={1.5} className="details-icon" />
+        )}
         <span className="details-name-text">{item.name}</span>
         {isComparableImage(item) && compareAssetA?.path === item.path && (
           <span className="details-slot-tag">A</span>

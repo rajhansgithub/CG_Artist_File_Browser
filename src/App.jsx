@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AssetGrid from './components/AssetGrid';
@@ -13,6 +13,9 @@ import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
 import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
+import FolderContextMenu from './components/FolderContextMenu';
+import FolderIconPicker from './components/FolderIconPicker';
+import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
 import {
   is3DFormat,
   isHdrFormat,
@@ -669,6 +672,23 @@ export default function App() {
     };
   }, []);
 
+  // Folder icons: the user's picks, the right-click menu on folders and the "Change icon" dialog
+  const folderIconStore = useFolderIconStore();
+  const [folderMenu, setFolderMenu] = useState(null); // { x, y, item }
+  const [iconPickerItem, setIconPickerItem] = useState(null);
+  const openFolderMenu = useCallback((e, item) => {
+    e.preventDefault();
+    setFolderMenu({ x: e.clientX, y: e.clientY, item });
+  }, []);
+  const folderIconsValue = useMemo(
+    () => ({
+      assignments: folderIconStore.assignments,
+      customUrls: folderIconStore.customUrls,
+      openMenu: openFolderMenu
+    }),
+    [folderIconStore.assignments, folderIconStore.customUrls, openFolderMenu]
+  );
+
   // Filter items for display
   const displayedItems = folderItems.filter((item) => {
     if (showFavoritesOnly) {
@@ -680,6 +700,7 @@ export default function App() {
   const breadcrumbs = buildBreadcrumbs(currentPath);
 
   return (
+    <FolderIconsContext.Provider value={folderIconsValue}>
     <div className="app-container">
       {/* Top Header */}
       <Header
@@ -1049,6 +1070,32 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Folder right-click menu and icon picker */}
+      {folderMenu && (
+        <FolderContextMenu
+          x={folderMenu.x}
+          y={folderMenu.y}
+          hasChoice={!!folderIconStore.assignments[normalizeFolderKey(folderMenu.item.path)]}
+          onChangeIcon={() => {
+            setIconPickerItem(folderMenu.item);
+            setFolderMenu(null);
+          }}
+          onResetIcon={() => {
+            folderIconStore.resetIcon(folderMenu.item.path);
+            setFolderMenu(null);
+          }}
+          onClose={() => setFolderMenu(null)}
+        />
+      )}
+      {iconPickerItem && (
+        <FolderIconPicker
+          item={iconPickerItem}
+          store={folderIconStore}
+          onClose={() => setIconPickerItem(null)}
+        />
+      )}
     </div>
+    </FolderIconsContext.Provider>
   );
 }
