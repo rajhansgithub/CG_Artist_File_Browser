@@ -14,6 +14,13 @@ pub fn credential_target(share_root: &str) -> String {
     format!("CGArtistFileBrowser:{}", share_root.to_lowercase())
 }
 
+/// Credential Manager entry Windows itself uses to sign in to a PC: the bare server name (`RAJHANSPC`),
+/// the same entry File Explorer's "Remember my credentials" writes. With it saved, Windows signs in to every
+/// share on that PC on its own, for every program.
+pub fn server_credential_target(share_root: &str) -> Option<String> {
+    crate::network::unc_host(share_root)
+}
+
 /// The password the way Windows stores it: UTF-16 little endian bytes, no terminator.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn password_to_blob(password: &str) -> Vec<u8> {
@@ -86,10 +93,17 @@ pub fn connect(_share_root: &str, _username: &str, _password: &str, _timeout: Du
     Err("Signing in to network shares is only available on Windows.".to_string())
 }
 
-/// Saves the password in Windows Credential Manager (Generic Credentials).
+/// Saves the password in Windows Credential Manager: once under the app's own name (so the app can sign in
+/// again itself) and once under the server's name (so Windows signs in on its own, even for other shares
+/// on the same PC).
 #[cfg(windows)]
 pub fn save_password(share_root: &str, username: &str, password: &str) -> Result<(), String> {
-    ffi::write_credential(&credential_target(share_root), username, &password_to_blob(password))
+    let blob = password_to_blob(password);
+    ffi::write_credential(&credential_target(share_root), ffi::CRED_TYPE_GENERIC, username, &blob)?;
+    if let Some(server) = server_credential_target(share_root) {
+        ffi::write_credential(&server, ffi::CRED_TYPE_DOMAIN_PASSWORD, username, &blob)?;
+    }
+    Ok(())
 }
 
 #[cfg(not(windows))]
@@ -100,7 +114,7 @@ pub fn save_password(_share_root: &str, _username: &str, _password: &str) -> Res
 /// (username, password) saved for a share, if any.
 #[cfg(windows)]
 pub fn load_password(share_root: &str) -> Option<(String, String)> {
-    let (user, blob) = ffi::read_credential(&credential_target(share_root))?;
+    let (user, blob) = ffi::read_credential(&credential_target(share_root), ffi::CRED_TYPE_GENERIC)?;
     Some((user, password_from_blob(&blob)))
 }
 
@@ -109,19 +123,34 @@ pub fn load_password(_share_root: &str) -> Option<(String, String)> {
     None
 }
 
-/// Removes the saved password and drops the live connection to the share.
+/// Removes the saved password and drops the live connection to the share. The server-wide entry stays
+/// when another saved share on the same PC still needs it (`keep_server_entry`).
 #[cfg(windows)]
-pub fn forget(share_root: &str) {
-    ffi::delete_credential(&credential_target(share_root));
+pub fn forget(share_root: &str, keep_server_entry: bool) {
+    ffi::delete_credential(&credential_target(share_root), ffi::CRED_TYPE_GENERIC);
+    if !keep_server_entry {
+        if let Some(server) = server_credential_target(share_root) {
+            ffi::delete_credential(&server, ffi::CRED_TYPE_DOMAIN_PASSWORD);
+        }
+    }
     ffi::cancel_connection(share_root);
 }
 
 #[cfg(not(windows))]
-pub fn forget(_share_root: &str) {}
+pub fn forget(_share_root: &str, _keep_server_entry: bool) {}
+
+/// Shown when the saved password can no longer be found in Credential Manager.
+pub fn missing_password_message(share_root: &str) -> String {
+    format!(
+        "{}Windows no longer has a saved password for {}. Sign in again.",
+        SIGN_IN_MARK,
+        share_root.trim_end_matches('\\')
+    )
+}
 
 /// Signs in again with the saved username and password. Err when nothing is saved or Windows refuses.
 pub fn reconnect(share_root: &str, timeout: Duration) -> Result<(), String> {
-    let (user, password) = load_password(share_root).ok_or_else(|| "No saved password for this share.".to_string())?;
+    let (user, password) = load_password(share_root).ok_or_else(|| missing_password_message(share_root))?;
     connect(share_root, &user, &password, timeout)
 }
 
@@ -131,7 +160,8 @@ mod ffi {
     use std::ptr;
 
     const RESOURCETYPE_DISK: u32 = 1;
-    const CRED_TYPE_GENERIC: u32 = 1;
+    pub const CRED_TYPE_GENERIC: u32 = 1;
+    pub const CRED_TYPE_DOMAIN_PASSWORD: u32 = 2;
     const CRED_PERSIST_LOCAL_MACHINE: u32 = 2;
     // Windows refuses credential blobs bigger than 5 * 512 bytes
     const CRED_MAX_CREDENTIAL_BLOB_SIZE: usize = 2560;
@@ -210,7 +240,7 @@ mod ffi {
         }
     }
 
-    pub fn write_credential(target: &str, username: &str, blob: &[u8]) -> Result<(), String> {
+    pub fn write_credential(target: &str, kind: u32, username: &str, blob: &[u8]) -> Result<(), String> {
         if blob.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE {
             return Err("That password is too long to save.".to_string());
         }
@@ -219,7 +249,7 @@ mod ffi {
         let mut blob = blob.to_vec();
         let credential = CredentialW {
             flags: 0,
-            kind: CRED_TYPE_GENERIC,
+            kind,
             target_name: target_w.as_mut_ptr(),
             comment: ptr::null_mut(),
             last_written_low: 0,
@@ -242,10 +272,10 @@ mod ffi {
     }
 
     /// (username, password bytes) of a saved entry.
-    pub fn read_credential(target: &str) -> Option<(String, Vec<u8>)> {
+    pub fn read_credential(target: &str, kind: u32) -> Option<(String, Vec<u8>)> {
         let target_w = wide(target);
         let mut found: *mut CredentialW = ptr::null_mut();
-        let ok = unsafe { CredReadW(target_w.as_ptr(), CRED_TYPE_GENERIC, 0, &mut found) };
+        let ok = unsafe { CredReadW(target_w.as_ptr(), kind, 0, &mut found) };
         if ok == 0 || found.is_null() {
             return None;
         }
@@ -271,11 +301,11 @@ mod ffi {
         Some(result)
     }
 
-    pub fn delete_credential(target: &str) {
+    pub fn delete_credential(target: &str, kind: u32) {
         let target_w = wide(target);
         // Nothing saved under that name is fine, so the result is not checked
         unsafe {
-            CredDeleteW(target_w.as_ptr(), CRED_TYPE_GENERIC, 0);
+            CredDeleteW(target_w.as_ptr(), kind, 0);
         }
     }
 }
@@ -288,6 +318,12 @@ mod tests {
     fn one_credential_name_per_share() {
         assert_eq!(credential_target("\\\\RAJHANSPC\\Library\\"), "CGArtistFileBrowser:\\\\rajhanspc\\library\\");
         assert_eq!(credential_target("\\\\rajhanspc\\library\\"), credential_target("\\\\RAJHANSPC\\LIBRARY\\"));
+    }
+
+    #[test]
+    fn windows_signs_in_by_server_name() {
+        assert_eq!(server_credential_target("\\\\RAJHANSPC\\Library\\").as_deref(), Some("RAJHANSPC"));
+        assert_eq!(server_credential_target("C:\\x"), None);
     }
 
     #[test]

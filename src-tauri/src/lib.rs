@@ -487,6 +487,7 @@ fn read_directory_blocking(
 ) -> Result<DirectoryResult, String> {
     // A dead share can hang the existence check for a minute; fail with a readable reason instead
     let dir_path = if cfg!(target_os = "windows") && network::is_unc(&dir_path) {
+        let dir_path = share_for_bare_server(app, &dir_path).unwrap_or(dir_path);
         reach_path(app, &dir_path)?.0
     } else {
         dir_path
@@ -576,6 +577,7 @@ async fn resolve_path(app: tauri::AppHandle, input: String) -> Result<ResolvedPa
         if path.is_empty() {
             return Err("Type a folder path".to_string());
         }
+        let path = share_for_bare_server(&app, &path).unwrap_or(path);
         let unc = cfg!(target_os = "windows") && network::is_unc(&path);
         if unc && network::unc_share_root(&path).is_none() {
             return Err(format!(
@@ -606,14 +608,21 @@ fn reach_path(app: &tauri::AppHandle, path: &str) -> Result<(String, bool), Stri
     match network::probe(path, Duration::from_secs(15)) {
         Ok(is_dir) => Ok((path.to_string(), is_dir)),
         Err(first_error) => {
-            // Windows asked for a sign-in: use the username and password saved for this share, if any
+            // Windows asked for a sign-in: use the username and password saved for this share, or for any
+            // other share on the same PC, if there is one
             if first_error.starts_with(network_login::SIGN_IN_MARK) {
                 if let Some(root) = network::unc_share_root(path) {
-                    if saved_login_for(app, &root).is_some()
-                        && network_login::reconnect(&root, Duration::from_secs(15)).is_ok()
-                    {
-                        if let Ok(is_dir) = network::probe(path, Duration::from_secs(15)) {
-                            return Ok((path.to_string(), is_dir));
+                    if let Some(saved) = saved_login_for_server(app, &root) {
+                        match network_login::load_password(&saved.share) {
+                            Some((user, password)) => {
+                                if network_login::connect(&root, &user, &password, Duration::from_secs(15)).is_ok() {
+                                    if let Ok(is_dir) = network::probe(path, Duration::from_secs(15)) {
+                                        return Ok((path.to_string(), is_dir));
+                                    }
+                                }
+                            }
+                            // The saved entry is gone from Credential Manager: say so instead of "blocked"
+                            None => return Err(network_login::missing_password_message(&saved.share)),
                         }
                     }
                 }
@@ -641,12 +650,37 @@ fn record_network_location(app: &tauri::AppHandle, share_root: &str) {
     save_config(app, &cfg);
 }
 
-// The saved sign-in (username only) for a share root, matched without regard to case
-fn saved_login_for(app: &tauri::AppHandle, share_root: &str) -> Option<NetworkLogin> {
-    load_config(app)
-        .network_logins
-        .into_iter()
+// The saved sign-in (username only) to use for a share: one saved for that very share first, otherwise one
+// saved for another share on the same PC (a PC's shares normally accept the same account).
+fn saved_login_for_server(app: &tauri::AppHandle, share_root: &str) -> Option<NetworkLogin> {
+    let logins = load_config(app).network_logins;
+    let host = network::unc_host(share_root)?;
+    logins
+        .iter()
         .find(|l| l.share.eq_ignore_ascii_case(share_root))
+        .or_else(|| {
+            logins
+                .iter()
+                .find(|l| network::unc_host(&l.share).is_some_and(|h| h.eq_ignore_ascii_case(&host)))
+        })
+        .cloned()
+}
+
+// `\\server` typed or opened with no share name: Windows can't list a PC's shares through a path, so open the
+// share already known for that PC (saved sign-in first, then shares opened before) instead of failing.
+fn share_for_bare_server(app: &tauri::AppHandle, path: &str) -> Option<String> {
+    if !network::is_server_only(path) {
+        return None;
+    }
+    let host = network::unc_host(path)?;
+    let cfg = load_config(app);
+    let same_host = |share: &&String| network::unc_host(share).is_some_and(|h| h.eq_ignore_ascii_case(&host));
+    let saved: Vec<String> = cfg.network_logins.iter().map(|l| l.share.clone()).collect();
+    saved
+        .iter()
+        .find(same_host)
+        .or_else(|| cfg.network_locations.iter().find(same_host))
+        .cloned()
 }
 
 fn record_network_login(app: &tauri::AppHandle, share_root: &str, username: &str) {
@@ -761,7 +795,12 @@ fn remove_network_location(app: tauri::AppHandle, path: String) -> Vec<NetworkLo
     // Removing a share also forgets its saved sign-in and drops the live connection
     if cfg.network_logins.iter().any(|l| l.share.eq_ignore_ascii_case(&path)) {
         cfg.network_logins.retain(|l| !l.share.eq_ignore_ascii_case(&path));
-        network_login::forget(&path);
+        let host = network::unc_host(&path).unwrap_or_default().to_lowercase();
+        let server_still_used = cfg
+            .network_logins
+            .iter()
+            .any(|l| network::unc_host(&l.share).is_some_and(|h| h.to_lowercase() == host));
+        network_login::forget(&path, server_still_used);
     }
     save_config(&app, &cfg);
     network_location_list(&cfg)

@@ -82,6 +82,21 @@ pub fn unc_parent(path: &str) -> Option<String> {
     (parts.len() > 2).then(|| join_unc(&parts[..parts.len() - 1]))
 }
 
+/// `\\host\share\a` -> `host`. None for non-UNC paths.
+pub fn unc_host(path: &str) -> Option<String> {
+    let n = normalize_input(path);
+    if !is_unc(&n) {
+        return None;
+    }
+    unc_parts(&n).into_iter().next()
+}
+
+/// `\\host` with no share name (Windows can't list a server's shares through a path).
+pub fn is_server_only(path: &str) -> bool {
+    let n = normalize_input(path);
+    is_unc(&n) && unc_parts(&n).len() == 1
+}
+
 /// `\\host\share\x` -> `\\host`; any other text is returned as it is.
 fn server_of(path: &str) -> String {
     let n = normalize_input(path);
@@ -107,9 +122,9 @@ pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str, detail:
         // ERROR_SMB_GUEST_LOGON_BLOCKED: Windows tried the share without a username and password and its
         // security policy refuses that. File Explorer works because it is signed in; this app is not.
         Some(1272) => format!(
-            "{}Windows blocked {} because this app is not signed in to that PC. Sign in with a username and password for it.",
+            "{}Windows blocked access to {} because that PC needs a username and password. Click Sign in to enter them once; the app remembers them.",
             SIGN_IN_MARK,
-            server_of(path)
+            path.trim_end_matches('\\')
         ),
         // ERROR_LOGON_FAILURE
         Some(1326) => format!(
@@ -478,6 +493,17 @@ mod tests {
     }
 
     #[test]
+    fn finds_host_and_server_only_paths() {
+        assert_eq!(unc_host("\\\\RAJHANSPC\\Library\\a").as_deref(), Some("RAJHANSPC"));
+        assert_eq!(unc_host("//nas").as_deref(), Some("nas"));
+        assert_eq!(unc_host("C:\\x"), None);
+        assert!(is_server_only("\\\\RAJHANSPC"));
+        assert!(is_server_only("//RAJHANSPC/"));
+        assert!(!is_server_only("\\\\RAJHANSPC\\Library"));
+        assert!(!is_server_only("C:\\x"));
+    }
+
+    #[test]
     fn finds_share_root_and_parent() {
         assert_eq!(unc_share_root("\\\\mypc\\library\\a\\b").as_deref(), Some("\\\\mypc\\library\\"));
         assert_eq!(unc_share_root("\\\\mypc"), None);
@@ -531,7 +557,7 @@ mod tests {
         assert!(describe_os_error(Some(53), ErrorKind::NotFound, p, "x").starts_with("Can't find"));
         let blocked = describe_os_error(Some(1272), ErrorKind::Other, p, "x");
         assert!(blocked.starts_with(SIGN_IN_MARK), "{}", blocked);
-        assert!(blocked.contains("\\\\mypc") && blocked.contains("signed in"), "{}", blocked);
+        assert!(blocked.contains("\\\\mypc\\library") && !blocked.contains("not signed in"), "{}", blocked);
         assert!(describe_os_error(Some(1326), ErrorKind::Other, p, "x").starts_with(SIGN_IN_MARK));
         assert!(describe_os_error(Some(5), ErrorKind::PermissionDenied, p, "x").starts_with(SIGN_IN_MARK));
         assert!(!describe_os_error(Some(53), ErrorKind::NotFound, p, "x").starts_with(SIGN_IN_MARK));
