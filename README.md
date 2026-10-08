@@ -56,6 +56,13 @@
   - `Key 4`: Overlay Blend Mode with opacity slider
   - `Key 5`: Instant A/B Toggle Flips
 
+### 🧱 Arnold `.tx` & RenderMan `.tex` Texture Viewer
+- **Opens render textures directly**: the mip levels, tiles and channels of `.tx` and `.tex` files, with grid thumbnails read from a small mip level so big folders stay fast.
+- **"Will it be sharp enough?"**: pick the final render size (1K, 2K, 3K, 4K, 8K), slide how much of the frame the object covers (or type a pixel size, e.g. "10 pixels") and see the texture as it lands on the pixels of that render, magnified so single pixels are visible.
+- **Plain-words verdict**: *Too soft*, *A little soft*, *Sharp enough*, *More than enough* or *Overkill*, plus the texture size you actually need and which mip level the renderer reads.
+- **Where does it hold up?** A colour chart of every shot size and distance for the open texture, and a mip level list where you can click a smaller level to test "is 2K enough?".
+- Files it cannot read (OpenEXR-based or Pixar-compressed textures, or a `.tex` that is really a LaTeX document) show a clear message instead of failing silently.
+
 ### ⚙️ Blender 3D Conversion Engine
 - **Automatic Background Asset Converter**: Seamlessly opens non-native formats like Universal Scene Description (`.usd`, `.usda`, `.usdc`, `.usdz`), Alembic (`.abc`), and Blender native files (`.blend`) by converting them on the fly to optimized WebGL `.glb`.
 - Auto-detects installed Blender instances across standard program directories.
@@ -76,6 +83,7 @@
 | **3D Meshes** | `.obj`, `.fbx`, `.gltf`, `.glb`, `.stl`, `.ply`, `.usd`, `.usda`, `.usdc`, `.usdz`, `.abc` | PBR Shading, Normal Maps, Wireframe, Turntable, Animations |
 | **Radiance & HDR** | `.hdr`, `.exr` | 360° Spherical Skybox, 32-bit Float Probe, EV Slider, Tone Mapping |
 | **2D Images & Textures**| `.png`, `.jpg`, `.jpeg`, `.webp`, `.tif`, `.tiff`, `.tga`, `.dds`, `.psd`, `.bmp` | Pan/Zoom, Channel Solo, Metadata, iCAT Comparison |
+| **Render Textures** | `.tx` (Arnold), `.tex` (RenderMan) | Mip level browser, channel solo, "Will it be sharp enough?" render-size check |
 | **Video** | `.mp4`, `.mov`, `.webm`, `.mkv`, `.avi` | Frame scrubber, loop playback, speed control |
 | **Audio** | `.wav`, `.mp3`, `.ogg`, `.flac`, `.aac`, `.aiff`, `.m4a` | Waveform visualizer, loop playback, audio properties |
 | **PDF** | `.pdf` | First-page thumbnails, continuous-scroll viewer, page jump, zoom / fit width / fit page, rotate |
@@ -153,6 +161,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 | **Overlay Mode** | `4` |
 | **A/B Instant Flip** | `5` |
 | **Reveal in Explorer** | `External Link Icon` on card / Header |
+| **Render textures (.tx / .tex)** | `Left` / `Right` arrows switch texture, `Mouse Wheel` zoom and `Left Click + Drag` pan in the Texture tab, drag to move around the preview in the In the render tab, `Esc` closes |
 | **PDF: next / previous page** | `Page Down` / `Page Up` (or `Space` / `Shift + Space`), `Home` / `End` for first / last |
 | **PDF: zoom** | `Ctrl + Mouse Wheel`, `+` / `-`, `Ctrl + 0` fit width, `F` fit page, `Ctrl + 1` 100% |
 | **PDF: rotate / pan** | `R` rotates 90°, `Left Click + Drag` pans, `Left` / `Right` arrows switch PDF |
