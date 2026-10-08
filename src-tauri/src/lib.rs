@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 mod folder_icons;
 mod network;
+mod network_login;
 mod thumbnails;
 
 use rayon::prelude::*;
@@ -77,6 +78,17 @@ pub struct StudioConfig {
     // Share roots (\\server\share\) the user has opened by typing a network path
     #[serde(default)]
     pub network_locations: Vec<String>,
+    // Shares the user signed in to with a username and password. The password itself lives only in
+    // Windows Credential Manager, never in this file.
+    #[serde(default)]
+    pub network_logins: Vec<NetworkLogin>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NetworkLogin {
+    // Share root, `\\server\share\`
+    pub share: String,
+    pub username: String,
 }
 
 impl Default for StudioConfig {
@@ -86,6 +98,7 @@ impl Default for StudioConfig {
             favorites: Vec::new(),
             recent_folders: Vec::new(),
             network_locations: Vec::new(),
+            network_logins: Vec::new(),
         }
     }
 }
@@ -474,7 +487,7 @@ fn read_directory_blocking(
 ) -> Result<DirectoryResult, String> {
     // A dead share can hang the existence check for a minute; fail with a readable reason instead
     let dir_path = if cfg!(target_os = "windows") && network::is_unc(&dir_path) {
-        reach_path(&dir_path)?.0
+        reach_path(app, &dir_path)?.0
     } else {
         dir_path
     };
@@ -573,7 +586,7 @@ async fn resolve_path(app: tauri::AppHandle, input: String) -> Result<ResolvedPa
         }
 
         let (reached, is_directory) = if unc {
-            reach_path(&path)?
+            reach_path(&app, &path)?
         } else {
             (path.clone(), network::probe(&path, Duration::from_secs(15))?)
         };
@@ -586,12 +599,25 @@ async fn resolve_path(app: tauri::AppHandle, input: String) -> Result<ResolvedPa
     .map_err(|e| e.to_string())?
 }
 
-// Checks a network path and returns the path to use (plus whether it is a folder). When Windows refuses
+// Checks a network path and returns the path to use (plus whether it is a folder). When Windows asks for a
+// sign-in and one is saved for the share, it signs in again and retries. When Windows refuses
 // `\\server\share` but a drive letter is mapped to the same share, that drive's path is used instead.
-fn reach_path(path: &str) -> Result<(String, bool), String> {
+fn reach_path(app: &tauri::AppHandle, path: &str) -> Result<(String, bool), String> {
     match network::probe(path, Duration::from_secs(15)) {
         Ok(is_dir) => Ok((path.to_string(), is_dir)),
         Err(first_error) => {
+            // Windows asked for a sign-in: use the username and password saved for this share, if any
+            if first_error.starts_with(network_login::SIGN_IN_MARK) {
+                if let Some(root) = network::unc_share_root(path) {
+                    if saved_login_for(app, &root).is_some()
+                        && network_login::reconnect(&root, Duration::from_secs(15)).is_ok()
+                    {
+                        if let Ok(is_dir) = network::probe(path, Duration::from_secs(15)) {
+                            return Ok((path.to_string(), is_dir));
+                        }
+                    }
+                }
+            }
             #[cfg(target_os = "windows")]
             if let Some(alternate) = network::drive_letter_path(path) {
                 if let Ok(is_dir) = network::probe(&alternate, Duration::from_secs(5)) {
@@ -615,12 +641,79 @@ fn record_network_location(app: &tauri::AppHandle, share_root: &str) {
     save_config(app, &cfg);
 }
 
+// The saved sign-in (username only) for a share root, matched without regard to case
+fn saved_login_for(app: &tauri::AppHandle, share_root: &str) -> Option<NetworkLogin> {
+    load_config(app)
+        .network_logins
+        .into_iter()
+        .find(|l| l.share.eq_ignore_ascii_case(share_root))
+}
+
+fn record_network_login(app: &tauri::AppHandle, share_root: &str, username: &str) {
+    let _guard = lock_config();
+    let mut cfg = load_config(app);
+    cfg.network_logins.retain(|l| !l.share.eq_ignore_ascii_case(share_root));
+    cfg.network_logins.push(NetworkLogin { share: share_root.to_string(), username: username.to_string() });
+    save_config(app, &cfg);
+}
+
+// Signs in again to every share with a saved username and password. Runs once in the background at
+// start-up, so shares are already connected by the time the user opens one.
+fn reconnect_saved_logins(app: &tauri::AppHandle) {
+    for login in load_config(app).network_logins {
+        let _ = network_login::reconnect(&login.share, Duration::from_secs(15));
+    }
+}
+
+// IPC: Sign in to a network share with a username and password, optionally remembering them
+// (the password goes to Windows Credential Manager) so the share reconnects after a restart.
+#[tauri::command]
+async fn connect_network(
+    app: tauri::AppHandle,
+    path: String,
+    username: String,
+    password: String,
+    remember: bool,
+) -> Result<ResolvedPath, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = network::normalize_input(&path);
+        if !network::is_unc(&path) {
+            return Err("Type the network address, like \\\\mypc\\library".to_string());
+        }
+        let Some(root) = network::unc_share_root(&path) else {
+            return Err(format!(
+                "{} needs a share name, like {}\\library",
+                path,
+                path.trim_end_matches('\\')
+            ));
+        };
+        let username = username.trim().to_string();
+        if username.is_empty() {
+            return Err("Type the username for that PC".to_string());
+        }
+
+        network_login::connect(&root, &username, &password, Duration::from_secs(20))?;
+        let is_directory = network::probe(&path, Duration::from_secs(15))?;
+
+        if remember {
+            network_login::save_password(&root, &username, &password)?;
+            record_network_login(&app, &root, &username);
+        }
+        record_network_location(&app, &root);
+        Ok(ResolvedPath { path, is_directory })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[derive(Serialize)]
 pub struct NetworkLocation {
     pub path: String,
     // Explorer's name for a "network location" shortcut; typed shares have none
     pub name: Option<String>,
     pub removable: bool,
+    // Username of the saved sign-in for this share, if there is one
+    pub username: Option<String>,
 }
 
 // Shares typed into the address bar (removable) followed by the network locations
@@ -630,14 +723,23 @@ fn network_location_list(cfg: &StudioConfig) -> Vec<NetworkLocation> {
     let mut list: Vec<NetworkLocation> = cfg
         .network_locations
         .iter()
-        .map(|p| NetworkLocation { path: p.clone(), name: None, removable: true })
+        .map(|p| NetworkLocation {
+            path: p.clone(),
+            name: None,
+            removable: true,
+            username: cfg
+                .network_logins
+                .iter()
+                .find(|l| l.share.eq_ignore_ascii_case(p))
+                .map(|l| l.username.clone()),
+        })
         .collect();
 
     #[cfg(target_os = "windows")]
     for (name, unc) in network::network_shortcuts() {
         let root = network::unc_share_root(&unc).unwrap_or_else(|| unc.clone());
         if !list.iter().any(|l| l.path.eq_ignore_ascii_case(&root) || l.path.eq_ignore_ascii_case(&unc)) {
-            list.push(NetworkLocation { path: unc, name: Some(name), removable: false });
+            list.push(NetworkLocation { path: unc, name: Some(name), removable: false, username: None });
         }
     }
     list
@@ -656,6 +758,11 @@ fn remove_network_location(app: tauri::AppHandle, path: String) -> Vec<NetworkLo
     let _guard = lock_config();
     let mut cfg = load_config(&app);
     cfg.network_locations.retain(|p| !p.eq_ignore_ascii_case(&path));
+    // Removing a share also forgets its saved sign-in and drops the live connection
+    if cfg.network_logins.iter().any(|l| l.share.eq_ignore_ascii_case(&path)) {
+        cfg.network_logins.retain(|l| !l.share.eq_ignore_ascii_case(&path));
+        network_login::forget(&path);
+    }
     save_config(&app, &cfg);
     network_location_list(&cfg)
 }
@@ -1267,12 +1374,16 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Sign back in to shares saved with a password, without holding up the window
+            let handle = app.handle().clone();
+            std::thread::spawn(move || reconnect_saved_logins(&handle));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             list_drives,
             read_directory,
             resolve_path,
+            connect_network,
             get_network_locations,
             remove_network_location,
             get_item_details,
@@ -1310,5 +1421,6 @@ mod tests {
         let cfg: StudioConfig = serde_json::from_str(old).expect("old config must parse");
         assert_eq!(cfg.recent_folders, vec!["J:\\Assets".to_string()]);
         assert!(cfg.network_locations.is_empty());
+        assert!(cfg.network_logins.is_empty());
     }
 }

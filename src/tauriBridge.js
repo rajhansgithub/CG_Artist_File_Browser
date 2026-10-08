@@ -47,6 +47,11 @@ export function setupTauriBridge() {
       return await invoke('resolve_path', { input });
     },
 
+    // Signs in to a share with a username and password (optionally remembered in Windows Credential Manager)
+    connectNetwork: async (path, username, password, remember) => {
+      return await invoke('connect_network', { path, username, password, remember });
+    },
+
     getNetworkLocations: async () => {
       return await invoke('get_network_locations');
     },

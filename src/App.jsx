@@ -12,6 +12,7 @@ import TxTexViewer from './components/TxTexViewer';
 import CompareView from './components/CompareView';
 import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
+import ConnectNetworkModal from './components/ConnectNetworkModal';
 import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
 import FolderContextMenu from './components/FolderContextMenu';
@@ -29,6 +30,7 @@ import {
   isComparableImage
 } from './utils/formatHelpers';
 import { getParentDir, buildBreadcrumbs } from './utils/pathHelpers';
+import { parseNetworkError } from './utils/networkErrors';
 import { FolderOpen, ArrowLeft, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
 
 export default function App() {
@@ -36,6 +38,9 @@ export default function App() {
   const [networkLocations, setNetworkLocations] = useState([]);
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [navError, setNavError] = useState('');
+  const [navErrorPath, setNavErrorPath] = useState('');
+  // Network sign-in window: null when closed, otherwise the path to prefill
+  const [connectDialog, setConnectDialog] = useState(null);
   const [currentPath, setCurrentPath] = useState('');
   const [folderItems, setFolderItems] = useState([]);
   const [parentPath, setParentPath] = useState(null);
@@ -177,6 +182,17 @@ export default function App() {
     setNetworkLocations(next || []);
   };
 
+  // Signs in to a share from the "Connect to network folder" window, then opens it.
+  // Throws the reason when Windows refuses, which the window shows under the fields.
+  const handleConnectNetwork = async ({ path, username, password, remember }) => {
+    const resolved = await window.electronAPI.connectNetwork(path, username, password, remember);
+    setConnectDialog(null);
+    setIsEditingPath(false);
+    setNavError('');
+    loadNetworkLocations();
+    navigateTo(resolved.path, !resolved.isDirectory);
+  };
+
   // Address bar: accepts J:\Assets, \\mypc\library and //mypc/library. Returns an error message, or nothing on success.
   const submitTypedPath = async (text) => {
     try {
@@ -268,6 +284,7 @@ export default function App() {
     setViewMode('grid');
     setIsLoadingDir(true);
     setNavError('');
+    setNavErrorPath('');
     try {
       const res = await window.electronAPI.readDirectory(targetPath, {
         filter: filterType === 'all' ? 'all' : filterType,
@@ -282,6 +299,7 @@ export default function App() {
     } catch (err) {
       // Unreachable drive or share: say why instead of leaving the bar on "Scanning directory..."
       setNavError(String(err?.message || err));
+      setNavErrorPath(targetPath);
     } finally {
       setIsLoadingDir(false);
     }
@@ -742,6 +760,7 @@ export default function App() {
           onRefresh={refreshDrives}
           networkLocations={networkLocations}
           onRemoveNetworkLocation={handleRemoveNetworkLocation}
+          onConnectNetwork={() => setConnectDialog({ path: '' })}
           collapsed={sidebarCollapsed}
         />
 
@@ -774,6 +793,7 @@ export default function App() {
                 initialValue={currentPath}
                 onSubmit={submitTypedPath}
                 onCancel={() => setIsEditingPath(false)}
+                onSignIn={(typed) => setConnectDialog({ path: typed })}
               />
             )}
 
@@ -814,11 +834,25 @@ export default function App() {
               <div className="breadcrumb-fill" onClick={() => setIsEditingPath(true)} title="Type a path (Ctrl+L)" />
             )}
 
-            {navError && !isEditingPath && (
-              <span className="path-status path-error" title={navError} onClick={() => setNavError('')}>
-                {navError}
-              </span>
-            )}
+            {navError && !isEditingPath && (() => {
+              const { text, needsSignIn } = parseNetworkError(navError);
+              return (
+                <>
+                  <span className="path-status path-error" title={text} onClick={() => setNavError('')}>
+                    {text}
+                  </span>
+                  {needsSignIn && (
+                    <button
+                      className="btn-secondary"
+                      style={{ whiteSpace: 'nowrap', flexShrink: 0, padding: '2px 10px' }}
+                      onClick={() => setConnectDialog({ path: navErrorPath })}
+                    >
+                      Sign in...
+                    </button>
+                  )}
+                </>
+              );
+            })()}
 
             {isLoadingDir && (
               <span style={{ fontSize: 11, color: '#ffffff', marginLeft: 'auto' }}>
@@ -1069,6 +1103,15 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {/* Sign in to a network share with a username and password */}
+      {connectDialog && (
+        <ConnectNetworkModal
+          initialPath={connectDialog.path}
+          onClose={() => setConnectDialog(null)}
+          onConnect={handleConnectNetwork}
+        />
+      )}
 
       {/* Visual Drag & Drop Overlay */}
       {isDraggingOver && (

@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { parseNetworkError } from '../utils/networkErrors';
 
 // Address-bar style text box: type or paste a folder path (J:\Assets, \\mypc\library or //mypc/library).
 // onSubmit resolves to an error message, or nothing when the navigation worked.
-export default function PathInput({ initialValue, onSubmit, onCancel }) {
+// onSignIn(path) opens the network sign-in window when the error says the share needs a username and password.
+export default function PathInput({ initialValue, onSubmit, onCancel, onSignIn }) {
   const [value, setValue] = useState(initialValue || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -52,11 +54,27 @@ export default function PathInput({ initialValue, onSubmit, onCancel }) {
         readOnly={busy}
       />
       {busy && <span className="path-status">Connecting...</span>}
-      {error && (
-        <span className="path-status path-error" title={error}>
-          {error}
-        </span>
-      )}
+      {error && (() => {
+        const { text, needsSignIn } = parseNetworkError(error);
+        return (
+          <>
+            <span className="path-status path-error" title={text}>
+              {text}
+            </span>
+            {needsSignIn && onSignIn && (
+              <button
+                className="btn-secondary"
+                style={{ whiteSpace: 'nowrap', flexShrink: 0, padding: '2px 10px' }}
+                // Keep the text box from losing focus (which would close it) before the click lands
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onSignIn(value)}
+              >
+                Sign in...
+              </button>
+            )}
+          </>
+        );
+      })()}
     </>
   );
 }

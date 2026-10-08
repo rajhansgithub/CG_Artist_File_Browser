@@ -6,6 +6,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use crate::network_login::SIGN_IN_MARK;
+
 /// Turns what a user typed into the form Windows expects:
 /// `//mypc/library` -> `\\mypc\library\`, `"C:/Users/me/"` -> `C:\Users\me`,
 /// `\\?\UNC\nas\share\x` -> `\\nas\share\x`.
@@ -80,6 +82,17 @@ pub fn unc_parent(path: &str) -> Option<String> {
     (parts.len() > 2).then(|| join_unc(&parts[..parts.len() - 1]))
 }
 
+/// `\\host\share\x` -> `\\host`; any other text is returned as it is.
+fn server_of(path: &str) -> String {
+    let n = normalize_input(path);
+    if is_unc(&n) {
+        if let Some(host) = unc_parts(&n).first() {
+            return format!("\\\\{}", host);
+        }
+    }
+    path.to_string()
+}
+
 /// Plain-language reason for a failed access to a network path.
 /// `detail` is Windows' own text for the error, shown when there is no friendlier wording.
 pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str, detail: &str) -> String {
@@ -91,11 +104,30 @@ pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str, detail:
         ),
         // ERROR_NO_NETWORK, ERROR_NOT_CONNECTED
         Some(1222) | Some(2250) => format!("{} is not connected. Check that the network is on.", path),
-        // ERROR_ACCESS_DENIED, ERROR_LOGON_FAILURE, ERROR_SESSION_CREDENTIAL_CONFLICT, ERROR_NOT_AUTHENTICATED,
-        // ERROR_NO_SUCH_DOMAIN, ERROR_LOGON_TYPE_NOT_GRANTED, ERROR_NO_LOGON_SERVERS
-        Some(5) | Some(1326) | Some(1219) | Some(1244) | Some(1355) | Some(1385) | Some(1311) => format!(
-            "Windows refused access to {}. Open it once in File Explorer and save the credentials, then try again.",
-            path
+        // ERROR_SMB_GUEST_LOGON_BLOCKED: Windows tried the share without a username and password and its
+        // security policy refuses that. File Explorer works because it is signed in; this app is not.
+        Some(1272) => format!(
+            "{}Windows blocked {} because this app is not signed in to that PC. Sign in with a username and password for it.",
+            SIGN_IN_MARK,
+            server_of(path)
+        ),
+        // ERROR_LOGON_FAILURE
+        Some(1326) => format!(
+            "{}Windows did not accept the username or password for {}. Sign in again.",
+            SIGN_IN_MARK,
+            server_of(path)
+        ),
+        // ERROR_SESSION_CREDENTIAL_CONFLICT
+        Some(1219) => format!(
+            "{}Windows already has a connection to {} under a different user name. Sign in with that same user name, or disconnect the other one first.",
+            SIGN_IN_MARK,
+            server_of(path)
+        ),
+        // ERROR_ACCESS_DENIED, ERROR_NOT_AUTHENTICATED, ERROR_NO_SUCH_DOMAIN, ERROR_LOGON_TYPE_NOT_GRANTED,
+        // ERROR_NO_LOGON_SERVERS
+        Some(5) | Some(1244) | Some(1355) | Some(1385) | Some(1311) => format!(
+            "{}Windows refused access to {}. Sign in with a username and password that has access to it.",
+            SIGN_IN_MARK, path
         ),
         // ERROR_SEM_TIMEOUT, ERROR_NETNAME_DELETED, ERROR_UNEXP_NET_ERR
         Some(121) | Some(64) | Some(59) => format!("{} stopped responding. Check the network connection.", path),
@@ -497,8 +529,12 @@ mod tests {
     fn explains_common_errors() {
         let p = "\\\\mypc\\library";
         assert!(describe_os_error(Some(53), ErrorKind::NotFound, p, "x").starts_with("Can't find"));
-        assert!(describe_os_error(Some(1326), ErrorKind::Other, p, "x").contains("credentials"));
-        assert!(describe_os_error(Some(5), ErrorKind::PermissionDenied, p, "x").contains("credentials"));
+        let blocked = describe_os_error(Some(1272), ErrorKind::Other, p, "x");
+        assert!(blocked.starts_with(SIGN_IN_MARK), "{}", blocked);
+        assert!(blocked.contains("\\\\mypc") && blocked.contains("signed in"), "{}", blocked);
+        assert!(describe_os_error(Some(1326), ErrorKind::Other, p, "x").starts_with(SIGN_IN_MARK));
+        assert!(describe_os_error(Some(5), ErrorKind::PermissionDenied, p, "x").starts_with(SIGN_IN_MARK));
+        assert!(!describe_os_error(Some(53), ErrorKind::NotFound, p, "x").starts_with(SIGN_IN_MARK));
         assert!(describe_os_error(Some(1222), ErrorKind::Other, p, "x").contains("not connected"));
         assert!(describe_os_error(None, ErrorKind::NotFound, p, "x").starts_with("Folder not found"));
         // Anything unmapped keeps Windows' own wording instead of a generic label
