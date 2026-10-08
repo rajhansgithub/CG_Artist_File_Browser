@@ -71,8 +71,30 @@ function acesFilmic(x) {
   return Math.min(255, Math.max(0, Math.round(Math.pow(clamped, 1.0 / 2.2) * 255)));
 }
 
-// Convert float/half-float HDR/EXR image data to a 256x128 tone-mapped JPEG dataURL
-function renderToneMappedThumbnail(parsed, targetW = 256, targetH = 128) {
+// Computes thumbnail dimensions preserving aspect ratio (up to maxDim)
+function getThumbnailDimensions(width, height, maxDim = 256) {
+  if (!width || !height) return { w: 256, h: 128 };
+  if (width >= height) {
+    const tw = maxDim;
+    const th = Math.max(1, Math.round((maxDim * height) / width));
+    return { w: tw, h: th };
+  } else {
+    const th = maxDim;
+    const tw = Math.max(1, Math.round((maxDim * width) / height));
+    return { w: tw, h: th };
+  }
+}
+
+// Convert float/half-float HDR/EXR image data to a tone-mapped JPEG dataURL preserving aspect ratio
+function renderToneMappedThumbnail(parsed, targetW, targetH) {
+  const w = parsed.width;
+  const h = parsed.height;
+  if (!targetW || !targetH) {
+    const dims = getThumbnailDimensions(w, h);
+    targetW = dims.w;
+    targetH = dims.h;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = targetW;
   canvas.height = targetH;
@@ -80,8 +102,6 @@ function renderToneMappedThumbnail(parsed, targetW = 256, targetH = 128) {
   const imgData = ctx.createImageData(targetW, targetH);
   const out = imgData.data;
 
-  const w = parsed.width;
-  const h = parsed.height;
   const data = parsed.data;
   if (!data || w <= 0 || h <= 0) return null;
 
@@ -144,16 +164,21 @@ function renderToneMappedThumbnail(parsed, targetW = 256, targetH = 128) {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
-function renderRgbaThumbnail(parsed, targetW = 256, targetH = 128) {
+function renderRgbaThumbnail(parsed, targetW, targetH) {
+  const w = parsed.width;
+  const h = parsed.height;
+  if (!targetW || !targetH) {
+    const dims = getThumbnailDimensions(w, h);
+    targetW = dims.w;
+    targetH = dims.h;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext('2d');
   const imgData = ctx.createImageData(targetW, targetH);
   const out = imgData.data;
-
-  const w = parsed.width;
-  const h = parsed.height;
   const data = parsed.data;
   const totalPixels = w * h;
   const isGrayscale = data.length === totalPixels;
@@ -602,11 +627,22 @@ function renderOffscreenVideoThumbnail(item) {
 
     video.onseeked = () => {
       try {
+        const vw = video.videoWidth || 320;
+        const vh = video.videoHeight || 180;
+        const maxDim = 320;
+        let targetW, targetH;
+        if (vw >= vh) {
+          targetW = maxDim;
+          targetH = Math.max(1, Math.round((maxDim * vh) / vw));
+        } else {
+          targetH = maxDim;
+          targetW = Math.max(1, Math.round((maxDim * vw) / vh));
+        }
         const canvas = document.createElement('canvas');
-        canvas.width = 320;
-        canvas.height = 180;
+        canvas.width = targetW;
+        canvas.height = targetH;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, 320, 180);
+        ctx.drawImage(video, 0, 0, targetW, targetH);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
         cleanUp();
         resolve(dataUrl);

@@ -387,8 +387,8 @@ fn scan_entry(ctx: &ScanContext, entry: &fs::DirEntry, depth: usize) -> Vec<File
         .map(|d| d.as_secs_f64() * 1000.0)
         .unwrap_or(0.0);
 
-    // Thumbnail resolution (same cache key as before: md5 of "v2_path_modified_size")
-    let hash = format!("{:x}", md5::compute(format!("v2_{}_{}_{}", full_path_str, modified, size)));
+    // Thumbnail resolution (aspect-ratio-aware cache key: md5 of "v3_path_modified_size")
+    let hash = format!("{:x}", md5::compute(format!("v3_{}_{}_{}", full_path_str, modified, size)));
     let jpg_name = format!("{}.jpg", hash);
     let png_name = format!("{}.png", hash);
     let thumbnail = if ctx.cached_thumbs.contains(&jpg_name) {
@@ -955,7 +955,7 @@ fn save_thumbnail(
         .map(|d| d.as_secs_f64() * 1000.0)
         .unwrap_or(0.0);
 
-    let hash = format!("{:x}", md5::compute(format!("v2_{}_{}_{}", file_path, modified, size)));
+    let hash = format!("{:x}", md5::compute(format!("v3_{}_{}_{}", file_path, modified, size)));
     let cache_dir = get_cache_dir(&app);
     let thumb_path = cache_dir.join("thumbs").join(format!("{}.jpg", hash));
 
@@ -974,7 +974,7 @@ fn save_thumbnail(
     Ok(thumb_path.to_string_lossy().to_string())
 }
 
-// Cache key shared with read_directory / save_thumbnail: md5 of "v2_path_modified_size".
+// Cache key shared with read_directory / save_thumbnail: md5 of "v3_path_modified_size".
 fn thumbnail_cache_hash(file_path: &str, meta: &fs::Metadata) -> String {
     let modified = meta
         .modified()
@@ -982,7 +982,7 @@ fn thumbnail_cache_hash(file_path: &str, meta: &fs::Metadata) -> String {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs_f64() * 1000.0)
         .unwrap_or(0.0);
-    format!("{:x}", md5::compute(format!("v2_{}_{}_{}", file_path, modified, meta.len())))
+    format!("{:x}", md5::compute(format!("v3_{}_{}_{}", file_path, modified, meta.len())))
 }
 
 // IPC: Generate a thumbnail natively (HDR / EXR / TGA / TIFF / PNG / JPEG / WebP / BMP) and write it to the

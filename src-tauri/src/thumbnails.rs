@@ -14,9 +14,26 @@ pub const THUMB_H: usize = 128;
 const JPEG_QUALITY: u8 = 85;
 const NO_LATTICE: u32 = u32::MAX;
 
-/// Decodes `src` and returns the 256x128 thumbnail as raw 8-bit RGB. Errors mean "this file is not
-/// supported or could not be read natively"; callers fall back to the JavaScript decoders.
-pub fn thumbnail_rgb(src: &Path) -> Result<Vec<u8>, String> {
+/// Computes target thumbnail dimensions preserving each file's aspect ratio.
+/// A 2:1 panorama yields 256x128, a 1:1 square yields 256x256, 16:9 yields 256x144, etc.
+pub fn thumbnail_dimensions(width: usize, height: usize) -> (usize, usize) {
+    if width == 0 || height == 0 {
+        return (THUMB_W, THUMB_H);
+    }
+    if width >= height {
+        let tw = 256;
+        let th = ((256.0 * height as f64) / width as f64).round().max(1.0) as usize;
+        (tw, th)
+    } else {
+        let th = 256;
+        let tw = ((256.0 * width as f64) / height as f64).round().max(1.0) as usize;
+        (tw, th)
+    }
+}
+
+/// Decodes `src` and returns the thumbnail as raw 8-bit RGB with (width, height) preserving aspect ratio.
+/// Errors mean "this file is not supported or could not be read natively"; callers fall back to the JavaScript decoders.
+pub fn thumbnail_rgb(src: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     let ext = src
         .extension()
         .and_then(|e| e.to_str())
@@ -46,7 +63,8 @@ pub fn generate_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, String
     }
 
     let out = out_stem.with_extension("jpg");
-    write_jpeg(&thumbnail_rgb(src)?, &out)?;
+    let (rgb, tw, th) = thumbnail_rgb(src)?;
+    write_jpeg(&rgb, tw as u32, th as u32, &out)?;
     Ok(out)
 }
 
@@ -58,13 +76,13 @@ pub fn cached_thumbnail(out_stem: &Path) -> Option<PathBuf> {
         .find(|p| p.exists())
 }
 
-fn write_jpeg(rgb: &[u8], out: &Path) -> Result<(), String> {
+fn write_jpeg(rgb: &[u8], width: u32, height: u32, out: &Path) -> Result<(), String> {
     write_atomic(out, |file| {
         image::ImageEncoder::write_image(
             image::codecs::jpeg::JpegEncoder::new_with_quality(file, JPEG_QUALITY),
             rgb,
-            THUMB_W as u32,
-            THUMB_H as u32,
+            width,
+            height,
             image::ExtendedColorType::Rgb8,
         )
     })
@@ -82,6 +100,8 @@ fn write_jpeg(rgb: &[u8], out: &Path) -> Result<(), String> {
 pub struct FloatSampler {
     width: usize,
     height: usize,
+    thumb_w: usize,
+    thumb_h: usize,
     step: u64,
     col_targets: Vec<Vec<u16>>,
     row_targets: Vec<Vec<u16>>,
@@ -94,11 +114,12 @@ pub struct FloatSampler {
 impl FloatSampler {
     /// `flip`: the JS loader stored row 0 at the bottom of the image (true for EXR, false for HDR).
     pub fn new(width: usize, height: usize, flip: bool) -> Self {
+        let (thumb_w, thumb_h) = thumbnail_dimensions(width, height);
         let step = std::cmp::max(1, (width as u64 * height as u64) / 500);
 
         let mut col_targets: Vec<Vec<u16>> = vec![Vec::new(); width];
-        for dx in 0..THUMB_W {
-            let sx = ((dx as f64 / THUMB_W as f64) * width as f64).floor() as usize;
+        for dx in 0..thumb_w {
+            let sx = ((dx as f64 / thumb_w as f64) * width as f64).floor() as usize;
             col_targets[sx.min(width - 1)].push(dx as u16);
         }
 
@@ -107,8 +128,8 @@ impl FloatSampler {
         let to_decoder_row = |loader_row: usize| if flip { height - 1 - loader_row } else { loader_row };
 
         let mut row_targets: Vec<Vec<u16>> = vec![Vec::new(); height];
-        for dy in 0..THUMB_H {
-            let norm_y = dy as f64 / THUMB_H as f64;
+        for dy in 0..thumb_h {
+            let norm_y = dy as f64 / thumb_h as f64;
             let loader_row = if flip {
                 ((1.0 - norm_y) * height as f64).floor()
             } else {
@@ -131,11 +152,13 @@ impl FloatSampler {
         Self {
             width,
             height,
+            thumb_w,
+            thumb_h,
             step,
             col_targets,
             row_targets,
             lattice_x0,
-            grid: vec![[0.0; 3]; THUMB_W * THUMB_H],
+            grid: vec![[0.0; 3]; thumb_w * thumb_h],
             lum_sum: 0.0,
             lum_count: 0,
         }
@@ -169,13 +192,13 @@ impl FloatSampler {
         let cols = &self.col_targets[x];
         for &dy in rows {
             for &dx in cols {
-                self.grid[dy as usize * THUMB_W + dx as usize] = rgb;
+                self.grid[dy as usize * self.thumb_w + dx as usize] = rgb;
             }
         }
     }
 
-    /// Auto-exposure towards middle grey, then ACES filmic + gamma 2.2, as 8-bit RGB.
-    pub fn finish(self) -> Vec<u8> {
+    /// Auto-exposure towards middle grey, then ACES filmic + gamma 2.2, as 8-bit RGB with (w, h).
+    pub fn finish(self) -> (Vec<u8>, usize, usize) {
         let mut exposure = 1.0f64;
         if self.lum_count > 0 {
             let avg = self.lum_sum / self.lum_count as f64;
@@ -184,13 +207,13 @@ impl FloatSampler {
             }
         }
 
-        let mut out = Vec::with_capacity(THUMB_W * THUMB_H * 3);
+        let mut out = Vec::with_capacity(self.thumb_w * self.thumb_h * 3);
         for px in &self.grid {
             for c in px {
                 out.push(aces_filmic(to_float(*c) * exposure));
             }
         }
-        out
+        (out, self.thumb_w, self.thumb_h)
     }
 }
 
@@ -209,7 +232,7 @@ fn aces_filmic(x: f64) -> u8 {
     (clamped.powf(1.0 / 2.2) * 255.0).round().max(0.0).min(255.0) as u8
 }
 
-fn exr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
+fn exr_thumbnail(src: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     use exr::prelude::*;
 
     // Pixels are streamed into the sampler as blocks are decompressed; the full image is never stored.
@@ -230,7 +253,7 @@ fn exr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
     Ok(image.layer_data.channel_data.pixels.finish())
 }
 
-fn hdr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
+fn hdr_thumbnail(src: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     let img = image::ImageReader::open(src)
         .map_err(|e| e.to_string())?
         .with_guessed_format()
@@ -261,7 +284,7 @@ fn hdr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
 // 8-bit images (TGA / TIFF)
 // ---------------------------------------------------------------------------------------------------
 
-fn ldr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
+fn ldr_thumbnail(src: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     let img = image::ImageReader::open(src)
         .map_err(|e| e.to_string())?
         .with_guessed_format()
@@ -275,26 +298,26 @@ fn ldr_thumbnail(src: &Path) -> Result<Vec<u8>, String> {
         return Err("Empty image".into());
     }
 
-    let mut out = Vec::with_capacity(THUMB_W * THUMB_H * 3);
-    for dy in 0..THUMB_H {
-        let sy = (((dy as f64 / THUMB_H as f64) * h as f64).floor() as usize).min(h - 1);
-        for dx in 0..THUMB_W {
-            let sx = (((dx as f64 / THUMB_W as f64) * w as f64).floor() as usize).min(w - 1);
+    let (thumb_w, thumb_h) = thumbnail_dimensions(w, h);
+    let mut out = Vec::with_capacity(thumb_w * thumb_h * 3);
+    for dy in 0..thumb_h {
+        let sy = (((dy as f64 / thumb_h as f64) * h as f64).floor() as usize).min(h - 1);
+        for dx in 0..thumb_w {
+            let sx = (((dx as f64 / thumb_w as f64) * w as f64).floor() as usize).min(w - 1);
             let p = img.get_pixel(sx as u32, sy as u32);
             out.extend_from_slice(&p.0);
         }
     }
-    Ok(out)
+    Ok((out, thumb_w, thumb_h))
 }
 
 // ---------------------------------------------------------------------------------------------------
 // Standard images (PNG / JPEG / WebP / BMP)
 // ---------------------------------------------------------------------------------------------------
 
-// Cards show the image with `object-fit: contain` in a 2:1 box up to ~500px wide, so a thumbnail that fits
-// inside 512x256 looks the same as the full-resolution file did, at a fraction of the decode/memory cost.
+// Thumbnails keep each file's native aspect ratio up to 512x512.
 const IMAGE_THUMB_MAX_W: u32 = 512;
-const IMAGE_THUMB_MAX_H: u32 = 256;
+const IMAGE_THUMB_MAX_H: u32 = 512;
 
 fn standard_image_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, String> {
     use image::ImageDecoder;
@@ -364,4 +387,24 @@ where
         let _ = fs::remove_file(&tmp);
         e.to_string()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_square_thumbnail_dimensions() {
+        let (w, h) = thumbnail_dimensions(1024, 1024);
+        assert_eq!(w, h);
+        assert_eq!(w, 256);
+        assert_eq!(h, 256);
+    }
+
+    #[test]
+    fn test_panorama_thumbnail_dimensions() {
+        let (w, h) = thumbnail_dimensions(2048, 1024);
+        assert_eq!(w, 256);
+        assert_eq!(h, 128);
+    }
 }

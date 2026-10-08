@@ -513,7 +513,6 @@ select option {
   position: relative;
   transition: all 0.15s ease;
   box-shadow: var(--shadow-sm);
-  min-height: 140px;
 }
 
 .asset-card:hover {
@@ -527,11 +526,10 @@ select option {
   box-shadow: 0 0 0 1px #ffffff;
 }
 
-/* 2:1 Aspect Ratio Preview Container - Perfectly matches HDRI equirectangular panoramas! */
+/* Aspect Ratio Preview Container - Defaults to 2:1 placeholder, reshapes to file aspect ratio */
 .card-preview {
   width: 100%;
   aspect-ratio: 2 / 1;
-  min-height: 95px;
   flex-shrink: 0;
   background: #080808;
   display: flex;
@@ -539,6 +537,7 @@ select option {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  transition: aspect-ratio 0.2s ease;
 }
 
 .folder-preview {
