@@ -5,6 +5,7 @@ import { TIFFLoader } from 'three/addons/loaders/TIFFLoader.js';
 import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { load3DModel } from './assetLoader.js';
 import { openPdfDocument } from './pdfLoader.js';
+import { decodeTiffToRGBA } from './tiffDecoder.js';
 
 // In-memory cache for ultra-fast UI rendering
 const memoryCache = new Map();
@@ -427,17 +428,7 @@ export async function getOrGenerateThumbnail(item) {
         let parsed = null;
 
         try {
-          const { default: UTIF } = await import('three/addons/libs/utif.module.js');
-          const ifds = UTIF.decode(arrayBuf);
-          if (ifds && ifds.length > 0) {
-            UTIF.decodeImage(arrayBuf, ifds[0], ifds);
-            const rgba = UTIF.toRGBA8(ifds[0]);
-            parsed = {
-              width: ifds[0].width,
-              height: ifds[0].height,
-              data: rgba
-            };
-          }
+          parsed = await decodeTiffToRGBA(arrayBuf);
         } catch (utifErr) {
           console.warn('Direct UTIF decode failed in thumbnail, trying TIFFLoader:', utifErr);
         }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { decodeTiffToRGBA } from './tiffDecoder';
 
 // In-memory cache for decoded images: Map<path, { url, width, height, isBlob, format }>
 const imageCache = new Map();
@@ -137,17 +138,7 @@ async function decodeTextureFile(asset, ext) {
   } else {
     // Try UTIF first
     try {
-      const { default: UTIF } = await import('three/addons/libs/utif.module.js');
-      const ifds = UTIF.decode(arrayBuf);
-      if (ifds && ifds.length > 0) {
-        UTIF.decodeImage(arrayBuf, ifds[0], ifds);
-        const rgba = UTIF.toRGBA8(ifds[0]);
-        parsed = {
-          width: ifds[0].width,
-          height: ifds[0].height,
-          data: rgba
-        };
-      }
+      parsed = await decodeTiffToRGBA(arrayBuf);
     } catch (e) {
       console.warn('UTIF failed, trying TIFFLoader fallback:', e);
     }
