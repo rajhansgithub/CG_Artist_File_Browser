@@ -126,6 +126,7 @@ fn detect_blender(app: &tauri::AppHandle) -> Option<String> {
         }
     }
 
+    #[cfg(target_os = "windows")]
     let candidates = [
         r"C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe",
         r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
@@ -141,11 +142,35 @@ fn detect_blender(app: &tauri::AppHandle) -> Option<String> {
         r"J:\SteamLibrary\steamapps\common\Blender\blender.exe",
     ];
 
+    #[cfg(target_os = "linux")]
+    let candidates = [
+        "/usr/bin/blender",
+        "/usr/local/bin/blender",
+        "/snap/bin/blender",
+        "/var/lib/flatpak/exports/bin/org.blender.Blender",
+    ];
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    let candidates: [&str; 0] = [];
+
     for c in &candidates {
         if Path::new(c).exists() {
             return Some(c.to_string());
         }
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = Command::new("which").arg("blender").output() {
+            if output.status.success() {
+                let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !p.is_empty() && Path::new(&p).exists() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -167,10 +192,58 @@ fn get_category(ext: &str) -> &'static str {
 fn list_drives() -> Vec<DriveInfo> {
     let disks = Disks::new_with_refreshed_list();
     let mut drives = Vec::new();
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            if Path::new(&home).exists() {
+                drives.push(DriveInfo {
+                    name: home.clone(),
+                    mount: home,
+                    label: "Home".to_string(),
+                    total_gb: None,
+                    free_gb: None,
+                });
+            }
+        }
+    }
+
     for disk in &disks {
         let mount = disk.mount_point().to_string_lossy().to_string();
+
+        #[cfg(target_os = "linux")]
+        {
+            if mount.starts_with("/boot")
+                || mount.starts_with("/snap")
+                || mount.starts_with("/dev")
+                || mount.starts_with("/proc")
+                || mount.starts_with("/sys")
+                || mount.starts_with("/run")
+                || mount.starts_with("/var/lib/docker")
+                || mount.starts_with("/var/lib/snapd")
+            {
+                continue;
+            }
+            if let Ok(home) = std::env::var("HOME") {
+                if mount == home {
+                    continue;
+                }
+            }
+        }
+
         let label = disk.name().to_string_lossy().to_string();
-        let label_str = if label.is_empty() { "Local Disk".to_string() } else { label };
+        let label_str = if label.is_empty() {
+            #[cfg(target_os = "linux")]
+            {
+                if mount == "/" { "Root (/)".to_string() } else { mount.clone() }
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                "Local Disk".to_string()
+            }
+        } else {
+            label
+        };
         let total_gb = format!("{:.1}", disk.total_space() as f64 / 1_073_741_824.0);
         let free_gb = format!("{:.1}", disk.available_space() as f64 / 1_073_741_824.0);
 
@@ -183,6 +256,7 @@ fn list_drives() -> Vec<DriveInfo> {
         });
     }
 
+    #[cfg(target_os = "windows")]
     if drives.is_empty() {
         for c in b'C'..=b'Z' {
             let root = format!("{}:\\", c as char);
@@ -486,7 +560,22 @@ fn show_in_folder(file_path: String) -> bool {
                 .is_ok()
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        if p.is_dir() {
+            Command::new("xdg-open")
+                .arg(&file_path)
+                .spawn()
+                .is_ok()
+        } else {
+            let parent = p.parent().unwrap_or(p);
+            Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .is_ok()
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         false
     }
@@ -508,7 +597,14 @@ fn open_external(file_path: String) -> bool {
             .spawn()
             .is_ok()
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&file_path)
+            .spawn()
+            .is_ok()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         false
     }
