@@ -81,15 +81,19 @@ pub fn unc_parent(path: &str) -> Option<String> {
 }
 
 /// Plain-language reason for a failed access to a network path.
-pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str) -> String {
+/// `detail` is Windows' own text for the error, shown when there is no friendlier wording.
+pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str, detail: &str) -> String {
     match code {
-        // ERROR_BAD_NETPATH, ERROR_BAD_NET_NAME, ERROR_NETWORK_UNREACHABLE
-        Some(53) | Some(67) | Some(1231) | Some(1203) => format!(
+        // ERROR_BAD_NETPATH, ERROR_BAD_NET_NAME, ERROR_NETWORK_UNREACHABLE, ERROR_REM_NOT_LIST
+        Some(53) | Some(67) | Some(1231) | Some(1203) | Some(51) => format!(
             "Can't find {}. Check the PC and share names, and that the PC is on and reachable.",
             path
         ),
-        // ERROR_ACCESS_DENIED, ERROR_LOGON_FAILURE, ERROR_SESSION_CREDENTIAL_CONFLICT, ERROR_NOT_AUTHENTICATED
-        Some(5) | Some(1326) | Some(1219) | Some(1244) => format!(
+        // ERROR_NO_NETWORK, ERROR_NOT_CONNECTED
+        Some(1222) | Some(2250) => format!("{} is not connected. Check that the network is on.", path),
+        // ERROR_ACCESS_DENIED, ERROR_LOGON_FAILURE, ERROR_SESSION_CREDENTIAL_CONFLICT, ERROR_NOT_AUTHENTICATED,
+        // ERROR_NO_SUCH_DOMAIN, ERROR_LOGON_TYPE_NOT_GRANTED, ERROR_NO_LOGON_SERVERS
+        Some(5) | Some(1326) | Some(1219) | Some(1244) | Some(1355) | Some(1385) | Some(1311) => format!(
             "Windows refused access to {}. Open it once in File Explorer and save the credentials, then try again.",
             path
         ),
@@ -97,7 +101,7 @@ pub fn describe_os_error(code: Option<i32>, kind: ErrorKind, path: &str) -> Stri
         Some(121) | Some(64) | Some(59) => format!("{} stopped responding. Check the network connection.", path),
         _ if kind == ErrorKind::NotFound => format!("Folder not found: {}", path),
         _ if kind == ErrorKind::PermissionDenied => format!("No permission to open {}", path),
-        _ => format!("Can't open {}: {}", path, std::io::Error::from(kind)),
+        _ => format!("Can't open {}: {}", path, detail),
     }
 }
 
@@ -108,11 +112,18 @@ pub fn probe(path: &str, timeout: Duration) -> Result<bool, String> {
     let (tx, rx) = mpsc::channel();
     let target = path.to_string();
     thread::spawn(move || {
-        let _ = tx.send(std::fs::metadata(&target).map(|m| m.is_dir()));
+        let mut result = std::fs::metadata(&target);
+        // Some setups accept `\\server\share` but not the root form with a trailing backslash
+        if result.is_err() && target.ends_with('\\') && is_unc(&target) {
+            if let Ok(meta) = std::fs::metadata(target.trim_end_matches('\\')) {
+                result = Ok(meta);
+            }
+        }
+        let _ = tx.send(result.map(|m| m.is_dir()));
     });
     match rx.recv_timeout(timeout) {
         Ok(Ok(is_dir)) => Ok(is_dir),
-        Ok(Err(e)) => Err(describe_os_error(e.raw_os_error(), e.kind(), path)),
+        Ok(Err(e)) => Err(describe_os_error(e.raw_os_error(), e.kind(), path, &e.to_string())),
         Err(_) => Err(format!(
             "{} did not answer within {} seconds. Check the network connection.",
             path,
@@ -208,6 +219,34 @@ pub fn extra_drives(known: &[char], timeout: Duration) -> Vec<ExtraDrive> {
     }
     drives.retain(|d| d.is_network || !d.offline);
     drives
+}
+
+/// `\\server\share\a\b` -> `Z:\a\b` when drive Z: is mapped to that share (case-insensitive).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn map_unc_to_drive(path: &str, mappings: &[(char, String)]) -> Option<String> {
+    let n = normalize_input(path);
+    let root = unc_share_root(&n)?;
+    let (letter, _) = mappings
+        .iter()
+        .find(|(_, share)| unc_share_root(share).is_some_and(|r| r.eq_ignore_ascii_case(&root)))?;
+    let rest = n[root.len().min(n.len())..].trim_start_matches('\\');
+    Some(if rest.is_empty() {
+        format!("{}:\\", letter.to_ascii_uppercase())
+    } else {
+        format!("{}:\\{}", letter.to_ascii_uppercase(), rest)
+    })
+}
+
+/// The same location through a mapped drive letter, for when Windows refuses the direct `\\server\share`
+/// route but the drive mapped to it works (as File Explorer shows).
+#[cfg(windows)]
+pub fn drive_letter_path(path: &str) -> Option<String> {
+    let mut mappings: Vec<(char, String)> = extra_drives(&[], Duration::from_millis(1500))
+        .into_iter()
+        .filter_map(|d| Some((d.root.chars().next()?, d.remote?)))
+        .collect();
+    mappings.extend(remembered_mappings());
+    map_unc_to_drive(path, &mappings)
 }
 
 /// Drive letters Windows remembers for the current user (`HKCU\\Network\\<letter>\\RemotePath`),
@@ -445,12 +484,26 @@ mod tests {
     }
 
     #[test]
+    fn maps_share_paths_onto_drive_letters() {
+        let maps = vec![('z', "\\\\RAJHANSPC\\Library".to_string()), ('Y', "\\\\nas\\Media\\".to_string())];
+        assert_eq!(map_unc_to_drive("\\\\rajhanspc\\library\\", &maps).as_deref(), Some("Z:\\"));
+        assert_eq!(map_unc_to_drive("//RAJHANSPC/Library/Assets/Hero", &maps).as_deref(), Some("Z:\\Assets\\Hero"));
+        assert_eq!(map_unc_to_drive("\\\\nas\\Media\\x", &maps).as_deref(), Some("Y:\\x"));
+        assert_eq!(map_unc_to_drive("\\\\other\\share\\x", &maps), None);
+        assert_eq!(map_unc_to_drive("C:\\x", &maps), None);
+    }
+
+    #[test]
     fn explains_common_errors() {
         let p = "\\\\mypc\\library";
-        assert!(describe_os_error(Some(53), ErrorKind::NotFound, p).starts_with("Can't find"));
-        assert!(describe_os_error(Some(1326), ErrorKind::Other, p).contains("credentials"));
-        assert!(describe_os_error(Some(5), ErrorKind::PermissionDenied, p).contains("credentials"));
-        assert!(describe_os_error(None, ErrorKind::NotFound, p).starts_with("Folder not found"));
+        assert!(describe_os_error(Some(53), ErrorKind::NotFound, p, "x").starts_with("Can't find"));
+        assert!(describe_os_error(Some(1326), ErrorKind::Other, p, "x").contains("credentials"));
+        assert!(describe_os_error(Some(5), ErrorKind::PermissionDenied, p, "x").contains("credentials"));
+        assert!(describe_os_error(Some(1222), ErrorKind::Other, p, "x").contains("not connected"));
+        assert!(describe_os_error(None, ErrorKind::NotFound, p, "x").starts_with("Folder not found"));
+        // Anything unmapped keeps Windows' own wording instead of a generic label
+        let unknown = describe_os_error(Some(4711), ErrorKind::Other, p, "The thing broke. (os error 4711)");
+        assert!(unknown.contains("os error 4711"), "{}", unknown);
     }
 
     #[test]
