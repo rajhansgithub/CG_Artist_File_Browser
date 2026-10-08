@@ -466,12 +466,15 @@ fn read_directory_blocking(
     dir_path: String,
     options: Option<ReadDirOptions>,
 ) -> Result<DirectoryResult, String> {
+    // A dead share can hang the existence check for a minute; fail with a readable reason instead
+    let dir_path = if cfg!(target_os = "windows") && network::is_unc(&dir_path) {
+        reach_path(&dir_path)?.0
+    } else {
+        dir_path
+    };
     let path = Path::new(&dir_path);
     let unc = cfg!(target_os = "windows") && network::is_unc(&dir_path);
-    if unc {
-        // A dead share can hang the existence check for a minute; fail with a readable reason instead
-        network::probe(&dir_path, Duration::from_secs(15))?;
-    } else if !path.exists() {
+    if !unc && !path.exists() {
         return Err(format!("Path does not exist: {}", dir_path));
     }
 
@@ -563,14 +566,35 @@ async fn resolve_path(app: tauri::AppHandle, input: String) -> Result<ResolvedPa
             ));
         }
 
-        let is_directory = network::probe(&path, Duration::from_secs(15))?;
+        let (reached, is_directory) = if unc {
+            reach_path(&path)?
+        } else {
+            (path.clone(), network::probe(&path, Duration::from_secs(15))?)
+        };
         if let Some(root) = network::unc_share_root(&path).filter(|_| unc) {
             record_network_location(&app, &root);
         }
-        Ok(ResolvedPath { path, is_directory })
+        Ok(ResolvedPath { path: reached, is_directory })
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// Checks a network path and returns the path to use (plus whether it is a folder). When Windows refuses
+// `\\server\share` but a drive letter is mapped to the same share, that drive's path is used instead.
+fn reach_path(path: &str) -> Result<(String, bool), String> {
+    match network::probe(path, Duration::from_secs(15)) {
+        Ok(is_dir) => Ok((path.to_string(), is_dir)),
+        Err(first_error) => {
+            #[cfg(target_os = "windows")]
+            if let Some(alternate) = network::drive_letter_path(path) {
+                if let Ok(is_dir) = network::probe(&alternate, Duration::from_secs(5)) {
+                    return Ok((alternate, is_dir));
+                }
+            }
+            Err(first_error)
+        }
+    }
 }
 
 fn record_network_location(app: &tauri::AppHandle, share_root: &str) {
