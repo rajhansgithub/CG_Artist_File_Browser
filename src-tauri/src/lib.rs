@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod network;
 mod thumbnails;
 
 use rayon::prelude::*;
@@ -7,11 +8,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, MutexGuard};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, UNIX_EPOCH};
 use sysinfo::Disks;
 use tauri::Manager;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct DriveInfo {
     pub name: String,
     pub mount: String,
@@ -20,6 +21,11 @@ pub struct DriveInfo {
     pub total_gb: Option<String>,
     #[serde(rename = "freeGB")]
     pub free_gb: Option<String>,
+    #[serde(rename = "isNetwork", default)]
+    pub is_network: bool,
+    // Network drive that gave no answer in time (disconnected, asleep or very slow)
+    #[serde(default)]
+    pub offline: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -64,6 +70,9 @@ pub struct StudioConfig {
     pub blender_path: Option<String>,
     pub favorites: Vec<serde_json::Value>,
     pub recent_folders: Vec<String>,
+    // Share roots (\\server\share\) the user has opened by typing a network path
+    #[serde(default)]
+    pub network_locations: Vec<String>,
 }
 
 impl Default for StudioConfig {
@@ -72,6 +81,7 @@ impl Default for StudioConfig {
             blender_path: None,
             favorites: Vec::new(),
             recent_folders: Vec::new(),
+            network_locations: Vec::new(),
         }
     }
 }
@@ -188,8 +198,15 @@ fn get_category(ext: &str) -> &'static str {
 }
 
 // IPC: List Drives
+// Async because querying a network drive can take seconds when the share is slow or gone.
 #[tauri::command]
-fn list_drives() -> Vec<DriveInfo> {
+async fn list_drives() -> Vec<DriveInfo> {
+    tauri::async_runtime::spawn_blocking(list_drives_blocking)
+        .await
+        .unwrap_or_default()
+}
+
+fn list_drives_blocking() -> Vec<DriveInfo> {
     let disks = Disks::new_with_refreshed_list();
     let mut drives = Vec::new();
 
@@ -201,8 +218,7 @@ fn list_drives() -> Vec<DriveInfo> {
                     name: home.clone(),
                     mount: home,
                     label: "Home".to_string(),
-                    total_gb: None,
-                    free_gb: None,
+                    ..Default::default()
                 });
             }
         }
@@ -253,22 +269,41 @@ fn list_drives() -> Vec<DriveInfo> {
             label: label_str,
             total_gb: Some(total_gb),
             free_gb: Some(free_gb),
+            ..Default::default()
         });
     }
 
+    // Mapped network drives (Z: -> \\server\share) are not part of the disk listing above
     #[cfg(target_os = "windows")]
-    if drives.is_empty() {
-        for c in b'C'..=b'Z' {
-            let root = format!("{}:\\", c as char);
-            if Path::new(&root).exists() {
-                drives.push(DriveInfo {
-                    name: root.clone(),
-                    mount: format!("{}:", c as char),
-                    label: format!("Drive ({}:)", c as char),
-                    total_gb: None,
-                    free_gb: None,
-                });
+    {
+        let network = network::mapped_network_drives(Duration::from_millis(2500));
+        if drives.is_empty() {
+            for c in b'C'..=b'Z' {
+                let root = format!("{}:\\", c as char);
+                if network.iter().any(|n| n.root == root) {
+                    continue;
+                }
+                if Path::new(&root).exists() {
+                    drives.push(DriveInfo {
+                        name: root.clone(),
+                        mount: format!("{}:", c as char),
+                        label: format!("Drive ({}:)", c as char),
+                        ..Default::default()
+                    });
+                }
             }
+        }
+        for n in network {
+            let gb = |bytes: u64| format!("{:.1}", bytes as f64 / 1_073_741_824.0);
+            drives.push(DriveInfo {
+                name: n.root.clone(),
+                mount: n.root,
+                label: n.remote.unwrap_or_else(|| "Network Drive".to_string()),
+                total_gb: n.total_bytes.map(gb),
+                free_gb: n.free_bytes.map(gb),
+                is_network: true,
+                offline: n.offline,
+            });
         }
     }
     drives
@@ -431,7 +466,11 @@ fn read_directory_blocking(
     options: Option<ReadDirOptions>,
 ) -> Result<DirectoryResult, String> {
     let path = Path::new(&dir_path);
-    if !path.exists() {
+    let unc = cfg!(target_os = "windows") && network::is_unc(&dir_path);
+    if unc {
+        // A dead share can hang the existence check for a minute; fail with a readable reason instead
+        network::probe(&dir_path, Duration::from_secs(15))?;
+    } else if !path.exists() {
         return Err(format!("Path does not exist: {}", dir_path));
     }
 
@@ -460,7 +499,12 @@ fn read_directory_blocking(
     };
 
     let items = scan_dir(&ctx, path, 0);
-    let parent_path = path.parent().map(|p| p.to_string_lossy().to_string());
+    // A share root is the top of a network location (\\server\share has no browsable parent)
+    let parent_path = if unc {
+        network::unc_parent(&dir_path)
+    } else {
+        path.parent().map(|p| p.to_string_lossy().to_string())
+    };
 
     Ok(DirectoryResult {
         current_path: dir_path,
@@ -487,6 +531,72 @@ async fn read_directory(
     drop(tauri::async_runtime::spawn_blocking(move || record_recent_folder(&app, &dir_path)));
 
     Ok(result)
+}
+
+#[derive(Serialize)]
+pub struct ResolvedPath {
+    pub path: String,
+    #[serde(rename = "isDirectory")]
+    pub is_directory: bool,
+}
+
+// IPC: Check a path typed into the address bar (`\\server\share`, `//server/share`, `D:/x`) and
+// return it in Windows form. Reachable network shares are remembered for the sidebar.
+#[tauri::command]
+async fn resolve_path(app: tauri::AppHandle, input: String) -> Result<ResolvedPath, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = if cfg!(target_os = "windows") {
+            network::normalize_input(&input)
+        } else {
+            input.trim().to_string()
+        };
+        if path.is_empty() {
+            return Err("Type a folder path".to_string());
+        }
+        let unc = cfg!(target_os = "windows") && network::is_unc(&path);
+        if unc && network::unc_share_root(&path).is_none() {
+            return Err(format!(
+                "{} needs a share name, like {}\\library",
+                path,
+                path.trim_end_matches('\\')
+            ));
+        }
+
+        let is_directory = network::probe(&path, Duration::from_secs(15))?;
+        if let Some(root) = network::unc_share_root(&path).filter(|_| unc) {
+            record_network_location(&app, &root);
+        }
+        Ok(ResolvedPath { path, is_directory })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn record_network_location(app: &tauri::AppHandle, share_root: &str) {
+    let _guard = lock_config();
+    let mut cfg = load_config(app);
+    if cfg.network_locations.first().is_some_and(|p| p.eq_ignore_ascii_case(share_root)) {
+        return;
+    }
+    cfg.network_locations.retain(|p| !p.eq_ignore_ascii_case(share_root));
+    cfg.network_locations.insert(0, share_root.to_string());
+    cfg.network_locations.truncate(10);
+    save_config(app, &cfg);
+}
+
+// IPC: Network locations remembered for the sidebar
+#[tauri::command]
+fn get_network_locations(app: tauri::AppHandle) -> Vec<String> {
+    load_config(&app).network_locations
+}
+
+#[tauri::command]
+fn remove_network_location(app: tauri::AppHandle, path: String) -> Vec<String> {
+    let _guard = lock_config();
+    let mut cfg = load_config(&app);
+    cfg.network_locations.retain(|p| !p.eq_ignore_ascii_case(&path));
+    save_config(&app, &cfg);
+    cfg.network_locations
 }
 
 // IPC: Single item details
@@ -1046,6 +1156,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_drives,
             read_directory,
+            resolve_path,
+            get_network_locations,
+            remove_network_location,
             get_item_details,
             read_file_buffer,
             show_in_folder,
@@ -1064,4 +1177,17 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_saved_before_network_locations_still_loads() {
+        let old = r#"{"blender_path":null,"favorites":[],"recent_folders":["J:\\Assets"]}"#;
+        let cfg: StudioConfig = serde_json::from_str(old).expect("old config must parse");
+        assert_eq!(cfg.recent_folders, vec!["J:\\Assets".to_string()]);
+        assert!(cfg.network_locations.is_empty());
+    }
 }

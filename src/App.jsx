@@ -9,6 +9,7 @@ import VideoPlayer from './components/VideoPlayer';
 import AudioPlayer from './components/AudioPlayer';
 import PdfViewer from './components/PdfViewer';
 import CompareView from './components/CompareView';
+import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
 import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
@@ -22,10 +23,14 @@ import {
   isPdfFormat,
   isComparableImage
 } from './utils/formatHelpers';
-import { FolderOpen, ArrowLeft, ArrowLeftRight, Split } from 'lucide-react';
+import { getParentDir, buildBreadcrumbs } from './utils/pathHelpers';
+import { FolderOpen, ArrowLeft, ArrowLeftRight, Split, TextCursorInput } from 'lucide-react';
 
 export default function App() {
   const [drives, setDrives] = useState([]);
+  const [networkLocations, setNetworkLocations] = useState([]);
+  const [isEditingPath, setIsEditingPath] = useState(false);
+  const [navError, setNavError] = useState('');
   const [currentPath, setCurrentPath] = useState('');
   const [folderItems, setFolderItems] = useState([]);
   const [parentPath, setParentPath] = useState(null);
@@ -100,6 +105,7 @@ export default function App() {
   // Initial load
   useEffect(() => {
     loadDrivesAndInitialDir();
+    loadNetworkLocations();
     loadFavorites();
     loadBlenderStatus();
   }, []);
@@ -129,6 +135,51 @@ export default function App() {
       setCurrentPath('J:\\Local_WebFileBrowser');
     }
   };
+
+  // Re-reads the drive list only (picks up newly mapped network drives) without leaving the current folder
+  const refreshDrives = async () => {
+    if (window.electronAPI) {
+      setDrives(await window.electronAPI.listDrives());
+      loadNetworkLocations();
+    }
+  };
+
+  const loadNetworkLocations = async () => {
+    if (window.electronAPI?.getNetworkLocations) {
+      setNetworkLocations((await window.electronAPI.getNetworkLocations()) || []);
+    }
+  };
+
+  const handleRemoveNetworkLocation = async (path) => {
+    const next = await window.electronAPI.removeNetworkLocation(path);
+    setNetworkLocations(next || []);
+  };
+
+  // Address bar: accepts J:\Assets, \\mypc\library and //mypc/library. Returns an error message, or nothing on success.
+  const submitTypedPath = async (text) => {
+    try {
+      const resolved = await window.electronAPI.resolvePath(text);
+      loadNetworkLocations();
+      setIsEditingPath(false);
+      navigateTo(resolved.path, !resolved.isDirectory);
+      return '';
+    } catch (err) {
+      return String(err?.message || err);
+    }
+  };
+
+  // Ctrl+L / Alt+D: jump to the address box like File Explorer
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const key = e.key?.toLowerCase();
+      if (((e.ctrlKey || e.metaKey) && key === 'l') || (e.altKey && key === 'd')) {
+        e.preventDefault();
+        setIsEditingPath(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const loadFavorites = async () => {
     if (window.electronAPI) {
@@ -173,8 +224,7 @@ export default function App() {
         extension: ext
       };
 
-      const lastSlash = Math.max(targetPath.lastIndexOf('/'), targetPath.lastIndexOf('\\'));
-      const parentDir = lastSlash > 0 ? targetPath.slice(0, lastSlash) : '';
+      const parentDir = getParentDir(targetPath);
       if (parentDir && parentDir !== currentPath) {
         window.electronAPI.readDirectory(parentDir, {
           filter: filterType === 'all' ? 'all' : filterType,
@@ -195,17 +245,24 @@ export default function App() {
     // Opening a folder from anywhere (sidebar, pinned, drives, breadcrumbs) closes any open viewer
     setViewMode('grid');
     setIsLoadingDir(true);
-    const res = await window.electronAPI.readDirectory(targetPath, {
-      filter: filterType === 'all' ? 'all' : filterType,
-      search: searchTerm
-    });
+    setNavError('');
+    try {
+      const res = await window.electronAPI.readDirectory(targetPath, {
+        filter: filterType === 'all' ? 'all' : filterType,
+        search: searchTerm
+      });
 
-    if (res && !res.error) {
-      setCurrentPath(res.currentPath);
-      setParentPath(res.parentPath);
-      setFolderItems(res.items || []);
+      if (res && !res.error) {
+        setCurrentPath(res.currentPath);
+        setParentPath(res.parentPath);
+        setFolderItems(res.items || []);
+      }
+    } catch (err) {
+      // Unreachable drive or share: say why instead of leaving the bar on "Scanning directory..."
+      setNavError(String(err?.message || err));
+    } finally {
+      setIsLoadingDir(false);
     }
-    setIsLoadingDir(false);
   };
 
   // Re-fetch when search or filter changes
@@ -382,11 +439,7 @@ export default function App() {
     }
 
     // Also populate folder items if file is from a different folder
-    const lastSlash = Math.max(firstItem.path.lastIndexOf('/'), firstItem.path.lastIndexOf('\\'));
-    let parentDir = lastSlash > 0 ? firstItem.path.slice(0, lastSlash) : '';
-    if (parentDir.endsWith(':')) {
-      parentDir += '\\';
-    }
+    const parentDir = getParentDir(firstItem.path);
     if (parentDir && parentDir !== currentPathRef.current && window.electronAPI?.readDirectory) {
       window.electronAPI.readDirectory(parentDir, { filter: filterTypeRef.current, search: searchTermRef.current }).then((res) => {
         if (res && !res.error && res.items) {
@@ -607,24 +660,7 @@ export default function App() {
     return true;
   });
 
-  // Breadcrumbs builder
-  const buildBreadcrumbs = () => {
-    if (!currentPath) return [];
-    const normalized = currentPath.replace(/\\/g, '/');
-    const segments = normalized.split('/').filter(Boolean);
-    const crumbs = [];
-    let accum = '';
-
-    segments.forEach((seg, idx) => {
-      accum += (idx === 0 ? seg : '/' + seg);
-      // Windows drive root fix (e.g., J: -> J:\)
-      const full = idx === 0 && seg.endsWith(':') ? seg + '\\' : accum.replace(/\//g, '\\');
-      crumbs.push({ name: seg, path: full });
-    });
-    return crumbs;
-  };
-
-  const breadcrumbs = buildBreadcrumbs();
+  const breadcrumbs = buildBreadcrumbs(currentPath);
 
   return (
     <div className="app-container">
@@ -658,7 +694,9 @@ export default function App() {
           folderItems={folderItems}
           blenderStatus={blenderStatus}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onRefresh={loadDrivesAndInitialDir}
+          onRefresh={refreshDrives}
+          networkLocations={networkLocations}
+          onRemoveNetworkLocation={handleRemoveNetworkLocation}
           collapsed={sidebarCollapsed}
         />
 
@@ -686,7 +724,15 @@ export default function App() {
 
             <FolderOpen size={15} color="#ffffff" />
 
-            {breadcrumbs.map((crumb, idx) => (
+            {isEditingPath && (
+              <PathInput
+                initialValue={currentPath}
+                onSubmit={submitTypedPath}
+                onCancel={() => setIsEditingPath(false)}
+              />
+            )}
+
+            {!isEditingPath && breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.path}>
                 <span
                   className={`breadcrumb-crumb ${idx === breadcrumbs.length - 1 && viewMode === 'grid' ? 'active' : ''}`}
@@ -708,7 +754,7 @@ export default function App() {
               </React.Fragment>
             ))}
 
-            {viewMode !== 'grid' && selectedAsset && (
+            {!isEditingPath && viewMode !== 'grid' && selectedAsset && (
               <span
                 className="breadcrumb-crumb active"
                 style={{ cursor: 'default', color: '#ffffff', fontWeight: 600 }}
@@ -718,10 +764,32 @@ export default function App() {
               </span>
             )}
 
+            {!isEditingPath && (
+              // Empty space in the bar starts typing a path, like File Explorer's address bar
+              <div className="breadcrumb-fill" onClick={() => setIsEditingPath(true)} title="Type a path (Ctrl+L)" />
+            )}
+
+            {navError && !isEditingPath && (
+              <span className="path-status path-error" title={navError} onClick={() => setNavError('')}>
+                {navError}
+              </span>
+            )}
+
             {isLoadingDir && (
               <span style={{ fontSize: 11, color: '#ffffff', marginLeft: 'auto' }}>
                 Scanning directory...
               </span>
+            )}
+
+            {!isEditingPath && (
+              <button
+                className="icon-btn"
+                style={{ width: 24, height: 24 }}
+                onClick={() => setIsEditingPath(true)}
+                title="Type a folder path or network address (Ctrl+L)"
+              >
+                <TextCursorInput size={13} />
+              </button>
             )}
           </div>
 
