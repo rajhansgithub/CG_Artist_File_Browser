@@ -31,8 +31,28 @@ function AssetCard({
   onSetCompareB
 }) {
   const [thumbUrl, setThumbUrl] = useState(item.thumbnail || null);
+  const [aspectRatio, setAspectRatio] = useState(null);
   const [isLoadingThumb, setIsLoadingThumb] = useState(false);
   const cardRef = useRef(null);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    setThumbUrl(item.thumbnail || null);
+    setAspectRatio(null);
+  }, [item.path, item.thumbnail]);
+
+  const handleImgLoad = (e) => {
+    const { naturalWidth, naturalHeight } = e.target;
+    if (naturalWidth && naturalHeight) {
+      setAspectRatio(naturalWidth / naturalHeight);
+    }
+  };
+
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current?.naturalWidth && imgRef.current?.naturalHeight) {
+      setAspectRatio(imgRef.current.naturalWidth / imgRef.current.naturalHeight);
+    }
+  }, [thumbUrl]);
 
   useEffect(() => {
     if (thumbUrl || item.isDirectory) return;
@@ -132,8 +152,11 @@ function AssetCard({
       onClick={() => onSelect(item)}
       onDoubleClick={() => onOpen(item)}
     >
-      {/* Thumbnail / Tone-Mapped Preview Visual (Exact 2:1 ratio for panoramic completeness) */}
-      <div className="card-preview">
+      {/* Thumbnail / Tone-Mapped Preview Visual (Exact aspect ratio of file, 2:1 placeholder before loaded) */}
+      <div
+        className="card-preview"
+        style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : { aspectRatio: '2 / 1' }}
+      >
         <span className={`card-badge ${badgeClass}`}>{ext || 'FILE'}</span>
 
         {isComparableImage(item) && compareAssetA?.path === item.path && (
@@ -160,9 +183,11 @@ function AssetCard({
 
         {thumbUrl ? (
           <img
+            ref={imgRef}
             src={thumbUrl}
             alt={item.name}
             className="card-thumb-image"
+            onLoad={handleImgLoad}
             onError={() => setThumbUrl(null)}
           />
         ) : (
