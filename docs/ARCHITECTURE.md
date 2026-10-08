@@ -174,6 +174,10 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **Video Player ([`src/components/VideoPlayer.jsx`](../src/components/VideoPlayer.jsx))**: Frame-accurate scrubber, SMPTE timecode (24, 25, 29.97, 30, 60 fps), playback speed, exposure adjustments.
 - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
 - **Image Viewer ([`src/components/ImageViewer.jsx`](../src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
+- **Render Texture Viewer ([`src/components/TxTexViewer.jsx`](../src/components/TxTexViewer.jsx))**: opens Arnold `.tx` and RenderMan `.tex` files (category `texture`, but routed to this viewer instead of the Image Viewer by extension in `App.jsx`). Both are TIFF files (classic or BigTIFF) where every mip level is its own image stored as tiles, with a few extra tags: Pixar's texture format / wrap modes (33302-33304) and OpenImageIO's notes in the ImageDescription tag. Nothing new is bundled: [`src/utils/txTexDecoder.js`](../src/utils/txTexDecoder.js) reads the IFD chain itself and decodes tiles (none, LZW, PackBits, deflate via the `fflate` that ships with three; horizontal and floating point predictors; 8/16-bit integer, 16/32-bit float, planar or chunky, strips or tiles, either byte order). Because levels are tiled, any level or any rectangle of it can be decoded alone (`decodeRegion`, `decodeLevelReduced`), so an 8K texture is inspected pixel for pixel without holding it in memory; decoded tiles are cached (96 MB) so slider moves are instant. Grid thumbnails decode the smallest mip level of at least 256 px (see `thumbnailService.js`), not the full image.
+  - **Texture tab**: one mip level at a time (levels over 4096 px are averaged down for display), RGB / R / G / B / A, zoom and pan. Floating point data is shown with an sRGB curve.
+  - **In the render tab**: [`src/utils/txTexAnalysis.js`](../src/utils/txTexAnalysis.js) holds all the maths and no UI. The texture's width in render pixels is `frame width × coverage ÷ repeats`; texture pixels per render pixel is `texture width ÷ that`. Its log2 picks the mip level(s) like a trilinear filter (`pickMipLevels`), and `judge()` turns the ratio into the verdict (below 0.5 soft, 0.5-0.9 slightly soft, 0.9-2 sharp, 2-4 more than enough, above 4 overkill) and the recommended power-of-two size. [`src/utils/txTexPreview.js`](../src/utils/txTexPreview.js) paints the footprint onto a canvas that is exactly one canvas pixel per render pixel (decoding only the visible region of the chosen levels) and the viewer magnifies it without smoothing. Clicking a level in the list while on this tab tests "what if the texture were only this big".
+  - **Unsupported on purpose** (clear message shown, the size-based verdict still works): PixarLog / Pixar "lossless" compression, JPEG compression, palette / CMYK / YCbCr data, OpenEXR-based `.tx`/`.tex` (and Pixar's own `-format pixar`), RenderMan ripmaps beyond the normal pyramid. A `.tex` that is not a TIFF (for example a LaTeX file) is reported as such.
 - **PDF Viewer ([`src/components/PdfViewer.jsx`](../src/components/PdfViewer.jsx))**: Continuous-scroll PDF reader built on [pdf.js](https://mozilla.github.io/pdf.js/) (`pdfjs-dist`). Bytes arrive through the same raw `read_file_buffer` IPC; pages are rasterised only while near the viewport, so large documents stay light. Page jump and counter, zoom (`Ctrl`+wheel, `+`/`-`), fit width, fit page, 100%, rotate, drag-to-pan, previous/next PDF in the folder. The engine and its worker are loaded lazily by [`src/utils/pdfLoader.js`](../src/utils/pdfLoader.js) the first time a PDF is opened or thumbnailed, so startup and the main bundle are unaffected. Grid thumbnails render page 1 and use the same disk cache as every other thumbnail. Not included (yet): text selection/search, annotations, form filling.
 
 ---
@@ -225,6 +229,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
 │   │   ├── SettingsModal.jsx      # Blender path settings & cache management
+│   │   ├── TxTexViewer.jsx        # Arnold .tx / RenderMan .tex viewer: mip levels, "will it be sharp enough?" check
 │   │   ├── PathInput.jsx          # Address-bar text box for typed folder / network paths
 │   │   ├── Sidebar.jsx            # Drive list, network locations, pinned favorites
 │   │   ├── VideoPlayer.jsx        # SMPTE frame-accurate video review player
@@ -240,7 +245,10 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
-│   │   └── thumbnailService.js    # Thumbnail generation queue & cache lookup
+│   │   ├── thumbnailService.js    # Thumbnail generation queue & cache lookup
+│   │   ├── txTexAnalysis.js       # Sharpness maths and plain-words verdicts for .tx / .tex
+│   │   ├── txTexDecoder.js        # TIFF mip-pyramid reader for .tx / .tex (tiles, region decoding)
+│   │   └── txTexPreview.js        # Canvas painting of a texture at final-render pixel size
 │   ├── App.jsx                    # Root view routing & global state
 │   ├── main.jsx                   # React 19 entrypoint
 │   └── tauriBridge.js             # window.electronAPI <-> Tauri v2 IPC bridge

@@ -38,6 +38,7 @@ export function getFileBadgeClass(ext) {
   if (cleanExt === 'exr') return 'badge-exr';
   if (cleanExt === 'tif' || cleanExt === 'tiff') return 'badge-tiff';
   if (cleanExt === 'tga') return 'badge-tga';
+  if (cleanExt === 'tx' || cleanExt === 'tex') return 'badge-tiff';
   if (cleanExt === 'mp4' || cleanExt === 'mov' || cleanExt === 'webm' || cleanExt === 'mkv' || cleanExt === 'avi') return 'badge-video';
   if (cleanExt === 'wav' || cleanExt === 'mp3' || cleanExt === 'ogg' || cleanExt === 'flac' || cleanExt === 'aac' || cleanExt === 'aiff' || cleanExt === 'm4a') return 'badge-audio';
   if (cleanExt === 'pdf') return 'badge-pdf';
@@ -61,14 +62,20 @@ export function isImageFormat(ext) {
 
 export function isTextureFormat(ext) {
   const e = (ext || '').toLowerCase();
-  return ['.tif', '.tiff', '.tga', '.dds', '.psd'].includes(e);
+  return ['.tif', '.tiff', '.tga', '.dds', '.psd', '.tx', '.tex'].includes(e);
+}
+
+// Arnold (.tx) and RenderMan (.tex) tiled, mip-mapped render textures. They have their own viewer.
+export function isTxTexFormat(ext) {
+  const e = (ext || '').toLowerCase();
+  return e === '.tx' || e === '.tex';
 }
 
 // Strictly 2D image and texture files eligible for Image Comparison (excludes 360 skybox HDR/EXR)
 export function isComparableImage(item) {
   if (!item || item.isDirectory) return false;
   const ext = (item.extension || (item.name && item.name.includes('.') ? item.name.slice(item.name.lastIndexOf('.')) : '')).toLowerCase();
-  return (isImageFormat(ext) || isTextureFormat(ext)) && !isHdrFormat(ext);
+  return (isImageFormat(ext) || isTextureFormat(ext)) && !isHdrFormat(ext) && !isTxTexFormat(ext);
 }
 
 export function isVideoFormat(ext) {

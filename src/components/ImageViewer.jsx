@@ -10,7 +10,7 @@ import {
   Camera,
   Check
 } from 'lucide-react';
-import { formatBytes } from '../utils/formatHelpers';
+import { formatBytes, isTxTexFormat } from '../utils/formatHelpers';
 import { decodeTiffToRGBA } from '../utils/tiffDecoder';
 
 export default function ImageViewer({
@@ -42,7 +42,7 @@ export default function ImageViewer({
 
   // List of all image and texture assets in current folder
   const imageAssets = allFolderItems.filter(
-    (item) => !item.isDirectory && (item.category === 'image' || item.category === 'texture')
+    (item) => !item.isDirectory && (item.category === 'image' || item.category === 'texture') && !isTxTexFormat(item.extension)
   );
   const currentIndex = imageAssets.findIndex((item) => item.path === asset?.path);
 

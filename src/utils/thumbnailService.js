@@ -6,6 +6,7 @@ import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { load3DModel } from './assetLoader.js';
 import { openPdfDocument } from './pdfLoader.js';
 import { decodeTiffToRGBA } from './tiffDecoder.js';
+import { parseTxTex, TxTexReader, pickPreviewLevel } from './txTexDecoder.js';
 
 // In-memory cache for ultra-fast UI rendering
 const memoryCache = new Map();
@@ -324,7 +325,7 @@ async function renderOffscreen3DThumbnail(item) {
 }
 
 // Load binary buffer safely via Electron IPC or Fetch
-async function getFileBuffer(filePath) {
+export async function getFileBuffer(filePath) {
   if (typeof window !== 'undefined' && !window.log) {
     window.log = console.log;
   }
@@ -414,6 +415,29 @@ export async function getOrGenerateThumbnail(item) {
       } finally {
         if (pdf) pdf.destroy().catch(() => {});
       }
+    });
+  }
+
+  // Arnold .tx / RenderMan .tex: read a small mip level instead of decoding the full-size image
+  if (ext === '.tx' || ext === '.tex') {
+    return queue.enqueue(async () => {
+      try {
+        const arrayBuf = await getFileBuffer(item.path);
+        const parsed = parseTxTex(arrayBuf, ext);
+        const level = pickPreviewLevel(parsed, 256);
+        if (!level) return null;
+        const img = await new TxTexReader(arrayBuf, parsed).decodeLevelReduced(level.index, 512);
+        const dataUrl = renderRgbaThumbnail({ width: img.width, height: img.height, data: img.rgba });
+        memoryCache.set(item.path, dataUrl);
+        if (window.electronAPI?.saveThumbnail) {
+          window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
+        }
+        return dataUrl;
+      } catch (err) {
+        // Not a texture this app can read (for example a LaTeX .tex file): keep the placeholder icon
+        console.warn(`No thumbnail for ${item.name}:`, err?.message || err);
+      }
+      return null;
     });
   }
 

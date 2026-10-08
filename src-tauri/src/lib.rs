@@ -193,7 +193,7 @@ fn get_category(ext: &str) -> &'static str {
         ".obj" | ".fbx" | ".gltf" | ".glb" | ".stl" | ".ply" | ".usd" | ".usda" | ".usdc" | ".usdz" | ".abc" | ".dae" | ".blend" => "3d",
         ".hdr" | ".exr" => "hdr",
         ".png" | ".jpg" | ".jpeg" | ".webp" | ".bmp" => "image",
-        ".tif" | ".tiff" | ".tga" | ".dds" | ".psd" => "texture",
+        ".tif" | ".tiff" | ".tga" | ".dds" | ".psd" | ".tx" | ".tex" => "texture",
         ".mp4" | ".webm" | ".mov" | ".mkv" | ".avi" => "video",
         ".wav" | ".mp3" | ".ogg" | ".flac" | ".aac" | ".aiff" | ".m4a" => "audio",
         ".pdf" => "pdf",

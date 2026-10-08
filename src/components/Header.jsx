@@ -172,7 +172,7 @@ export default function Header({
             setFilterType('texture');
             setShowFavoritesOnly(false);
           }}
-          title="Textures (.tif, .tiff, .tga, .dds, .psd)"
+          title="Textures (.tif, .tiff, .tga, .dds, .psd, .tx, .tex)"
           aria-label="Textures"
         >
           <Grid size={13} />

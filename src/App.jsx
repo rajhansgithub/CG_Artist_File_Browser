@@ -8,6 +8,7 @@ import ImageViewer from './components/ImageViewer';
 import VideoPlayer from './components/VideoPlayer';
 import AudioPlayer from './components/AudioPlayer';
 import PdfViewer from './components/PdfViewer';
+import TxTexViewer from './components/TxTexViewer';
 import CompareView from './components/CompareView';
 import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
@@ -24,6 +25,7 @@ import {
   isVideoFormat,
   isAudioFormat,
   isPdfFormat,
+  isTxTexFormat,
   isComparableImage
 } from './utils/formatHelpers';
 import { getParentDir, buildBreadcrumbs } from './utils/pathHelpers';
@@ -64,7 +66,7 @@ export default function App() {
   const [favorites, setFavorites] = useState([]);
 
   // Views & UI State
-  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'video', 'audio', 'pdf', 'compare'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'compare'
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
@@ -224,7 +226,7 @@ export default function App() {
       let cat = '3d';
       if (['.hdr', '.exr'].includes(ext)) {
         cat = 'hdr';
-      } else if (['.tif', '.tiff', '.tga', '.dds', '.psd'].includes(ext)) {
+      } else if (['.tif', '.tiff', '.tga', '.dds', '.psd', '.tx', '.tex'].includes(ext)) {
         cat = 'texture';
       } else if (['.png', '.jpg', '.jpeg', '.webp', '.bmp'].includes(ext)) {
         cat = 'image';
@@ -327,6 +329,8 @@ export default function App() {
       setViewMode('studio3d');
     } else if (item.category === 'hdr') {
       setViewMode('hdrexr');
+    } else if (item.category === 'texture' && isTxTexFormat(item.extension)) {
+      setViewMode('txtex');
     } else if (item.category === 'image' || item.category === 'texture') {
       setViewMode('image');
     } else if (item.category === 'video') {
@@ -508,6 +512,9 @@ export default function App() {
     } else if (firstItem.category === 'hdr') {
       setSelectedAsset(firstItem);
       setViewMode('hdrexr');
+    } else if (firstItem.category === 'texture' && isTxTexFormat(firstItem.extension)) {
+      setSelectedAsset(firstItem);
+      setViewMode('txtex');
     } else if (['image', 'texture'].includes(firstItem.category)) {
       setSelectedAsset(firstItem);
       setViewMode('image');
@@ -525,7 +532,7 @@ export default function App() {
       setDropError({
         fileName: firstItem.name,
         currentViewerTitle: 'Universal Media Viewport',
-        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac), PDF Documents (.pdf)',
+        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Render textures (.tx, .tex), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac), PDF Documents (.pdf)',
         suggestedViewer: null,
         fileItem: firstItem
       });
@@ -981,6 +988,16 @@ export default function App() {
 
           {viewMode === 'image' && (
             <ImageViewer
+              asset={selectedAsset}
+              allFolderItems={folderItems}
+              onClose={() => setViewMode('grid')}
+              onSelectAsset={(item) => setSelectedAsset(item)}
+              onRevealInExplorer={handleRevealInExplorer}
+            />
+          )}
+
+          {viewMode === 'txtex' && (
+            <TxTexViewer
               asset={selectedAsset}
               allFolderItems={folderItems}
               onClose={() => setViewMode('grid')}
