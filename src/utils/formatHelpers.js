@@ -93,6 +93,14 @@ export function isComparableItem(item) {
   return getCompareKind(item) !== null;
 }
 
+// Images the batch converter can read (see src-tauri/src/batch_convert.rs)
+const CONVERTIBLE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tga', '.tif', '.tiff', '.hdr', '.exr'];
+
+export function isConvertibleItem(item) {
+  if (!item || item.isDirectory || item.isSequence) return false;
+  return CONVERTIBLE_EXTENSIONS.includes((item.extension || '').toLowerCase());
+}
+
 export function isVideoFormat(ext) {
   const e = (ext || '').toLowerCase();
   return ['.mp4', '.webm', '.mov', '.mkv', '.avi'].includes(e);

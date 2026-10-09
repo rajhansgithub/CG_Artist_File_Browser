@@ -101,6 +101,31 @@ export function setupTauriBridge() {
       await messageDialog(String(text), { title, kind: 'error' });
     },
 
+    // Batch convert runs in the background in Rust and reports through events. The caller makes the job id and
+    // listens before starting, so no event can be missed. Resolves { ok } or { ok: false, error }
+    startBatchConvert: async (jobId, filePaths, format, outDir) => {
+      try {
+        await invoke('start_batch_convert', { jobId, filePaths, format, outDir: outDir || null });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    cancelBatchConvert: async (jobId) => {
+      return await invoke('cancel_batch_convert', { jobId });
+    },
+
+    // Calls handler('progress' | 'finished', payload) for each batch event. Resolves a function that stops listening
+    onBatchConvertEvent: async (handler) => {
+      const unlistenProgress = await listen('batch-convert-progress', (event) => handler('progress', event.payload));
+      const unlistenFinished = await listen('batch-convert-finished', (event) => handler('finished', event.payload));
+      return () => {
+        unlistenProgress();
+        unlistenFinished();
+      };
+    },
+
     openFolderDialog: async (defaultPath) => {
       try {
         const selected = await openDialog({

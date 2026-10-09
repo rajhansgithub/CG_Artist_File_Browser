@@ -1,5 +1,5 @@
-import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
-import { isComparableItem } from './formatHelpers';
+import { Copy, Eye, ExternalLink, FileOutput, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { isComparableItem, isConvertibleItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
 export function isRootLocation(path) {
@@ -21,7 +21,8 @@ export function registerItemMenuProvider(provider) {
 // Entries for the right-click menu. `items` is what the menu was opened on (one item today, a selection later).
 // `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
 // onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
-// onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet, externalApps (the apps from Settings), onSendTo.
+// onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet, externalApps (the apps from Settings), onSendTo,
+// onConvert (the images that can be converted, as one list).
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -64,6 +65,13 @@ export function buildItemMenu(items, actions) {
     actions.externalApps.forEach((app) => {
       add({ id: `send-to-${app.path}`, label: `Send to ${app.name}`, icon: Send, onSelect: () => actions.onSendTo(sendable, app) });
     });
+  }
+
+  // Images are converted to another format in the background; the dialog asks for the format and the folder
+  const convertible = items.filter(isConvertibleItem);
+  if (convertible.length && actions.onConvert) {
+    separator();
+    add({ id: 'convert', label: 'Convert…', icon: FileOutput, onSelect: () => actions.onConvert(convertible) });
   }
 
   separator();

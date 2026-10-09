@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod batch_convert;
 mod drag_out;
 mod exr_view;
 mod external_apps;
@@ -1644,7 +1645,9 @@ pub fn run() {
             external_apps::add_external_app,
             external_apps::remove_external_app,
             external_apps::scan_external_apps,
-            external_apps::send_to_external_app
+            external_apps::send_to_external_app,
+            batch_convert::start_batch_convert,
+            batch_convert::cancel_batch_convert
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
