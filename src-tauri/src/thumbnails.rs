@@ -257,12 +257,12 @@ impl FloatSampler {
     }
 }
 
-fn to_float(v: f32) -> f64 {
+pub(crate) fn to_float(v: f32) -> f64 {
     if v.is_finite() { (v as f64).max(0.0) } else { 0.0 }
 }
 
 // ACES filmic curve + gamma 2.2, same constants as the JS thumbnail code.
-fn aces_filmic(x: f64) -> u8 {
+pub(crate) fn aces_filmic(x: f64) -> u8 {
     if !x.is_finite() || x <= 0.0 {
         return 0;
     }
@@ -413,7 +413,7 @@ fn standard_image_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, Stri
     }
 }
 
-fn write_atomic<F>(out: &Path, encode: F) -> Result<(), String>
+pub(crate) fn write_atomic<F>(out: &Path, encode: F) -> Result<(), String>
 where
     F: FnOnce(BufWriter<fs::File>) -> image::ImageResult<()>,
 {

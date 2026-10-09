@@ -16,6 +16,7 @@ import {
   isOrtho
 } from '../utils/viewportCamera';
 import { MATCAP_OPTIONS, getMatcapMaterial, disposeMatcaps } from '../utils/matcaps';
+import ModelOutliner from './ModelOutliner';
 import {
   RotateCw,
   Sun,
@@ -26,7 +27,8 @@ import {
   Maximize2,
   Box,
   Check,
-  ExternalLink
+  ExternalLink,
+  ListTree
 } from 'lucide-react';
 
 // Optimized wireframe LineSegments overlay generator
@@ -138,6 +140,11 @@ export default function Viewport3D({
   const [viewPreset, setViewPreset] = useState('free'); // 'free', 'front', 'back', 'left', 'right', 'top'
   const [stats, setStats] = useState(null);
 
+  // Outliner: the loaded model root (set once it loads), the panel's open state and the object picked in it
+  const [modelRoot, setModelRoot] = useState(null);
+  const [outlinerOpen, setOutlinerOpen] = useState(false);
+  const [selectedObject, setSelectedObject] = useState(null);
+
   // Animation State
   const [snapshotFeedback, setSnapshotFeedback] = useState(false);
   const [animations, setAnimations] = useState([]);
@@ -153,6 +160,7 @@ export default function Viewport3D({
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
   const modelRef = useRef(null);
+  const selectionBoxRef = useRef(null); // outline around the object picked in the outliner
   const gridRef = useRef(null);
   const lightsGroupRef = useRef(null);
   const mixerRef = useRef(null);
@@ -402,6 +410,8 @@ export default function Viewport3D({
       resizeObserver.disconnect();
       cancelAnimationFrame(animFrameId);
       disposeMatcaps();
+      selectionBoxRef.current?.geometry?.dispose();
+      selectionBoxRef.current?.material?.dispose();
       renderer.dispose();
     };
   }, []);
@@ -446,12 +456,29 @@ export default function Viewport3D({
     afterCameraChange();
   };
 
-  const frameCurrentModel = () => {
-    if (!rigRef.current || !controlsRef.current || !modelRef.current) return;
+  const frameObject = (object3D) => {
+    if (!rigRef.current || !controlsRef.current || !object3D) return;
     viewPresetRef.current = 'free';
     setViewPreset('free');
-    withoutViewEvents(() => frameModel(rigRef.current, controlsRef.current, modelRef.current));
+    withoutViewEvents(() => frameModel(rigRef.current, controlsRef.current, object3D));
     afterCameraChange();
+  };
+
+  const frameCurrentModel = () => frameObject(modelRef.current);
+
+  // Outliner click: outline the object and frame the camera on it. An object with no geometry under it
+  // (an empty or a bare group) has nothing to frame, so it is only selected.
+  const selectObject = (obj) => {
+    clearSelectionBox();
+    setSelectedObject(obj);
+    if (obj && !new THREE.Box3().setFromObject(obj).isEmpty()) {
+      const outline = new THREE.BoxHelper(obj, 0x3b9eff);
+      outline.userData.isHelper = true;
+      sceneRef.current?.add(outline);
+      selectionBoxRef.current = outline;
+      frameObject(obj);
+    }
+    needsRenderRef.current = true;
   };
 
   actionsRef.current = {
@@ -502,6 +529,16 @@ export default function Viewport3D({
     needsRenderRef.current = true;
   }, [lightingPreset]);
 
+  // Remove the outliner's selection outline from the scene and free its GPU buffers
+  const clearSelectionBox = () => {
+    const box = selectionBoxRef.current;
+    if (!box) return;
+    sceneRef.current?.remove(box);
+    box.geometry?.dispose();
+    box.material?.dispose();
+    selectionBoxRef.current = null;
+  };
+
   // Load Model Asset
   useEffect(() => {
     if (!asset || !sceneRef.current) return;
@@ -510,6 +547,9 @@ export default function Viewport3D({
     setLoading(true);
     setLoadError(null);
     setLoadingMsg(`Loading ${asset.name}...`);
+    setModelRoot(null);
+    setSelectedObject(null);
+    clearSelectionBox();
 
     // Clean previous model
     if (modelRef.current) {
@@ -543,6 +583,7 @@ export default function Viewport3D({
 
         sceneRef.current.add(root);
         modelRef.current = root;
+        setModelRoot(root);
         setStats(modelStats);
 
         // Perfectly focus and frame model
@@ -582,8 +623,8 @@ export default function Viewport3D({
     };
   }, [asset]);
 
-  // Keyboard shortcuts: F to focus/frame model, Esc to close, numpad 1/3/7 for
-  // Front/Right/Top (Ctrl for Back/Left), numpad 5 to toggle orthographic
+  // Keyboard shortcuts: F to focus/frame model, Esc to close, O to show/hide the outliner (not in Quick Look),
+  // numpad 1/3/7 for Front/Right/Top (Ctrl for Back/Left), numpad 5 to toggle orthographic
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -592,6 +633,8 @@ export default function Viewport3D({
         actionsRef.current.frameCurrentModel();
       } else if (e.key === 'Escape' && onClose) {
         onClose();
+      } else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey && !containerRef.current?.closest('.quick-look-body')) {
+        setOutlinerOpen((open) => !open);
       } else if (e.code === 'Numpad1') {
         e.preventDefault();
         actionsRef.current.snapView(e.ctrlKey ? 'back' : 'front');
@@ -910,6 +953,16 @@ export default function Viewport3D({
 
         <div className="hud-divider" />
 
+        {/* Model outliner: prim tree with visibility toggles (O key) */}
+        <button
+          className={`hud-btn ${outlinerOpen ? 'active' : ''}`}
+          onClick={() => setOutlinerOpen(!outlinerOpen)}
+          title="Model outliner: prim tree with visibility toggles (O key)"
+        >
+          <ListTree size={14} />
+          <span className="hud-label">Outliner</span>
+        </button>
+
         {/* Focus / Frame Camera */}
         <button
           className="hud-btn"
@@ -977,6 +1030,19 @@ export default function Viewport3D({
             </span>
           </div>
         </div>
+      )}
+
+      {/* Model outliner (O key); never opened in Quick Look, where the key and button are off */}
+      {outlinerOpen && modelRoot && (
+        <ModelOutliner
+          root={modelRoot}
+          selectedId={selectedObject?.uuid ?? null}
+          onSelect={selectObject}
+          onVisibilityChange={() => {
+            needsRenderRef.current = true;
+          }}
+          onClose={() => setOutlinerOpen(false)}
+        />
       )}
 
       {/* Animation Player Bar if model contains animations */}

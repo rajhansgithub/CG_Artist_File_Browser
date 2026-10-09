@@ -22,6 +22,7 @@ import DragDropOverlay from './components/DragDropOverlay';
 import ItemContextMenu from './components/ItemContextMenu';
 import TextureSetModal from './components/TextureSetModal';
 import { RenameItemModal, DeleteItemModal } from './components/ItemActionModals';
+import BatchConvertModal from './components/BatchConvertModal';
 import { copyText } from './utils/itemMenu';
 import FolderIconPicker from './components/FolderIconPicker';
 import SortMenu from './components/SortMenu';
@@ -997,6 +998,7 @@ export default function App() {
   // From the grid and details view it acts on the whole selection when the item clicked is part of it, like Explorer.
   const [itemMenu, setItemMenu] = useState(null); // { x, y, item, useSelection }
   const [itemAction, setItemAction] = useState(null); // { type: 'rename' | 'delete', items }
+  const [convertItems, setConvertItems] = useState(null); // the images picked for right-click "Convert..."
   const [labelEditor, setLabelEditor] = useState(null); // { items, anchor } for "Colour and tags" opened from a menu
   const [textureSet, setTextureSet] = useState(null); // { base, maps } for "View as texture set" opened from a menu
   const openItemMenu = useCallback((e, item, useSelection = false) => {
@@ -1013,7 +1015,7 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!labelEditor || !!textureSet;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet;
   windowOpenRef.current = isWindowOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
@@ -1618,7 +1620,8 @@ export default function App() {
             onChangeIcon: (item) => setIconPickerItem(item),
             onResetIcon: (item) => folderIconStore.resetIcon(item.path),
             onRename: (item) => setItemAction({ type: 'rename', items: [item] }),
-            onDelete: (items) => setItemAction({ type: 'delete', items })
+            onDelete: (items) => setItemAction({ type: 'delete', items }),
+            onConvert: (items) => setConvertItems(items)
           }}
           onClose={() => setItemMenu(null)}
         />
@@ -1661,6 +1664,7 @@ export default function App() {
           onClose={() => setItemAction(null)}
         />
       )}
+      {convertItems && <BatchConvertModal items={convertItems} onClose={() => setConvertItems(null)} />}
       {iconPickerItem && (
         <FolderIconPicker
           item={iconPickerItem}

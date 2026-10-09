@@ -109,6 +109,7 @@ export const SHORTCUT_GROUPS = [
     title: '3D model viewer',
     items: [
       { keys: [['F']], action: 'Frame the model' },
+      { keys: [['O']], action: 'Show / hide the outliner (prim tree; click a prim to select and frame it)' },
       { keys: [['Numpad 1'], ['Numpad 3'], ['Numpad 7']], action: 'Front, right or top view (Ctrl: back or left for 1 and 3)' },
       { keys: [['Numpad 5']], action: 'Toggle orthographic view' }
     ]
