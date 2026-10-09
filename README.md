@@ -154,7 +154,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 | Action | Control |
 | :--- | :--- |
 | **Open Asset** | `Double Click` or `Space` on selected asset card |
-| **Quick Look** | `Space` on the selected file opens it in its viewer, `Space` or `Esc` goes back, `Left` / `Right` move to the next file in the 3D and HDR / EXR viewers |
+| **Quick Look** | `Space` on the selected file opens a small floating window over the grid with its viewer (audio and video start playing), `Space` or `Esc` closes it, the arrow keys move through the folder and the window follows, `Enter` or double-click opens the full viewer |
 | **Shortcut list** | `?` or `F1` shows every shortcut in the app, `Esc` closes it |
 | **Grid Resize** | `Ctrl + Mouse Wheel` (Large icons view only) |
 | **Move the selection** | `Arrow keys` in the folder view, `Home` / `End` for first / last, `Page Up` / `Page Down` a screen at a time |

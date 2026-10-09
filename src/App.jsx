@@ -64,6 +64,7 @@ import { groupImageSequences, sequenceContaining } from './utils/imageSequence';
 import { findTextureSet } from './utils/textureSets';
 import { parseNetworkError } from './utils/networkErrors';
 import { useQuickLook } from './hooks/useQuickLook';
+import QuickLookWindow from './components/QuickLookWindow';
 import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
 
 export default function App() {
@@ -124,6 +125,7 @@ export default function App() {
 
   // Views & UI State
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
+  const [previewOpen, setPreviewOpen] = useState(false); // the floating Quick Look window, shown over the grid
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
@@ -1013,16 +1015,18 @@ export default function App() {
       return kept.size === prev.size ? prev : kept;
     });
   }, [displayedItems]);
-  // Space previews the selected file in its viewer, Space or Esc goes back (see hooks/useQuickLook.js)
+  // Space opens the floating Quick Look window on the selected file, Space or Esc closes it (see hooks/useQuickLook.js)
   useQuickLook({
     viewMode,
-    setViewMode,
-    openAsset,
-    selectedAsset,
-    gridSelection: selectionInFolder,
-    items: displayedItems,
+    previewOpen,
+    setPreviewOpen,
+    selectedAsset: selectionInFolder,
     blocked: isWindowOpen || isEditingPath
   });
+  // Quick Look belongs to the folder on screen, so it closes when the folder or the view changes
+  useEffect(() => {
+    setPreviewOpen(false);
+  }, [currentPath, viewMode]);
 
   // Free space on the drive shown in the status bar goes stale as files are copied, so re-read the drives now and then
   useEffect(() => {
@@ -1466,6 +1470,22 @@ export default function App() {
               initialAssetA={isComparableItem(compareAssetA) ? compareAssetA : (isComparableItem(selectedAsset) ? selectedAsset : null)}
               initialAssetB={isComparableItem(compareAssetB) ? compareAssetB : null}
               onClose={() => setViewMode('grid')}
+              onRevealInExplorer={handleRevealInExplorer}
+            />
+          )}
+
+          {viewMode === 'grid' && previewOpen && selectionInFolder && (
+            <QuickLookWindow
+              asset={selectionInFolder}
+              folderItems={folderItems}
+              sequenceGroups={sequenceGroups}
+              onSelectAsset={(item) => setSelectedAsset(item)}
+              onOpenFull={() => {
+                setPreviewOpen(false);
+                if (selectionInFolder.isDirectory) navigateTo(selectionInFolder.path);
+                else openAsset(selectionInFolder);
+              }}
+              onClose={() => setPreviewOpen(false)}
               onRevealInExplorer={handleRevealInExplorer}
             />
           )}

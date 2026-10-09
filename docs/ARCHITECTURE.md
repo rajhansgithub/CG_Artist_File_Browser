@@ -184,7 +184,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 ### 🧭 Folder Navigation (sorting, keyboard, history, status bar)
 - **Sorting** ([`src/utils/sortItems.js`](../src/utils/sortItems.js), [`SortMenu.jsx`](../src/components/SortMenu.jsx)): `App.jsx` sorts the listing once and both folder views draw it in that order, so the backend's unordered (parallel) listing never reaches the screen. The **Name** button in the breadcrumb bar and the Details column headers set the same sort: name (natural order, so `file2` comes before `file10`), date modified, size or type, ascending or descending, folders first on or off. A new column starts in its natural direction (A-Z for text, newest and largest first for date and size) and clicking it again flips it. The choice is saved per folder in `localStorage` (`cg_artist_folder_sorts`, newest 300 folders kept); a folder with no entry uses name, A-Z, folders first.
 - **Keyboard** ([`AssetGrid.jsx`](../src/components/AssetGrid.jsx)): arrow keys move the selection (up and down move a whole row of cards in Large icons, one row in Details), `Home` / `End`, `Page Up` / `Page Down`, `Enter` opens the selected item and `Backspace` goes to the parent folder. The listener is only active in the folder view, ignores text boxes and any open window, and does nothing with Alt held. `Shift` with the arrow, `Home`, `End` and page keys extends the selection, and `Ctrl + A` selects all (see Folder Views). Going up (or back) to a folder highlights the folder you came from, as File Explorer does.
-- **Quick Look** ([`useQuickLook.js`](../src/hooks/useQuickLook.js), [`quickLook.js`](../src/utils/quickLook.js)): `Space` on the selected file opens it in the viewer it would normally get (`openAsset`), so no viewer is duplicated. `Space` or `Esc` goes back to the grid, and the selection stays on the file. Video, audio and PDF keep `Space` for play / pause and page down, so there only `Esc` closes. `Left` / `Right` step to the neighbouring file in the 3D and HDR/EXR viewers; the image and texture viewers already do that with the same keys, and video, audio, PDF and image sequences keep them for seeking, pages and frames. Quick Look ignores the keys while a dialog or the address box is open.
+- **Quick Look** ([`useQuickLook.js`](../src/hooks/useQuickLook.js), [`QuickLookWindow.jsx`](../src/components/QuickLookWindow.jsx), [`quickLook.js`](../src/utils/quickLook.js)): `Space` on the selected file opens a small floating window over the grid, showing the file in the viewer it would normally get (the same choice as `openAsset`, and the same viewer components). The grid stays focused: the arrow keys move the selection and the window follows it. Audio and video start playing (`floating` prop) and are mounted again per file, so the previous one stops. `Space` or `Esc` closes the window, `Enter` or double-click opens the full viewer. In the window the viewers skip the arrow and page keys, which belong to the grid, and their top bars and side panels are hidden by the `.quick-look-window` CSS. The window's size is remembered in local storage. Quick Look ignores the keys while a dialog or the address box is open.
 - **History** ([`src/utils/navHistory.js`](../src/utils/navHistory.js)): back and forward buttons beside the up arrow, `Alt + Left` / `Alt + Right` and the mouse's back / forward buttons. Opening a folder drops the forward entries, like a browser (100 entries kept). Every listing is also kept in memory (40 folders, per filter and search), so back and forward draw the saved listing at once and re-read the folder in the background, redrawing only if something changed. If the folder has gone, the view stays where it was and the history is left untouched. Each navigation carries a sequence number, so a slow listing that arrives late never replaces a newer one.
 - **Status bar** ([`StatusBar.jsx`](../src/components/StatusBar.jsx)): under the folder view, it shows the item count (with a "filtered" note while a filter, search or Favorites is on), counts by kind, the total size of the files listed, the selected item and the free space of the drive the folder is on (mapped network drives included; unmapped network shares show none). Drive space is re-read from the system when a folder opens and the last read is over 30 seconds old.
 
@@ -247,6 +247,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── CompareView.jsx        # Split-screen image comparison tool
 │   │   ├── DragDropOverlay.jsx    # Full-window drag-and-drop overlay
 │   │   ├── DropErrorModal.jsx     # Drop validation modals
+│   │   ├── QuickLookWindow.jsx    # Floating Quick Look window over the grid (Space)
 │   │   ├── FolderContextMenu.jsx  # Right-click menu on folders (Change icon / Use default icon)
 │   │   ├── FolderIcon.jsx         # One folder's icon: user pick, Windows custom icon or default
 │   │   ├── FolderIconPicker.jsx   # "Change icon" dialog (library, my icons, search)
@@ -265,7 +266,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── styles/
 │   │   └── index.css              # Colour scheme design system (dark, dark gray, true black, light)
 │   ├── hooks/
-│   │   └── useQuickLook.js        # Space / Esc / arrow keys for Quick Look
+│   │   └── useQuickLook.js        # Space / Esc for the Quick Look floating window
 │   ├── utils/
 │   │   ├── assetLoader.js         # Three.js loaders (OBJ, FBX, GLTF, STL, PLY, USDZ, HDR)
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
@@ -276,7 +277,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
 │   │   ├── gridSelection.js       # Multi-select helpers for the folder grid and Details list (Ctrl / Shift click, box select)
 │   │   ├── matcaps.js             # Procedural MatCap textures and shared materials for the 3D viewport
-│   │   ├── quickLook.js           # Quick Look: which files preview, neighbour lookup
+│   │   ├── quickLook.js           # Quick Look: which viewer shows a file, nav keys left to the grid
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
 │   │   ├── thumbnailScheduler.js  # Bounded, cancellable lanes for thumbnail jobs

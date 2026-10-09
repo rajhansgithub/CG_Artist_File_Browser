@@ -1,30 +1,32 @@
-// Quick Look: Space on the selected file opens it in its existing viewer, Space or Esc goes back to the grid.
-// Pure helpers only; the keyboard wiring lives in hooks/useQuickLook.js.
+// Quick Look: Space on the selected file opens a small floating window over the grid that shows it in the
+// viewer it would normally get. Space or Esc closes it, and the arrow keys move the grid selection so the window follows.
+// Pure helpers only; the keyboard wiring lives in hooks/useQuickLook.js and the window in components/QuickLookWindow.jsx.
 
-// Categories openAsset() opens in a viewer. 'other' has none, so Quick Look skips those files.
+import { isTxTexFormat } from './formatHelpers';
+
+// Categories that have a viewer. 'other' has none, so Quick Look skips those files.
 const QUICK_LOOK_CATEGORIES = new Set(['3d', 'hdr', 'image', 'texture', 'video', 'audio', 'pdf']);
-
-// Viewers that use Space for their own job (play / pause, PDF page down): there Space is left alone and Esc closes.
-export const QUICK_LOOK_SPACE_KEPT_VIEWERS = new Set(['video', 'audio', 'pdf']);
-
-// Viewers where Left / Right are free, so they move to the neighbouring file. Image and texture viewers already
-// step through files with these keys, and video, audio, PDF and image sequences use them for seeking, pages or frames.
-export const QUICK_LOOK_ARROW_VIEWERS = new Set(['studio3d', 'hdrexr']);
 
 export function isQuickLookItem(item) {
   if (!item || item.isDirectory) return false;
   return !!item.isSequence || QUICK_LOOK_CATEGORIES.has(item.category);
 }
 
-// The previewable file next to `current` in `items` (in the order on screen), or null at either end of the list
-export function getAdjacentQuickLookItem(items, current, step) {
-  if (!current) return null;
-  const index = items.findIndex((item) => item.path === current.path);
-  if (index < 0) return null;
-  for (let i = index + step; i >= 0 && i < items.length; i += step) {
-    if (isQuickLookItem(items[i])) return items[i];
-  }
-  return null;
+// Which viewer shows the item. The same choice openAsset() makes, so the floating window and the full viewer agree.
+export function getQuickLookViewer(item) {
+  if (!isQuickLookItem(item)) return null;
+  if (item.isSequence) return 'sequence';
+  if (item.category === '3d') return 'studio3d';
+  if (item.category === 'hdr') return 'hdrexr';
+  if (item.category === 'texture' && isTxTexFormat(item.extension)) return 'txtex';
+  if (item.category === 'image' || item.category === 'texture') return 'image';
+  return item.category; // 'video', 'audio' or 'pdf'
+}
+
+// While the floating window is open the arrow and page keys belong to the grid (they move the selection, and the
+// window follows). The viewers inside the window skip these keys so they do not also move on their own.
+export function isQuickLookNavKey(e) {
+  return e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown';
 }
 
 // Keys typed into a field belong to that field
