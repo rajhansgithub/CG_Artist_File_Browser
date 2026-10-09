@@ -139,6 +139,9 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
   - MD5 hash calculated from `file_path + modified_timestamp + size`.
   - Cached as high-quality JPEG in `%APPDATA%/AssetStudioCache/thumbs/<hash>.jpg`.
   - Instant subsequent folder opens: zero re-decoding required.
+- **Bounded decoding**: at most two thumbnails decode at once (`MAX_CONCURRENT_DECODES`). Each EXR decode already uses every core, so more parallel decodes only saturate the machine and make the window unresponsive.
+- **Off the UI thread**: the Rust decoder runs in `spawn_blocking`. When it cannot read a file, the JavaScript fallback for HDR / EXR runs in [`src/workers/thumbnail.worker.js`](../src/workers/thumbnail.worker.js), never on the UI thread.
+- **Cancellation**: each grid card aborts its thumbnail request when it unmounts (scrolled out of the virtualised grid, or the folder changed). A request still waiting in line is dropped; a decode already running finishes and is cached.
 
 ---
 
@@ -274,7 +277,9 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── quickLook.js           # Quick Look: which files preview, neighbour lookup
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
-│   │   ├── thumbnailService.js    # Thumbnail generation queue & cache lookup
+│   │   ├── thumbnailScheduler.js  # Bounded, cancellable lanes for thumbnail jobs
+│   │   ├── thumbnailService.js    # Thumbnail generation lanes & cache lookup
+│   │   ├── thumbnailToneMap.js    # HDR / EXR float to thumbnail pixels (auto exposure, ACES)
 │   │   ├── txTexAnalysis.js       # Sharpness maths and plain-words verdicts for .tx / .tex
 │   │   ├── txTexDecoder.js        # TIFF mip-pyramid reader for .tx / .tex (tiles, region decoding)
 │   │   ├── txTexPreview.js        # Canvas painting of a texture at final-render pixel size

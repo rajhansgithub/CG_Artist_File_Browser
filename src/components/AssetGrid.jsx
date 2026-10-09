@@ -146,6 +146,8 @@ function AssetCard({
     if (thumbUrl || item.isDirectory) return;
 
     let isMounted = true;
+    // Aborted when the card unmounts (scrolled away, folder left) so a thumbnail still waiting in line never starts
+    const controller = new AbortController();
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
@@ -153,7 +155,7 @@ function AssetCard({
 
           // All file types go through thumbnailService (native thumbnails first, with fallbacks)
           setIsLoadingThumb(true);
-          getOrGenerateThumbnail(item)
+          getOrGenerateThumbnail(item, { signal: controller.signal })
             .then((url) => {
               if (isMounted && url) {
                 setThumbUrl(url);
@@ -174,8 +176,11 @@ function AssetCard({
     return () => {
       isMounted = false;
       observer.disconnect();
+      controller.abort();
     };
-  }, [item, thumbUrl]);
+    // Keyed on the path, not the item object: a re-render that only rebuilds the item objects must not cancel
+    // a thumbnail that is already waiting or decoding for this card.
+  }, [item.path, item.isDirectory, thumbUrl]);
 
   // FOLDER CARD
   if (item.isDirectory) {
