@@ -49,4 +49,5 @@ ehthumbs.db
 .cache/
 .temp/
 *.tmp
+temp_patch/
 AssetStudioCache/

@@ -217,7 +217,7 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: all 0.15s ease;
+  transition: background-color 0.12s ease-out, color 0.12s ease-out, border-color 0.12s ease-out;
   white-space: nowrap;
 }
 
@@ -232,6 +232,21 @@ body {
   padding: 0;
   justify-content: center;
   gap: 0;
+}
+
+/* Switching between icons and text is instant (sizes never animate, so the bar is at its final
+   width at once and cannot run over the search box); the text only fades in. */
+.filters-bar .filter-btn > span {
+  animation: filter-label-in 0.12s ease-out;
+}
+
+@keyframes filter-label-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filters-bar .filter-btn > span { animation: none; }
 }
 
 /* Zero-size clipped holder for the hidden labelled bar that Header measures */
@@ -259,7 +274,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.12s ease-out, color 0.12s ease-out, border-color 0.12s ease-out;
   margin-left: 2px;
   flex-shrink: 0;
 }
