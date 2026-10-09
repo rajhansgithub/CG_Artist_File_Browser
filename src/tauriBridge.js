@@ -139,6 +139,11 @@ export function setupTauriBridge() {
       return (file && file.path) || '';
     },
 
+    // Drags real files out of the window into another application; resolves when the drag ends
+    startDragOut: async (paths) => {
+      return await invoke('start_drag_out', { paths });
+    },
+
     onDragDrop: async (callback) => {
       try {
         const webview = getCurrentWebview();

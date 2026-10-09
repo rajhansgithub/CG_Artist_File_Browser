@@ -15,10 +15,22 @@ import {
   ChevronRight,
   Sliders,
   Layers,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Box as BoxIcon
 } from 'lucide-react';
 import { loadImageAsset } from '../utils/imageDecoder';
-import { formatBytes, isComparableImage } from '../utils/formatHelpers';
+import { toStreamUrl } from '../utils/assetLoader';
+import { formatBytes, getCompareKind, isComparableItem } from '../utils/formatHelpers';
+import CompareModelPane from './CompareModelPane';
+import CompareVideoTransport from './CompareVideoTransport';
+
+const KIND_LABELS = { image: 'IMAGE', model: '3D MODEL', video: 'VIDEO' };
+const SHADING_MODES = [
+  { id: 'lit', label: 'Lit' },
+  { id: 'wire', label: 'Wire' },
+  { id: 'clay', label: 'Clay' },
+  { id: 'normals', label: 'Normals' }
+];
 
 export default function CompareView({
   folderItems = [],
@@ -27,34 +39,66 @@ export default function CompareView({
   onClose,
   onRevealInExplorer
 }) {
-  // All non-directory items eligible for image comparison (excludes HDR/EXR, 3D, Video, Audio)
-  const eligibleItems = (folderItems || []).filter(isComparableImage);
+  // What is being compared: 'image', 'model' (3D) or 'video'. Slots A and B always hold the same kind.
+  const [kind, setKind] = useState(
+    () => getCompareKind(initialAssetA) || getCompareKind(initialAssetB) || 'image'
+  );
 
-  // Asset selection state - only pick valid 2D comparable images
+  // Folder items that can be compared with the current kind (HDR/EXR, audio and PDFs are not comparable)
+  const itemsOfKind = (k) => (folderItems || []).filter((i) => getCompareKind(i) === k);
+  const eligibleItems = itemsOfKind(kind);
+
+  // Asset selection state - only pick items of the active kind
   const [assetA, setAssetA] = useState(() => {
-    if (initialAssetA && isComparableImage(initialAssetA)) return initialAssetA;
+    if (initialAssetA && getCompareKind(initialAssetA) === kind) return initialAssetA;
     return eligibleItems[0] || null;
   });
   const [assetB, setAssetB] = useState(() => {
-    if (initialAssetB && isComparableImage(initialAssetB)) return initialAssetB;
+    if (initialAssetB && getCompareKind(initialAssetB) === kind) return initialAssetB;
     return eligibleItems.length > 1 ? eligibleItems[1] : (eligibleItems[0] || null);
   });
 
+  const initialPathsRef = useRef({ a: initialAssetA?.path, b: initialAssetB?.path });
+
+  // Switch to another kind of comparison and pick two starting assets of that kind
+  const switchKind = (nextKind, preferA = null, preferB = null) => {
+    const pool = itemsOfKind(nextKind);
+    const a = preferA && getCompareKind(preferA) === nextKind ? preferA : pool[0] || null;
+    const b =
+      preferB && getCompareKind(preferB) === nextKind
+        ? preferB
+        : pool.find((i) => i.path !== a?.path) || pool[0] || null;
+    setKind(nextKind);
+    setAssetA(a);
+    setAssetB(b);
+  };
+
   useEffect(() => {
-    if (initialAssetA && isComparableImage(initialAssetA)) {
-      setAssetA(initialAssetA);
+    if (initialAssetA && isComparableItem(initialAssetA)) {
+      const nextKind = getCompareKind(initialAssetA);
+      // A slot filled with another kind switches the whole comparison, except for the starting pair
+      if (nextKind !== kind) {
+        if (initialPathsRef.current.a !== initialAssetA.path) switchKind(nextKind, initialAssetA, initialAssetB);
+      } else {
+        setAssetA(initialAssetA);
+      }
     } else if (!assetA && eligibleItems.length > 0) {
       setAssetA(eligibleItems[0]);
     }
-  }, [initialAssetA?.path, eligibleItems]);
+  }, [initialAssetA?.path, eligibleItems.length]);
 
   useEffect(() => {
-    if (initialAssetB && isComparableImage(initialAssetB)) {
-      setAssetB(initialAssetB);
+    if (initialAssetB && isComparableItem(initialAssetB)) {
+      const nextKind = getCompareKind(initialAssetB);
+      if (nextKind !== kind) {
+        if (initialPathsRef.current.b !== initialAssetB.path) switchKind(nextKind, initialAssetA, initialAssetB);
+      } else {
+        setAssetB(initialAssetB);
+      }
     } else if (!assetB && eligibleItems.length > 1) {
       setAssetB(eligibleItems[1]);
     }
-  }, [initialAssetB?.path, eligibleItems]);
+  }, [initialAssetB?.path, eligibleItems.length]);
 
   // Comparison mode: 'wipe' (Split-Screen Wipe Slider), 'split' (Side-by-Side), 'toggle' (A/B Flicker), 'diff' (Difference Map)
   const [compareMode, setCompareMode] = useState('wipe');
@@ -65,7 +109,7 @@ export default function CompareView({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // Sync state
+  // Sync state: for 3D models this links the two cameras (orbit one, the other follows)
   const [syncPanZoom, setSyncPanZoom] = useState(true);
 
   // Zoom mode: 'fit' (Feature-normalized) vs 'pixel1to1' (Native 1:1 pixel match)
@@ -90,6 +134,20 @@ export default function CompareView({
   const [loadingA, setLoadingA] = useState(false);
   const [loadingB, setLoadingB] = useState(false);
 
+  // Video clips: native size of each clip once its metadata is known
+  const [videoDimsA, setVideoDimsA] = useState(null);
+  const [videoDimsB, setVideoDimsB] = useState(null);
+  const videoARef = useRef(null);
+  const videoBRef = useRef(null);
+  const transportRef = useRef(null);
+
+  // 3D models: one pane per slot, shading shared by both, load status per slot
+  const paneARef = useRef(null);
+  const paneBRef = useRef(null);
+  const [shading, setShading] = useState('lit');
+  const [modelStatusA, setModelStatusA] = useState({ loading: false, error: null, stats: null });
+  const [modelStatusB, setModelStatusB] = useState({ loading: false, error: null, stats: null });
+
   // Container measurement
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 700 });
@@ -112,12 +170,13 @@ export default function CompareView({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [eligibleItems.length === 0]);
 
   // Load Asset A
   useEffect(() => {
-    if (!assetA) {
+    if (!assetA || kind !== 'image') {
       setDataA(null);
+      setLoadingA(false);
       return;
     }
 
@@ -133,12 +192,13 @@ export default function CompareView({
     return () => {
       isMounted = false;
     };
-  }, [assetA?.path]);
+  }, [assetA?.path, kind]);
 
   // Load Asset B
   useEffect(() => {
-    if (!assetB) {
+    if (!assetB || kind !== 'image') {
       setDataB(null);
+      setLoadingB(false);
       return;
     }
 
@@ -154,13 +214,51 @@ export default function CompareView({
     return () => {
       isMounted = false;
     };
-  }, [assetB?.path]);
+  }, [assetB?.path, kind]);
 
-  // Reset transforms
+  useEffect(() => setVideoDimsA(null), [assetA?.path]);
+  useEffect(() => setVideoDimsB(null), [assetB?.path]);
+
+  // Copy the camera of one model pane onto the other (only while the cameras are linked)
+  const handleCameraChange = (slot, cam) => {
+    if (!syncPanZoom) return;
+    (slot === 'A' ? paneBRef : paneARef).current?.applyCamera(cam);
+  };
+
+  const handleModelStatus = (slot, status) => {
+    (slot === 'A' ? setModelStatusA : setModelStatusB)(status);
+    // First time both are on screen, or when a new model arrives: show B from exactly A's camera
+    if (status.loaded && syncPanZoom) {
+      const cam = paneARef.current?.getCamera();
+      if (cam) paneBRef.current?.applyCamera(cam);
+    }
+  };
+
+  // Reset transforms (for 3D models: frame the models again)
   const resetTransform = useCallback(() => {
+    if (kind === 'model') {
+      paneARef.current?.frame();
+      if (syncPanZoom) {
+        const cam = paneARef.current?.getCamera();
+        if (cam) paneBRef.current?.applyCamera(cam);
+      } else {
+        paneBRef.current?.frame();
+      }
+      return;
+    }
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
-  }, []);
+  }, [kind, syncPanZoom]);
+
+  // Turning the link back on snaps B to A's current view
+  const toggleSync = () => {
+    const next = !syncPanZoom;
+    setSyncPanZoom(next);
+    if (next && kind === 'model') {
+      const cam = paneARef.current?.getCamera();
+      if (cam) paneBRef.current?.applyCamera(cam);
+    }
+  };
 
   // Swap Asset A and Asset B
   const swapAssets = () => {
@@ -183,13 +281,20 @@ export default function CompareView({
     }
   };
 
-  // Keyboard shortcut listener (Spacebar for A/B Toggle)
+  // The pixel difference map only makes sense for images and video frames
+  useEffect(() => {
+    if (kind === 'model' && compareMode === 'diff') setCompareMode('wipe');
+  }, [kind, compareMode]);
+
+  // Keyboard shortcut listener (Spacebar for A/B Toggle; X instead of Space for video, where Space plays)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && kind !== 'video') {
         e.preventDefault();
+        setToggleActive((prev) => (prev === 'A' ? 'B' : 'A'));
+      } else if ((e.key === 'x' || e.key === 'X') && kind === 'video') {
         setToggleActive((prev) => (prev === 'A' ? 'B' : 'A'));
       } else if (e.key === '1') {
         setCompareMode('wipe');
@@ -197,19 +302,20 @@ export default function CompareView({
         setCompareMode('split');
       } else if (e.key === '3') {
         setCompareMode('toggle');
-      } else if (e.key === '4') {
+      } else if (e.key === '4' && kind !== 'model') {
         setCompareMode('diff');
-      } else if (e.key === 'r' || e.key === 'R') {
+      } else if (e.key === 'r' || e.key === 'R' || ((e.key === 'f' || e.key === 'F') && kind === 'model')) {
         resetTransform();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [resetTransform]);
+  }, [resetTransform, kind]);
 
-  // Handle Mouse Wheel Zoom
+  // Handle Mouse Wheel Zoom (3D models zoom their camera instead)
   const handleWheel = (e) => {
+    if (kind === 'model') return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
     setZoom((prev) => Math.min(32.0, Math.max(0.05, prev * factor)));
@@ -217,8 +323,8 @@ export default function CompareView({
 
   // Mouse pan handlers
   const handleMouseDown = (e) => {
-    // Only left click initiates panning
-    if (e.button !== 0) return;
+    // Only left click initiates panning (3D models orbit with their own controls)
+    if (e.button !== 0 || kind === 'model') return;
     setIsPanning(true);
     setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
@@ -245,18 +351,51 @@ export default function CompareView({
     setIsDraggingSplitter(false);
   };
 
+  // Media for each slot: a decoded image, or a video clip streamed straight from disk
+  const videoMedia = (asset, dims) =>
+    asset ? { url: toStreamUrl(asset.path), width: dims?.width || 0, height: dims?.height || 0 } : null;
+  const mediaA = kind === 'video' ? videoMedia(assetA, videoDimsA) : dataA;
+  const mediaB = kind === 'video' ? videoMedia(assetB, videoDimsB) : dataB;
+
+  const handleVideoMetadata = (slot, e) => {
+    const dims = { width: e.target.videoWidth, height: e.target.videoHeight };
+    (slot === 'A' ? setVideoDimsA : setVideoDimsB)(dims);
+    // A freshly mounted <video> (compare mode changed) must jump to the shared time again
+    transportRef.current?.syncNow();
+  };
+
+  const renderMedia = (slot, style) => {
+    const media = slot === 'A' ? mediaA : mediaB;
+    const asset = slot === 'A' ? assetA : assetB;
+    if (kind === 'video') {
+      return (
+        <video
+          ref={slot === 'A' ? videoARef : videoBRef}
+          src={media.url}
+          preload="auto"
+          muted
+          playsInline
+          draggable={false}
+          onLoadedMetadata={(e) => handleVideoMetadata(slot, e)}
+          style={style}
+        />
+      );
+    }
+    return <img src={media.url} alt={asset?.name} draggable={false} style={style} />;
+  };
+
   // Compute scale and position for Image A and Image B
-  const hasImages = Boolean(dataA?.url && dataB?.url);
+  const hasImages = Boolean(mediaA?.url && mediaB?.url);
 
   // Viewport dimensions
   const vpWidth = compareMode === 'split' ? containerSize.width / 2 : containerSize.width;
   const vpHeight = containerSize.height;
 
   // Fit calculations
-  const wA = dataA?.width || 1920;
-  const hA = dataA?.height || 1080;
-  const wB = dataB?.width || 1920;
-  const hB = dataB?.height || 1080;
+  const wA = mediaA?.width || 1920;
+  const hA = mediaA?.height || 1080;
+  const wB = mediaB?.width || 1920;
+  const hB = mediaB?.height || 1080;
 
   const baseFitA = Math.min(vpWidth / wA, vpHeight / hA, 1.0);
   const baseFitB = Math.min(vpWidth / wB, vpHeight / hB, 1.0);
@@ -287,6 +426,42 @@ export default function CompareView({
 
   const offsetX_B = (vpWidth - dispWidthB) / 2 + pan.x;
   const offsetY_B = (vpHeight - dispHeightB) / 2 + pan.y;
+
+  // Short size tag and badge text for a slot: pixels for images and video, triangle count for models
+  const formatCount = (n) =>
+    n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n);
+  const slotTag = (slot) => {
+    if (kind === 'model') {
+      const stats = (slot === 'A' ? modelStatusA : modelStatusB).stats;
+      return stats ? `${formatCount(stats.triangles)} tris` : '...';
+    }
+    return slot === 'A' ? `${wA}×${hA}` : `${wB}×${hB}`;
+  };
+  const slotInfo = (slot) => `${slotTag(slot)} • ${formatBytes((slot === 'A' ? assetA : assetB)?.size)}`;
+
+  const modelStage = kind === 'model' && Boolean(assetA && assetB);
+
+  // Where each 3D pane sits for the active compare mode. The panes stay mounted across modes.
+  const paneBoxStyle = (slot) => {
+    const base = { position: 'absolute', top: 0, bottom: 0, overflow: 'hidden', background: '#080808' };
+    if (compareMode === 'split') {
+      return slot === 'A'
+        ? { ...base, left: 0, width: 'calc(50% - 1px)' }
+        : { ...base, right: 0, width: 'calc(50% - 1px)' };
+    }
+    if (compareMode === 'toggle') {
+      return { ...base, left: 0, right: 0, visibility: toggleActive === slot ? 'visible' : 'hidden' };
+    }
+    return {
+      ...base,
+      left: 0,
+      right: 0,
+      clipPath:
+        slot === 'A'
+          ? `polygon(0 0, ${splitPos}% 0, ${splitPos}% 100%, 0 100%)`
+          : `polygon(${splitPos}% 0, 100% 0, 100% 100%, ${splitPos}% 100%)`
+    };
+  };
 
   return (
     <div
@@ -334,8 +509,42 @@ export default function CompareView({
             <Split size={14} color="#ffffff" />
           </div>
           <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', color: '#eeeeee' }}>
-            IMAGE COMPARISON
+            {KIND_LABELS[kind]} COMPARISON
           </span>
+
+          {/* What to compare: images, 3D models (synced camera) or video clips (synced frames) */}
+          <div
+            style={{
+              display: 'flex',
+              background: '#161616',
+              padding: 2,
+              borderRadius: 6,
+              border: '1px solid #262626'
+            }}
+          >
+            {[
+              { id: 'image', label: 'Images', Icon: ImageIcon },
+              { id: 'model', label: '3D', Icon: BoxIcon },
+              { id: 'video', label: 'Video', Icon: Film }
+            ].map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                className={`filter-btn ${kind === id ? 'active' : ''}`}
+                style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+                onClick={() => kind !== id && switchKind(id, assetA, assetB)}
+                title={
+                  id === 'model'
+                    ? 'Compare two 3D models with a synced camera'
+                    : id === 'video'
+                    ? 'Compare two video clips with synced playback'
+                    : 'Compare two images'
+                }
+              >
+                <Icon size={12} style={{ marginRight: 4 }} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ─── SLOT A SELECTOR ─── */}
@@ -394,9 +603,9 @@ export default function CompareView({
             <ChevronRight size={13} />
           </button>
 
-          {dataA?.width > 0 && (
+          {mediaA?.width > 0 && (
             <span style={{ fontSize: 11, color: '#888888', marginLeft: 4, fontFamily: 'monospace' }}>
-              {dataA.width}×{dataA.height}
+              {mediaA.width}×{mediaA.height}
             </span>
           )}
         </div>
@@ -472,9 +681,9 @@ export default function CompareView({
             <ChevronRight size={13} />
           </button>
 
-          {dataB?.width > 0 && (
+          {mediaB?.width > 0 && (
             <span style={{ fontSize: 11, color: '#888888', marginLeft: 4, fontFamily: 'monospace' }}>
-              {dataB.width}×{dataB.height}
+              {mediaB.width}×{mediaB.height}
             </span>
           )}
         </div>
@@ -518,9 +727,10 @@ export default function CompareView({
           </button>
           <button
             className={`filter-btn ${compareMode === 'diff' ? 'active' : ''}`}
-            style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+            style={{ height: 26, fontSize: 11, padding: '0 8px', opacity: kind === 'model' ? 0.4 : 1 }}
+            disabled={kind === 'model'}
             onClick={() => setCompareMode('diff')}
-            title="Pixel Difference Map [Key 4]"
+            title={kind === 'model' ? 'Difference map is not available for 3D models' : 'Pixel Difference Map [Key 4]'}
           >
             <Sliders size={12} style={{ marginRight: 4 }} />
             Diff
@@ -530,6 +740,7 @@ export default function CompareView({
         {/* ─── ZOOM & ALIGNMENT CONTROLS ─── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Zoom Alignment Mode: Normalized (Features align) vs 1:1 (Native pixels) */}
+          {kind !== 'model' && (
           <button
             className={`filter-btn ${zoomAlignment === 'normalized' ? 'active' : ''}`}
             style={{ height: 26, fontSize: 11, padding: '0 7px' }}
@@ -544,18 +755,31 @@ export default function CompareView({
           >
             {zoomAlignment === 'normalized' ? 'Align Features' : '1:1 Pixels'}
           </button>
+          )}
 
-          {/* Sync Pan & Zoom Toggle */}
+          {/* Sync Toggle: pan & zoom for images, the shared camera for 3D models (video is always in step) */}
+          {kind !== 'video' && (
           <button
             className={`icon-btn ${syncPanZoom ? 'active' : ''}`}
             style={{ width: 26, height: 26 }}
-            onClick={() => setSyncPanZoom((prev) => !prev)}
-            title={syncPanZoom ? 'Sync Pan & Zoom: Locked' : 'Sync Pan & Zoom: Independent'}
+            onClick={toggleSync}
+            title={
+              kind === 'model'
+                ? syncPanZoom
+                  ? 'Sync Camera: Locked (orbit one model, the other follows)'
+                  : 'Sync Camera: Independent'
+                : syncPanZoom
+                ? 'Sync Pan & Zoom: Locked'
+                : 'Sync Pan & Zoom: Independent'
+            }
           >
             {syncPanZoom ? <LinkIcon size={13} /> : <Unlink size={13} />}
           </button>
+          )}
 
-          {/* Zoom Out / In */}
+          {/* Zoom Out / In (3D models zoom with the mouse wheel) */}
+          {kind !== 'model' && (
+          <>
           <button
             className="icon-btn"
             style={{ width: 26, height: 26 }}
@@ -585,13 +809,19 @@ export default function CompareView({
           >
             <ZoomIn size={13} />
           </button>
+          </>
+          )}
 
           {/* Reset View */}
           <button
             className="icon-btn"
             style={{ width: 26, height: 26 }}
             onClick={resetTransform}
-            title="Reset Pan & Zoom (Fit to Screen) [Key R]"
+            title={
+              kind === 'model'
+                ? 'Frame both models [Key R or F]'
+                : 'Reset Pan & Zoom (Fit to Screen) [Key R]'
+            }
           >
             <RotateCcw size={13} />
           </button>
@@ -625,7 +855,11 @@ export default function CompareView({
         >
           <ImageIcon size={48} color="#555555" />
           <span style={{ fontSize: 15, fontWeight: 600, color: '#cccccc' }}>
-            No Comparable Images in This Folder
+            {kind === 'model'
+              ? 'No 3D Models in This Folder'
+              : kind === 'video'
+              ? 'No Video Clips in This Folder'
+              : 'No Comparable Images in This Folder'}
           </span>
           <span
             style={{
@@ -636,7 +870,11 @@ export default function CompareView({
               lineHeight: 1.5
             }}
           >
-            Image Comparison supports standard 2D image and texture formats (PNG, JPG, WebP, TIF, TGA, DDS, PSD, BMP). 360° HDR and EXR skybox maps are inspected in the dedicated HDR/EXR Studio Inspector.
+            {kind === 'model'
+              ? '3D comparison supports OBJ, FBX, glTF/GLB, STL, PLY, USD and Alembic models. Orbit one model and the other follows, for example LOD0 against LOD1.'
+              : kind === 'video'
+              ? 'Video comparison supports MP4, MOV, WebM, MKV and AVI clips. Play, pause and step both clips together to check one take against another.'
+              : 'Image Comparison supports standard 2D image and texture formats (PNG, JPG, WebP, TIF, TGA, DDS, PSD, BMP). 360° HDR and EXR skybox maps are inspected in the dedicated HDR/EXR Studio Inspector.'}
           </span>
         </div>
       ) : (
@@ -647,7 +885,13 @@ export default function CompareView({
             position: 'relative',
             background: '#070707',
             overflow: 'hidden',
-            cursor: isDraggingSplitter ? 'col-resize' : isPanning ? 'grabbing' : 'grab'
+            cursor: isDraggingSplitter
+              ? 'col-resize'
+              : kind === 'model'
+              ? 'default'
+              : isPanning
+              ? 'grabbing'
+              : 'grab'
           }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
@@ -667,55 +911,49 @@ export default function CompareView({
           />
 
           {/* ═════════════════ MODE 1: SPLIT WIPE SLIDER ═════════════════ */}
-          {compareMode === 'wipe' && hasImages && (
+          {compareMode === 'wipe' && (hasImages || modelStage) && (
             <>
-              {/* Layer B (Right side of wipe) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  clipPath: `polygon(${splitPos}% 0, 100% 0, 100% 100%, ${splitPos}% 100%)`,
-                  pointerEvents: 'none'
-                }}
-              >
-                <img
-                  src={dataB.url}
-                  alt={assetB?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_B}px`,
-                    top: `${offsetY_B}px`,
-                    width: `${dispWidthB}px`,
-                    height: `${dispHeightB}px`,
-                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
-                  }}
-                />
-              </div>
+              {hasImages && (
+                <>
+                  {/* Layer B (Right side of wipe) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      clipPath: `polygon(${splitPos}% 0, 100% 0, 100% 100%, ${splitPos}% 100%)`,
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {renderMedia('B', {
+                      position: 'absolute',
+                      left: `${offsetX_B}px`,
+                      top: `${offsetY_B}px`,
+                      width: `${dispWidthB}px`,
+                      height: `${dispHeightB}px`,
+                      imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                    })}
+                  </div>
 
-              {/* Layer A (Left side of wipe) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  clipPath: `polygon(0 0, ${splitPos}% 0, ${splitPos}% 100%, 0 100%)`,
-                  pointerEvents: 'none'
-                }}
-              >
-                <img
-                  src={dataA.url}
-                  alt={assetA?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_A}px`,
-                    top: `${offsetY_A}px`,
-                    width: `${dispWidthA}px`,
-                    height: `${dispHeightA}px`,
-                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
-                  }}
-                />
-              </div>
+                  {/* Layer A (Left side of wipe) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      clipPath: `polygon(0 0, ${splitPos}% 0, ${splitPos}% 100%, 0 100%)`,
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {renderMedia('A', {
+                      position: 'absolute',
+                      left: `${offsetX_A}px`,
+                      top: `${offsetY_A}px`,
+                      width: `${dispWidthA}px`,
+                      height: `${dispHeightA}px`,
+                      imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                    })}
+                  </div>
+                </>
+              )}
 
               {/* Draggable Vertical Splitter Line & Knob */}
               <div
@@ -770,7 +1008,7 @@ export default function CompareView({
                 <span style={{ fontWeight: 800, color: '#ffffff', marginRight: 4 }}>[A]</span>
                 <span>{assetA?.name}</span>
                 <span style={{ color: '#888888', marginLeft: 6 }}>
-                  {wA}×{hA} • {formatBytes(assetA?.size)}
+                  {slotInfo('A')}
                 </span>
               </div>
 
@@ -778,7 +1016,7 @@ export default function CompareView({
                 <span style={{ fontWeight: 800, color: '#888888', marginRight: 4 }}>[B]</span>
                 <span>{assetB?.name}</span>
                 <span style={{ color: '#888888', marginLeft: 6 }}>
-                  {wB}×{hB} • {formatBytes(assetB?.size)}
+                  {slotInfo('B')}
                 </span>
               </div>
             </>
@@ -803,22 +1041,17 @@ export default function CompareView({
                   <span style={{ fontWeight: 800, color: '#ffffff', marginRight: 4 }}>[A]</span>
                   <span>{assetA?.name}</span>
                   <span style={{ color: '#888888', marginLeft: 6 }}>
-                    {wA}×{hA} • {formatBytes(assetA?.size)}
+                    {slotInfo('A')}
                   </span>
                 </div>
-                <img
-                  src={dataA.url}
-                  alt={assetA?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_A}px`,
-                    top: `${offsetY_A}px`,
-                    width: `${dispWidthA}px`,
-                    height: `${dispHeightA}px`,
-                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
-                  }}
-                />
+                {renderMedia('A', {
+                  position: 'absolute',
+                  left: `${offsetX_A}px`,
+                  top: `${offsetY_A}px`,
+                  width: `${dispWidthA}px`,
+                  height: `${dispHeightA}px`,
+                  imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                })}
               </div>
 
               {/* Right Viewport: Asset B */}
@@ -827,44 +1060,45 @@ export default function CompareView({
                   <span style={{ fontWeight: 800, color: '#888888', marginRight: 4 }}>[B]</span>
                   <span>{assetB?.name}</span>
                   <span style={{ color: '#888888', marginLeft: 6 }}>
-                    {wB}×{hB} • {formatBytes(assetB?.size)}
+                    {slotInfo('B')}
                   </span>
                 </div>
-                <img
-                  src={dataB.url}
-                  alt={assetB?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_B}px`,
-                    top: `${offsetY_B}px`,
-                    width: `${dispWidthB}px`,
-                    height: `${dispHeightB}px`,
-                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
-                  }}
-                />
+                {renderMedia('B', {
+                  position: 'absolute',
+                  left: `${offsetX_B}px`,
+                  top: `${offsetY_B}px`,
+                  width: `${dispWidthB}px`,
+                  height: `${dispHeightB}px`,
+                  imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                })}
               </div>
             </div>
           )}
 
           {/* ═════════════════ MODE 3: A/B FLICKER TOGGLE ═════════════════ */}
-          {compareMode === 'toggle' && hasImages && (
+          {compareMode === 'toggle' && (hasImages || modelStage) && (
             <>
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                <img
-                  src={toggleActive === 'A' ? dataA.url : dataB.url}
-                  alt={toggleActive === 'A' ? assetA?.name : assetB?.name}
-                  draggable={false}
+              {/* Both layers stay mounted so video clips keep playing in step; only the active one shows */}
+              {hasImages && ['A', 'B'].map((slot) => (
+                <div
+                  key={slot}
                   style={{
                     position: 'absolute',
-                    left: `${toggleActive === 'A' ? offsetX_A : offsetX_B}px`,
-                    top: `${toggleActive === 'A' ? offsetY_A : offsetY_B}px`,
-                    width: `${toggleActive === 'A' ? dispWidthA : dispWidthB}px`,
-                    height: `${toggleActive === 'A' ? dispHeightA : dispHeightB}px`,
-                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                    inset: 0,
+                    pointerEvents: 'none',
+                    visibility: toggleActive === slot ? 'visible' : 'hidden'
                   }}
-                />
-              </div>
+                >
+                  {renderMedia(slot, {
+                    position: 'absolute',
+                    left: `${slot === 'A' ? offsetX_A : offsetX_B}px`,
+                    top: `${slot === 'A' ? offsetY_A : offsetY_B}px`,
+                    width: `${slot === 'A' ? dispWidthA : dispWidthB}px`,
+                    height: `${slot === 'A' ? dispHeightA : dispHeightB}px`,
+                    imageRendering: zoom >= 2.0 ? 'pixelated' : 'auto'
+                  })}
+                </div>
+              ))}
 
               {/* Toggle Banner */}
               <div
@@ -889,15 +1123,17 @@ export default function CompareView({
                   style={{ height: 26, fontSize: 11 }}
                   onClick={() => setToggleActive('A')}
                 >
-                  Show [A] ({wA}×{hA})
+                  Show [A] ({slotTag('A')})
                 </button>
-                <span style={{ fontSize: 11, color: '#666666' }}>Press Spacebar</span>
+                <span style={{ fontSize: 11, color: '#666666' }}>
+                  {kind === 'video' ? 'Press X' : 'Press Spacebar'}
+                </span>
                 <button
                   className={`filter-btn ${toggleActive === 'B' ? 'active' : ''}`}
                   style={{ height: 26, fontSize: 11 }}
                   onClick={() => setToggleActive('B')}
                 >
-                  Show [B] ({wB}×{hB})
+                  Show [B] ({slotTag('B')})
                 </button>
               </div>
             </>
@@ -908,18 +1144,13 @@ export default function CompareView({
             <>
               {/* Base Layer B */}
               <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                <img
-                  src={dataB.url}
-                  alt={assetB?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_B}px`,
-                    top: `${offsetY_B}px`,
-                    width: `${dispWidthB}px`,
-                    height: `${dispHeightB}px`
-                  }}
-                />
+                {renderMedia('B', {
+                  position: 'absolute',
+                  left: `${offsetX_B}px`,
+                  top: `${offsetY_B}px`,
+                  width: `${dispWidthB}px`,
+                  height: `${dispHeightB}px`
+                })}
               </div>
 
               {/* Overlay Layer A with difference blend mode */}
@@ -932,18 +1163,13 @@ export default function CompareView({
                   filter: `contrast(${diffGain * 100}%)`
                 }}
               >
-                <img
-                  src={dataA.url}
-                  alt={assetA?.name}
-                  draggable={false}
-                  style={{
-                    position: 'absolute',
-                    left: `${offsetX_A}px`,
-                    top: `${offsetY_A}px`,
-                    width: `${dispWidthA}px`,
-                    height: `${dispHeightA}px`
-                  }}
-                />
+                {renderMedia('A', {
+                  position: 'absolute',
+                  left: `${offsetX_A}px`,
+                  top: `${offsetY_A}px`,
+                  width: `${dispWidthA}px`,
+                  height: `${dispHeightA}px`
+                })}
               </div>
 
               {/* Difference Gain Control */}
@@ -978,6 +1204,114 @@ export default function CompareView({
             </>
           )}
 
+          {/* ═════════════════ 3D MODELS: two panes, one shared camera ═════════════════ */}
+          {modelStage && (
+            <>
+              {['A', 'B'].map((slot) => (
+                <div key={slot} style={paneBoxStyle(slot)}>
+                  <CompareModelPane
+                    ref={slot === 'A' ? paneARef : paneBRef}
+                    asset={slot === 'A' ? assetA : assetB}
+                    renderMode={shading}
+                    onCameraChange={(cam) => handleCameraChange(slot, cam)}
+                    onStatus={(status) => handleModelStatus(slot, status)}
+                  />
+                </div>
+              ))}
+
+              {compareMode === 'split' && (
+                <>
+                  <div className="compare-badge-overlay" style={{ top: 12, left: 12 }}>
+                    <span style={{ fontWeight: 800, color: '#ffffff', marginRight: 4 }}>[A]</span>
+                    <span>{assetA?.name}</span>
+                    <span style={{ color: '#888888', marginLeft: 6 }}>{slotInfo('A')}</span>
+                  </div>
+                  <div className="compare-badge-overlay" style={{ top: 12, left: 'calc(50% + 12px)' }}>
+                    <span style={{ fontWeight: 800, color: '#888888', marginRight: 4 }}>[B]</span>
+                    <span>{assetB?.name}</span>
+                    <span style={{ color: '#888888', marginLeft: 6 }}>{slotInfo('B')}</span>
+                  </div>
+                </>
+              )}
+
+              {/* Shading (applies to both models) and camera link state */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 16,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(20,20,20,0.85)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid #333333',
+                  borderRadius: 6,
+                  padding: '5px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  zIndex: 30
+                }}
+              >
+                <span style={{ fontSize: 11, color: '#aaaaaa' }}>Shading:</span>
+                {SHADING_MODES.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    className={`filter-btn ${shading === id ? 'active' : ''}`}
+                    style={{ height: 22, padding: '0 7px', fontSize: 10 }}
+                    onClick={() => setShading(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <span style={{ fontSize: 11, color: '#666666' }}>
+                  {syncPanZoom ? 'Cameras linked: orbit either model' : 'Cameras independent'}
+                </span>
+              </div>
+
+              {(modelStatusA.loading || modelStatusB.loading) && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: 'rgba(0,0,0,0.8)',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: '#ffffff',
+                    border: '1px solid #333333',
+                    zIndex: 50
+                  }}
+                >
+                  Loading 3D models...
+                </div>
+              )}
+
+              {(modelStatusA.error || modelStatusB.error) && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 60,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(40,10,10,0.9)',
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: '#ffaaaa',
+                    border: '1px solid #553333',
+                    zIndex: 50,
+                    maxWidth: '80%'
+                  }}
+                >
+                  {modelStatusA.error && <div>[A] {modelStatusA.error}</div>}
+                  {modelStatusB.error && <div>[B] {modelStatusB.error}</div>}
+                </div>
+              )}
+            </>
+          )}
+
           {/* Loading indicator */}
           {(loadingA || loadingB) && (
             <div
@@ -999,6 +1333,16 @@ export default function CompareView({
             </div>
           )}
         </div>
+      )}
+
+      {/* ─── SHARED VIDEO TRANSPORT (one timeline for both clips) ─── */}
+      {kind === 'video' && assetA && assetB && (
+        <CompareVideoTransport
+          ref={transportRef}
+          videoARef={videoARef}
+          videoBRef={videoBRef}
+          resetKey={`${assetA.path}|${assetB.path}`}
+        />
       )}
 
       {/* ─── BOTTOM ASSET FILMSTRIP / CAROUSEL DRAWER ─── */}
@@ -1140,7 +1484,7 @@ export default function CompareView({
                         fontWeight: 700
                       }}
                       onClick={() => setAssetA(item)}
-                      title="Set this asset as Image A"
+                      title="Set this asset as A"
                     >
                       Set A
                     </button>
@@ -1155,7 +1499,7 @@ export default function CompareView({
                         fontWeight: 700
                       }}
                       onClick={() => setAssetB(item)}
-                      title="Set this asset as Image B"
+                      title="Set this asset as B"
                     >
                       Set B
                     </button>

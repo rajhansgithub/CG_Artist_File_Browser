@@ -347,6 +347,18 @@ select option {
   border-color: #ffffff;
 }
 
+/* Back / forward when there is nowhere to go */
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-btn:disabled:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
 /* Main workspace layout */
 .main-workspace {
   display: flex;
@@ -606,6 +618,35 @@ select option {
 .view-switch-btn.active {
   background: var(--bg-elevated);
   color: var(--text-main);
+}
+
+/* Sort control in the breadcrumb bar */
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sort-btn:hover,
+.sort-btn.open {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+/* Keep an item chosen with the arrow keys clear of the edge when it scrolls into view */
+.asset-card,
+.details-row {
+  scroll-margin: 14px;
 }
 
 /* Details view: Explorer-style list */
@@ -1633,7 +1674,7 @@ select option {
 /* Floating Compare Dock */
 .floating-compare-dock {
   position: fixed;
-  bottom: 24px;
+  bottom: 48px; /* clear of the status bar */
   left: 50%;
   transform: translateX(-50%);
   background: rgba(18, 18, 18, 0.94);
@@ -2144,6 +2185,63 @@ select option {
 
 .context-menu-item:hover {
   background: var(--bg-active);
+}
+
+/* Sort menu: tick column and divider */
+.context-menu-check {
+  width: 12px;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.context-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border-subtle);
+}
+
+/* Status bar under the folder view */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 14px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.status-counts {
+  flex: 1 1 auto;
+}
+
+.status-counts strong {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.status-muted {
+  color: var(--text-muted);
+}
+
+.status-selection {
+  flex: 0 1 auto;
+  color: var(--text-main);
+}
+
+.status-disk {
+  flex: 0 0 auto;
 }
 
 /* Change icon dialog */
