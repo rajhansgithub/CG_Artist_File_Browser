@@ -40,6 +40,60 @@ const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'En
 // Preview shapes outlive a card. When a card scrolls out of the virtualized grid and back, it keeps its height.
 const previewAspectCache = new Map();
 
+// Colour and tags of a card (files and folders): a button that shows on hover, a stripe in the colour while the
+// item has one, and the editor that the button opens
+function CardLabel({ path, label, labelActions }) {
+  const [labelAnchor, setLabelAnchor] = useState(null);
+  const labelColor = getLabelColor(label?.color);
+  const hasLabel = !!labelColor || !!label?.tags?.length;
+
+  return (
+    <>
+      <button
+        className={`card-fav-btn card-label-btn ${hasLabel ? 'active' : ''}`}
+        style={labelColor ? { color: labelColor.hex } : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          // Read the button now: React clears currentTarget once the event has been handled
+          const button = e.currentTarget;
+          setLabelAnchor((anchor) => (anchor ? null : button));
+        }}
+        title="Colour and tags"
+        aria-label="Colour and tags"
+      >
+        <Tag size={13} fill={labelColor ? 'currentColor' : 'none'} />
+      </button>
+      {labelColor && <span className="card-label-stripe" style={{ background: labelColor.hex }} />}
+
+      {labelAnchor && (
+        <FileLabelPopover
+          anchor={labelAnchor}
+          label={label || { color: null, tags: [] }}
+          onSetColor={(color) => labelActions.setColor([path], color)}
+          onAddTag={(tag) => labelActions.editTags([path], [tag], [])}
+          onRemoveTag={(tag) => labelActions.editTags([path], [], [tag])}
+          onClose={() => setLabelAnchor(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// The first tags of a card, the rest counted
+function CardTags({ tags }) {
+  if (!tags.length) return null;
+  return (
+    <div className="card-tags">
+      {tags.slice(0, CARD_TAG_LIMIT).map((tag) => (
+        <span key={tag} className="card-tag">
+          {tag}
+        </span>
+      ))}
+      {tags.length > CARD_TAG_LIMIT && <span className="card-tag card-tag-more">+{tags.length - CARD_TAG_LIMIT}</span>}
+    </div>
+  );
+}
+
 function AssetCard({
   item,
   isSelected,
@@ -62,11 +116,8 @@ function AssetCard({
   const [thumbUrl, setThumbUrl] = useState(() => item.thumbnail || getCachedThumbnail(item.path));
   const [aspectRatio, setAspectRatio] = useState(() => previewAspectCache.get(item.path) ?? null);
   const [isLoadingThumb, setIsLoadingThumb] = useState(false);
-  const [labelAnchor, setLabelAnchor] = useState(null);
   const cardRef = useRef(null);
   const imgRef = useRef(null);
-  const labelColor = getLabelColor(label?.color);
-  const hasLabel = !!labelColor || !!label?.tags?.length;
 
   const rememberAspect = (ratio) => {
     previewAspectCache.set(item.path, ratio);
@@ -137,7 +188,7 @@ function AssetCard({
         onContextMenu={(e) => {
           // Right-clicking a selected item keeps the whole selection, like Explorer
           if (!isSelected) onSelect(item);
-          openMenu(e, item);
+          openMenu(e, item, true);
         }}
       >
         <div
@@ -160,6 +211,8 @@ function AssetCard({
           >
             <Star size={13} fill={isFavorite ? '#ffffff' : 'none'} />
           </button>
+
+          <CardLabel path={item.path} label={label} labelActions={labelActions} />
         </div>
 
         <div className="card-meta">
@@ -170,6 +223,7 @@ function AssetCard({
             <span>Folder</span>
             <span style={{ opacity: 0.6 }}>Double click to open</span>
           </div>
+          <CardTags tags={label?.tags || []} />
         </div>
       </div>
     );
@@ -197,7 +251,7 @@ function AssetCard({
       onContextMenu={(e) => {
         // Right-clicking a selected item keeps the whole selection, like Explorer
         if (!isSelected) onSelect(item);
-        openMenu(e, item);
+        openMenu(e, item, true);
       }}
     >
       {/* Thumbnail / Tone-Mapped Preview Visual (Exact aspect ratio of file, 2:1 placeholder before loaded) */}
@@ -229,22 +283,7 @@ function AssetCard({
           <Star size={13} fill={isFavorite ? '#ffffff' : 'none'} />
         </button>
 
-        {/* Colour and tags: a button on hover, and a stripe in the colour while the file has one */}
-        <button
-          className={`card-fav-btn card-label-btn ${hasLabel ? 'active' : ''}`}
-          style={labelColor ? { color: labelColor.hex } : undefined}
-          onClick={(e) => {
-            e.stopPropagation();
-            // Read the button now: React clears currentTarget once the event has been handled
-            const button = e.currentTarget;
-            setLabelAnchor((anchor) => (anchor ? null : button));
-          }}
-          title="Colour and tags"
-          aria-label="Colour and tags"
-        >
-          <Tag size={13} fill={labelColor ? 'currentColor' : 'none'} />
-        </button>
-        {labelColor && <span className="card-label-stripe" style={{ background: labelColor.hex }} />}
+        <CardLabel path={item.path} label={label} labelActions={labelActions} />
 
         {thumbUrl ? (
           <img
@@ -443,30 +482,8 @@ function AssetCard({
           )}
           <span>{formatDate(item.modified).split(',')[0]}</span>
         </div>
-        {label?.tags?.length > 0 && (
-          <div className="card-tags">
-            {label.tags.slice(0, CARD_TAG_LIMIT).map((tag) => (
-              <span key={tag} className="card-tag">
-                {tag}
-              </span>
-            ))}
-            {label.tags.length > CARD_TAG_LIMIT && (
-              <span className="card-tag card-tag-more">+{label.tags.length - CARD_TAG_LIMIT}</span>
-            )}
-          </div>
-        )}
+        <CardTags tags={label?.tags || []} />
       </div>
-
-      {labelAnchor && (
-        <FileLabelPopover
-          anchor={labelAnchor}
-          label={label || { color: null, tags: [] }}
-          onSetColor={(color) => labelActions.setColor([item.path], color)}
-          onAddTag={(tag) => labelActions.editTags([item.path], [tag], [])}
-          onRemoveTag={(tag) => labelActions.editTags([item.path], [], [tag])}
-          onClose={() => setLabelAnchor(null)}
-        />
-      )}
     </div>
   );
 }

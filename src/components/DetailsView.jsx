@@ -73,7 +73,7 @@ function DetailsRow({
       onContextMenu={(e) => {
         // Right-clicking a selected item keeps the whole selection, like Explorer
         if (!isSelected) onSelect(item);
-        openMenu(e, item);
+        openMenu(e, item, true);
       }}
     >
       <div className="details-cell details-name" title={item.name}>
