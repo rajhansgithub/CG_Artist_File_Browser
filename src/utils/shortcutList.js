@@ -27,6 +27,13 @@ export const SHORTCUT_GROUPS = [
     ]
   },
   {
+    // App.jsx (I key and the Inspector button in the breadcrumb bar), InspectorDrawer.jsx
+    title: 'Inspector drawer',
+    items: [
+      { keys: [['I']], action: 'Show or hide the Inspector: details of the selected file, beside the grid' }
+    ]
+  },
+  {
     // Every viewer's own Escape handler (ImageViewer, TxTexViewer, VideoPlayer, ImageSequencePlayer, AudioPlayer,
     // PdfViewer, Viewport3D, HdrExrInspector)
     title: 'Any viewer',

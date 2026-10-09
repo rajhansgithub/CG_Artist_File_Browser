@@ -31,6 +31,20 @@ if (!targetVersion) {
 const cleanVersion = targetVersion.replace(/^v/, '');
 const tag = `v${cleanVersion}`;
 
+// Reject anything that would not pass scripts/version-check.js before any file is changed.
+if (!/^\d+\.\d+\.\d+$/.test(cleanVersion)) {
+  console.error(`❌ "${targetVersion}" is not a plain MAJOR.MINOR.PATCH version (for example 1.11.3). Nothing was changed.`);
+  process.exit(1);
+}
+
+const archPath = path.join(rootDir, 'docs', 'ARCHITECTURE.md');
+const archContent = fs.readFileSync(archPath, 'utf8');
+const ARCH_VERSION_LINE = /(\*\*Current release version:\*\*\s*`)[^`]*(`)/;
+if (!ARCH_VERSION_LINE.test(archContent)) {
+  console.error('❌ No "Current release version" line found in docs/ARCHITECTURE.md. Nothing was changed.');
+  process.exit(1);
+}
+
 console.log(`\n🚀 Preparing release ${tag}...\n`);
 
 // 1. Update package.json
@@ -44,7 +58,7 @@ console.log(`✓ Updated package.json to ${cleanVersion}`);
 const tauriConfPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json');
 if (fs.existsSync(tauriConfPath)) {
   const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
-  tauriConf.version = cleanVersion.replace(/-.*$/, '');
+  tauriConf.version = cleanVersion;
   fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
   console.log(`✓ Updated tauri.conf.json to ${tauriConf.version}`);
 }
@@ -55,11 +69,15 @@ if (fs.existsSync(cargoPath)) {
   let cargoContent = fs.readFileSync(cargoPath, 'utf8');
   cargoContent = cargoContent.replace(
     /^version = "[^"]+"/m,
-    `version = "${cleanVersion.replace(/-beta.*$/, '')}"`
+    `version = "${cleanVersion}"`
   );
   fs.writeFileSync(cargoPath, cargoContent);
   console.log(`✓ Updated Cargo.toml`);
 }
+
+// 4. Update the "Current release version" line in docs/ARCHITECTURE.md
+fs.writeFileSync(archPath, archContent.replace(ARCH_VERSION_LINE, `$1${cleanVersion}$2`));
+console.log(`✓ Updated docs/ARCHITECTURE.md to ${cleanVersion}`);
 
 // Verify consistency across all version files
 execSync('npm run version:check', { cwd: rootDir, stdio: 'inherit' });
@@ -95,6 +113,17 @@ try {
   execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
 }
 
+// Check the built files before anything is committed or pushed.
+const releaseAssets = [
+  path.join(rootDir, 'release', `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`),
+  path.join(rootDir, 'release', `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`),
+  path.join(rootDir, 'release', 'CG-Artist-File-Browser-Portable.exe'),
+].filter(fs.existsSync);
+if (releaseAssets.length === 0) {
+  console.error(`\n❌ No installer or portable exe was found in release/. Nothing was committed or pushed.`);
+  process.exit(1);
+}
+
 // 5. Git Commit, Tag & Push
 console.log(`\n📤 Publishing to GitHub...`);
 try {
@@ -113,31 +142,18 @@ try {
   execSync('git push origin main', { cwd: rootDir, stdio: 'inherit' });
   execSync(`git push origin ${tag}`, { cwd: rootDir, stdio: 'inherit' });
 
-  // 6. Direct GitHub Release Creation & Upload via gh CLI
+  // 6. Create the GitHub Release and upload the locally built files with the gh CLI (not GitHub Actions)
   console.log(`\n🚀 Uploading locally built binaries directly to GitHub Releases...`);
-  try {
-    const releaseAssets = [
-      path.join(rootDir, 'release', `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`),
-      path.join(rootDir, 'release', `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`),
-      path.join(rootDir, 'release', 'CG-Artist-File-Browser-Portable.exe'),
-    ].filter(fs.existsSync);
-
-    if (releaseAssets.length > 0) {
-      const assetArgs = releaseAssets.map(p => `"${p}"`).join(' ');
-      execSync(
-        `gh release create ${tag} ${assetArgs} --title "CG Artist File Browser ${tag} (Installer & Portable)" --notes "Automated local production release for ${tag}."`,
-        { cwd: rootDir, stdio: 'inherit' }
-      );
-      console.log(`✓ Published ${tag} to GitHub Releases immediately!`);
-    }
-  } catch (ghErr) {
-    console.warn(`Note: gh release upload fallback/update: ${ghErr.message}`);
-  }
+  const assetArgs = releaseAssets.map(p => `"${p}"`).join(' ');
+  execSync(
+    `gh release create ${tag} ${assetArgs} --title "CG Artist File Browser ${tag} (Installer & Portable)" --notes "Automated local production release for ${tag}."`,
+    { cwd: rootDir, stdio: 'inherit' }
+  );
+  console.log(`✓ Published ${tag} to GitHub Releases immediately!`);
 
   console.log(`\n🎉 Successfully published release ${tag} to GitHub!`);
-  console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases`);
-  console.log(`🔗 Action Runs: https://github.com/rajhansgithub/CG_Artist_File_Browser/actions\n`);
+  console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases\n`);
 } catch (err) {
-  console.error('Error during git push:', err);
+  console.error('Release failed:', err.message);
   process.exit(1);
 }

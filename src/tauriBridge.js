@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc, isTauri } from '@tauri-apps/api/core';
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { listen } from '@tauri-apps/api/event';
 
@@ -67,6 +67,38 @@ export function setupTauriBridge() {
 
     clearRecentFolders: async () => {
       return await invoke('clear_recent_folders');
+    },
+
+    // Apps for the right-click "Send to" menu: the list, adding and removing by path, and a look for installed apps
+    getExternalApps: async () => {
+      return await invoke('get_external_apps');
+    },
+
+    addExternalApp: async (path, name) => {
+      return await invoke('add_external_app', { path, name });
+    },
+
+    removeExternalApp: async (path) => {
+      return await invoke('remove_external_app', { path });
+    },
+
+    scanExternalApps: async () => {
+      return await invoke('scan_external_apps');
+    },
+
+    // Opens the files in one app from the list. Resolves { ok } or { ok: false, error }
+    sendToExternalApp: async (appPath, filePaths) => {
+      try {
+        await invoke('send_to_external_app', { appPath, filePaths });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    // Message box for an error the user needs to see, such as an app that could not start
+    showError: async (text, title) => {
+      await messageDialog(String(text), { title, kind: 'error' });
     },
 
     openFolderDialog: async (defaultPath) => {
@@ -174,6 +206,11 @@ export function setupTauriBridge() {
 
     getItemDetails: async (filePath) => {
       return await invoke('get_item_details', { targetPath: filePath });
+    },
+
+    // Header details for the Inspector drawer: size in pixels, colour layout, EXR channels, dates
+    getFileInfo: async (filePath) => {
+      return await invoke('get_file_info', { filePath });
     },
 
     getPathForFile: (file) => {

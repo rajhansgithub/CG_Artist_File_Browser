@@ -10,10 +10,15 @@ import {
   ExternalLink,
   Music,
   Activity,
-  Square
+  Square,
+  Minus,
+  Plus
 } from 'lucide-react';
 import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatDuration } from '../utils/formatHelpers';
+import pitchShifterWorkletUrl from '../utils/pitchShifterWorklet.js?url';
+
+const MAX_PITCH_SEMITONES = 12;
 
 export default function AudioPlayer({
   asset,
@@ -36,6 +41,12 @@ export default function AudioPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isLooping, setIsLooping] = useState(false);
+
+  // Pitch in semitones, separate from playback speed. The audio is routed through a Web Audio chain the first time
+  // the pitch moves off zero, so plain playback keeps using the element directly.
+  const [pitchSemitones, setPitchSemitones] = useState(0);
+  const pitchNodesRef = useRef(null); // { ctx, source, shifter, gain } once the chain exists
+  const pitchSetupRef = useRef(null); // the setup promise, so quick clicks wait for the same chain
 
   // Audio analysis & waveform state
   const [waveformData, setWaveformData] = useState(null);
@@ -354,22 +365,92 @@ export default function AudioPlayer({
     }
   };
 
+  // Builds the Web Audio chain: element -> pitch shifter -> gain -> speakers. Called from a click, so the context can start.
+  const setUpPitchNodes = async () => {
+    const audio = audioRef.current;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContextClass();
+    await ctx.audioWorklet.addModule(pitchShifterWorkletUrl);
+
+    const source = ctx.createMediaElementSource(audio);
+    const shifter = new AudioWorkletNode(ctx, 'pitch-shifter', { outputChannelCount: [2] });
+    const gain = ctx.createGain();
+    gain.gain.value = audio.muted ? 0 : audio.volume;
+    gain.connect(ctx.destination);
+
+    // Once routed through Web Audio the element's own volume no longer reaches the speakers, so the gain node takes over
+    audio.volume = 1;
+    audio.muted = false;
+
+    pitchNodesRef.current = { ctx, source, shifter, gain };
+    return pitchNodesRef.current;
+  };
+
+  const handlePitchChange = async (semitones) => {
+    const next = Math.max(-MAX_PITCH_SEMITONES, Math.min(MAX_PITCH_SEMITONES, semitones));
+    setPitchSemitones(next);
+
+    if (!pitchSetupRef.current) {
+      if (next === 0) return; // nothing to route while the pitch stays at zero
+      pitchSetupRef.current = setUpPitchNodes().catch((err) => {
+        console.warn('Pitch shift unavailable:', err);
+        pitchSetupRef.current = null;
+        return null;
+      });
+    }
+
+    const nodes = await pitchSetupRef.current;
+    if (!nodes) {
+      setPitchSemitones(0);
+      return;
+    }
+
+    const { ctx, source, shifter, gain } = nodes;
+    shifter.parameters.get('ratio').setTargetAtTime(2 ** (next / 12), ctx.currentTime, 0.02);
+
+    source.disconnect();
+    shifter.disconnect();
+    if (next === 0) {
+      source.connect(gain); // bypass at zero so the original audio is untouched
+    } else {
+      source.connect(shifter);
+      shifter.connect(gain);
+    }
+    if (ctx.state !== 'running') ctx.resume();
+  };
+
+  // Output level for the element, or for the gain node once the pitch chain exists
+  const applyOutputLevel = (nextVolume, nextMuted) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (pitchNodesRef.current) {
+      pitchNodesRef.current.gain.gain.value = nextMuted ? 0 : nextVolume;
+      return;
+    }
+    audio.volume = nextVolume;
+    audio.muted = nextMuted;
+  };
+
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
-    if (audioRef.current) {
-      audioRef.current.volume = val;
-      audioRef.current.muted = val === 0;
-      setIsMuted(val === 0);
-    }
+    setIsMuted(val === 0);
+    applyOutputLevel(val, val === 0);
   };
 
   const toggleMute = () => {
     if (!audioRef.current) return;
     const nextMuted = !isMuted;
-    audioRef.current.muted = nextMuted;
+    applyOutputLevel(volume, nextMuted);
     setIsMuted(nextMuted);
   };
+
+  // The chain's audio context is closed with the player so it does not outlive the element
+  useEffect(() => {
+    return () => {
+      pitchNodesRef.current?.ctx.close();
+    };
+  }, []);
 
   // Prev / Next file navigation
   const handlePrevAudio = () => {
@@ -429,8 +510,7 @@ export default function AudioPlayer({
           if (audioRef.current) {
             const dur = audioRef.current.duration;
             if (isFinite(dur) && dur > 0) setDuration(dur);
-            audioRef.current.volume = isMuted ? 0 : volume;
-            audioRef.current.muted = isMuted;
+            applyOutputLevel(volume, isMuted);
             audioRef.current.playbackRate = playbackRate;
           }
         }}
@@ -611,12 +691,42 @@ export default function AudioPlayer({
               title="Seamless Loop (L) — Verify game audio loops without clipping"
             >
               <Repeat size={13} />
-              <span>{isLooping ? 'Looping (Active)' : 'Seamless Loop'}</span>
+              {!floating && <span>{isLooping ? 'Looping (Active)' : 'Seamless Loop'}</span>}
             </button>
           </div>
 
-          {/* Right Transport: Speed, Volume */}
+          {/* Right Transport: Pitch, Speed, Volume */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Pitch in semitones, independent of speed. Click the value to go back to 0 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <button
+                className="icon-btn"
+                style={{ width: 20, height: 28 }}
+                onClick={() => handlePitchChange(pitchSemitones - 1)}
+                disabled={pitchSemitones <= -MAX_PITCH_SEMITONES}
+                title="Pitch Down One Semitone (independent of speed)"
+              >
+                <Minus size={12} />
+              </button>
+              <button
+                className="filter-btn"
+                style={{ height: 28, minWidth: 46, padding: '0 6px', justifyContent: 'center', fontSize: 11, fontFamily: 'var(--font-mono)' }}
+                onClick={() => handlePitchChange(0)}
+                title="Pitch in semitones, independent of speed. Click to reset to 0"
+              >
+                {pitchSemitones > 0 ? `+${pitchSemitones}` : pitchSemitones} st
+              </button>
+              <button
+                className="icon-btn"
+                style={{ width: 20, height: 28 }}
+                onClick={() => handlePitchChange(pitchSemitones + 1)}
+                disabled={pitchSemitones >= MAX_PITCH_SEMITONES}
+                title="Pitch Up One Semitone (independent of speed)"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+
             {/* Speed Multiplier */}
             <select
               value={playbackRate}
@@ -649,7 +759,7 @@ export default function AudioPlayer({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                style={{ width: 60, height: 4, cursor: 'pointer' }}
+                style={{ width: floating ? 40 : 60, height: 4, cursor: 'pointer' }}
                 title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
               />
             </div>

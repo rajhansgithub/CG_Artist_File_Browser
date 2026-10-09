@@ -230,15 +230,15 @@ If the script is missing from disk, Rust automatically writes it to `%APPDATA%/A
 Local_WebFileBrowser_Tauri/
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml                 # Cargo check & lint verification
-│       └── release.yml            # Automated GitHub release build on tag push (v*)
+│       └── ci.yml                 # Light checks only: build, Cargo check, version consistency
 ├── docs/
 │   ├── ARCHITECTURE.md            # This document
 │   └── ROADMAP.md                 # Feature ideas and prioritized roadmap
 ├── release/                       # Output folder for compiled .exe and installers
 ├── scripts/
 │   ├── blender_convert.py         # Headless Blender 3D conversion & render script
-│   └── release.js                 # Release orchestrator (bumps versions, builds, tags)
+│   ├── release.js                 # Release orchestrator (bumps versions, builds, tags, uploads to GitHub Releases)
+│   └── version-check.js           # Fails if package.json, tauri.conf.json, Cargo.toml and ARCHITECTURE.md disagree
 ├── src/
 │   ├── components/
 │   │   ├── AssetGrid.jsx          # Folder view host: Large icons thumbnail cards, drag-and-drop, Ctrl+wheel resize
@@ -375,7 +375,11 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 ### 🏷️ Release Versioning Rules (SemVer Standard)
 
-All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version:
+All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
+
+**Current release version:** `1.12.0`
+
+`npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 
 | Release Type | Next Version Example (from v1.0.10) | Criteria & Rules |
 | :--- | :--- | :--- |
@@ -411,14 +415,16 @@ npm run release 1.1.0
 1. Updates `package.json` to the target version.
 2. Updates `src-tauri/tauri.conf.json` to the target version.
 3. Updates `src-tauri/Cargo.toml` to the target version.
-4. Executes `npx tauri build` to compile the optimized binary and NSIS installer.
-5. Populates `release/` with all release-ready filenames:
+4. Updates the "Current release version" line in this document to the target version.
+5. Executes `npx tauri build` to compile the optimized binary and NSIS installer.
+6. Populates `release/` with all release-ready filenames:
    - `CG-Artist-File-Browser-Setup-v<version>.exe`
    - `CG-Artist-File-Browser-v<version>-Portable.exe`
    - `CG-Artist-File-Browser-Portable.exe` (Latest permanent link)
-6. Commits: `chore(release): bump version to <version>`.
-7. Tags Git: `v<version>`.
-8. Pushes `main` and `v<version>` to GitHub, triggering the GitHub Actions automated release pipeline.
+   If none of these files exist, the script stops before committing or pushing anything.
+7. Runs `npm run version:check`, then commits: `chore(release): bump version to <version>`.
+8. Tags Git: `v<version>`, then pushes `main` and `v<version>` to GitHub.
+9. Creates the GitHub Release with the `gh` CLI and uploads the locally built files. Releases are never built by GitHub Actions; Actions only runs light checks.
 
 ---
 
@@ -437,7 +443,7 @@ When using this architecture as a starter template for a new application:
 4. **Frontend Workspaces**:
    - Add or replace React components in `src/components/`.
 5. **Release Automation**:
-   - Update repository URLs in `scripts/release.js` and `.github/workflows/release.yml`.
+   - Update repository URLs in `scripts/release.js`.
 
 ---
 *Created and maintained for [CG_Artist_File_Browser](https://github.com/rajhansgithub/CG_Artist_File_Browser).*
