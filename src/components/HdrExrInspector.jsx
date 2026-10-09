@@ -91,10 +91,10 @@ export default function HdrExrInspector({
   const [channel, setChannel] = useState('rgb'); // 'rgb', 'r', 'g', 'b', 'a', 'lum'
   const [falseColor, setFalseColor] = useState(false);
   const [flipVertical, setFlipVertical] = useState(false); // Vertical flip orientation
-  const [viewMode, setViewMode] = useState('flat'); // 'flat' or 'pano' (360 sphere)
+  const [viewMode, setViewMode] = useState('pano'); // 'pano' (360 dome, opens here) or 'flat'
   const [sphereSize, setSphereSize] = useState('large'); // 'big_bada', 'large', 'medium', 'small'
   const [selectedLayer, setSelectedLayer] = useState(null);
-  const prevViewModeRef = useRef(viewMode);
+  const prevViewModeRef = useRef(null); // null until the first geometry setup, so the 360 camera is initialised on open
 
   // Zoom control via Hold Z + Drag Left/Right (in 360 pano & flat)
   const [isZActive, setIsZActive] = useState(false);

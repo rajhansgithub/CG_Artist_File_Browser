@@ -113,7 +113,7 @@ export default function TxTexViewer({
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
   const [model, setModel] = useState(null); // { parsed, reader }
-  const [tab, setTab] = useState('texture'); // 'texture' | 'render'
+  const [tab, setTab] = useState('render'); // 'render' (opens here) | 'texture'
   const [viewLevel, setViewLevel] = useState(0); // level shown on the Texture tab
   const [selectedLevel, setSelectedLevel] = useState(0); // top level of the texture being tested for sharpness
   const [pxDraft, setPxDraft] = useState(null);
@@ -733,7 +733,7 @@ export default function TxTexViewer({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12.5, color: '#ffffff' }}>
               <Layers size={15} color="#38bdf8" />
-              <span>{info?.renderer === 'renderman' ? 'RENDERMAN TEX' : info?.renderer === 'arnold' ? 'ARNOLD TX' : 'TX / TEX'}</span>
+              <span>{asset.extension?.toLowerCase() === '.tex' ? 'TEX TEXTURE' : asset.extension?.toLowerCase() === '.tx' ? 'TX TEXTURE' : 'TX / TEX TEXTURE'}</span>
               <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{asset.extension}</span>
             </div>
           </div>
@@ -955,7 +955,6 @@ export default function TxTexViewer({
               </Section>
 
               <Section title="FILE DETAILS" badge={info.compression} open={open.details} onToggle={() => setOpen((o) => ({ ...o, details: !o.details }))}>
-                <StatRow label="Made for" value={info.renderer === 'arnold' ? 'Arnold (.tx)' : info.renderer === 'renderman' ? 'RenderMan (.tex)' : 'Unknown'} />
                 {info.madeWith && <StatRow label="Written by" value={info.madeWith} />}
                 {info.textureFormat && <StatRow label="Texture type" value={info.textureFormat} />}
                 {info.wrapModes && <StatRow label="Edges (wrap)" value={info.wrapModes} title="What happens outside the 0-1 texture area" />}
