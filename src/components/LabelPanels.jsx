@@ -8,6 +8,12 @@ const PANEL_GAP = 6;
 const PANEL_EDGE = 8;
 const TAG_MAX_CHARS = 24;
 
+// An anchor is a button, or a point { x, y } (the spot a right-click menu was opened on)
+function anchorRect(anchor) {
+  if (anchor.getBoundingClientRect) return anchor.getBoundingClientRect();
+  return { left: anchor.x, right: anchor.x + PANEL_WIDTH, top: anchor.y, bottom: anchor.y };
+}
+
 // Keeps a floating panel under its anchor button (above it when there is no room), inside the window
 function usePanelPosition(anchor, panelRef) {
   const [pos, setPos] = useState(null);
@@ -15,7 +21,7 @@ function usePanelPosition(anchor, panelRef) {
   useLayoutEffect(() => {
     const place = () => {
       if (!anchor || !panelRef.current) return;
-      const r = anchor.getBoundingClientRect();
+      const r = anchorRect(anchor);
       const height = panelRef.current.offsetHeight;
       const left = Math.min(Math.max(PANEL_EDGE, r.right - PANEL_WIDTH), window.innerWidth - PANEL_WIDTH - PANEL_EDGE);
       let top = r.bottom + PANEL_GAP;
@@ -38,7 +44,7 @@ function useDismiss(enabled, anchor, panelRef, onClose) {
   useEffect(() => {
     if (!enabled) return undefined;
     const onDown = (e) => {
-      if (panelRef.current?.contains(e.target) || anchor?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target) || anchor?.contains?.(e.target)) return;
       closeRef.current();
     };
     const onKey = (e) => {

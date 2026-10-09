@@ -1,4 +1,4 @@
-import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Pencil, RotateCcw, Star, StarOff, Trash2 } from 'lucide-react';
+import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Pencil, Play, RotateCcw, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -19,8 +19,9 @@ export function registerItemMenuProvider(provider) {
 }
 
 // Entries for the right-click menu. `items` is what the menu was opened on (one item today, a selection later).
-// `actions` holds the app's handlers and state: isFavorite, hasIconChoice, onOpen, onOpenExternal, onSetCompareA,
-// onSetCompareB, onCopyPaths, onReveal, onToggleFavorite, onChangeIcon, onResetIcon, onRename, onDelete.
+// `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
+// onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
+// onResetIcon, onRename, onDelete.
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -39,6 +40,11 @@ export function buildItemMenu(items, actions) {
     });
     if (!single.isDirectory) {
       add({ id: 'open-external', label: 'Open with default app', icon: ExternalLink, onSelect: () => actions.onOpenExternal(single) });
+    }
+    // A frame of a numbered series can be played as one clip; the grid itself shows every file on its own
+    const sequence = !single.isDirectory && actions.sequenceFor(single);
+    if (sequence) {
+      add({ id: 'play-sequence', label: 'Play as sequence', icon: Play, onSelect: () => actions.onPlaySequence(sequence) });
     }
     if (isComparableItem(single)) {
       add({ id: 'compare-a', label: 'Set as compare slot A', onSelect: () => actions.onSetCompareA(single) });
@@ -63,6 +69,7 @@ export function buildItemMenu(items, actions) {
       onSelect: () => actions.onToggleFavorite(single)
     });
   }
+  add({ id: 'labels', label: 'Colour and tags…', icon: Tag, onSelect: () => actions.onEditLabels(items) });
 
   if (single?.isDirectory) {
     separator();

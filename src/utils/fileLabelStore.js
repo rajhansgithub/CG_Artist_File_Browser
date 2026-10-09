@@ -30,6 +30,17 @@ export function labelFor(labels, path) {
   return labels[normalizeLabelKey(path)] || EMPTY_LABEL;
 }
 
+// The label shown for a selection: a colour only when every item has that colour, and the tags they all share
+export function labelForItems(labels, items) {
+  if (!items.length) return EMPTY_LABEL;
+  const all = items.map((item) => labelFor(labels, item.path));
+  const first = all[0];
+  return {
+    color: all.every((label) => label.color === first.color) ? first.color : null,
+    tags: first.tags.filter((tag) => all.every((label) => label.tags.includes(tag)))
+  };
+}
+
 export function isLabelFilterActive(filter) {
   return filter.colors.length > 0 || filter.tags.length > 0;
 }

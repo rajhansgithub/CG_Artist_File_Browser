@@ -29,10 +29,11 @@ import {
   collectTags,
   isLabelFilterActive,
   labelFor,
+  labelForItems,
   matchesLabelFilter,
   useFileLabelStore
 } from './utils/fileLabelStore';
-import { LabelFilterMenu } from './components/LabelPanels';
+import { FileLabelPopover, LabelFilterMenu } from './components/LabelPanels';
 import {
   is3DFormat,
   isHdrFormat,
@@ -56,7 +57,7 @@ import {
   listingSignature,
   findLeftBehindItem
 } from './utils/navHistory';
-import { groupImageSequences } from './utils/imageSequence';
+import { groupImageSequences, sequenceContaining } from './utils/imageSequence';
 import { parseNetworkError } from './utils/networkErrors';
 import { useQuickLook } from './hooks/useQuickLook';
 import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
@@ -929,12 +930,14 @@ export default function App() {
   // Folder icons: the user's picks and the "Change icon" dialog
   const folderIconStore = useFolderIconStore();
   const [iconPickerItem, setIconPickerItem] = useState(null);
-  // Right-click menu for files and folders (grid card, details row, sidebar). Its entries come from utils/itemMenu.js
-  const [itemMenu, setItemMenu] = useState(null); // { x, y, items }
+  // Right-click menu for files and folders (grid card, details row, sidebar). Its entries come from utils/itemMenu.js.
+  // From the grid and details view it acts on the whole selection when the item clicked is part of it, like Explorer.
+  const [itemMenu, setItemMenu] = useState(null); // { x, y, item, useSelection }
   const [itemAction, setItemAction] = useState(null); // { type: 'rename' | 'delete', items }
-  const openItemMenu = useCallback((e, item) => {
+  const [labelEditor, setLabelEditor] = useState(null); // { items, anchor } for "Colour and tags" opened from a menu
+  const openItemMenu = useCallback((e, item, useSelection = false) => {
     e.preventDefault();
-    setItemMenu({ x: e.clientX, y: e.clientY, items: [item] });
+    setItemMenu({ x: e.clientX, y: e.clientY, item, useSelection });
   }, []);
   const folderIconsValue = useMemo(
     () => ({
@@ -946,21 +949,32 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!labelEditor;
   windowOpenRef.current = isWindowOpen;
 
-  // Numbered render passes (shot.0001.exr ...) become one item each; the grid, the status bar and the player use this list
-  const groupedItems = useMemo(() => groupImageSequences(folderItems), [folderItems]);
+  // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
+  // previous / next, which step through the sequences in the folder)
+  const sequenceGroups = useMemo(() => groupImageSequences(folderItems), [folderItems]);
+  const sequenceFor = (item) => sequenceContaining(sequenceGroups, item);
 
   // Filter and sort items for display
   const displayedItems = useMemo(() => {
-    const favoritesOnly = showFavoritesOnly ? groupedItems.filter((item) => favorites.some((f) => f.path === item.path)) : groupedItems;
+    const favoritesOnly = showFavoritesOnly ? folderItems.filter((item) => favorites.some((f) => f.path === item.path)) : folderItems;
     // Folders always stay in view so the label filter never hides the way to the files
     const visible = isLabelFilterActive(labelFilter)
       ? favoritesOnly.filter((item) => item.isDirectory || matchesLabelFilter(labelFor(fileLabels.labels, item.path), labelFilter))
       : favoritesOnly;
     return sortItems(visible, sort);
-  }, [groupedItems, showFavoritesOnly, favorites, sort, labelFilter, fileLabels.labels]);
+  }, [folderItems, showFavoritesOnly, favorites, sort, labelFilter, fileLabels.labels]);
+
+  // What the open right-click menu acts on: the whole selection when its item is part of a multi-selection
+  const itemMenuItems = (() => {
+    if (!itemMenu) return [];
+    const { item, useSelection } = itemMenu;
+    if (!useSelection || !selectedPaths.has(item.path)) return [item];
+    const picked = displayedItems.filter((d) => selectedPaths.has(d.path));
+    return picked.length ? picked : [item];
+  })();
 
   // The sort is saved for the folder it was chosen in
   const handleSortChange = (next) => {
@@ -1041,7 +1055,7 @@ export default function App() {
           onNavigate={(p, isFile) => navigateTo(p, isFile)}
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
-          folderItems={groupedItems}
+          folderItems={folderItems}
           blenderStatus={blenderStatus}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onRefresh={refreshDrives}
@@ -1372,7 +1386,7 @@ export default function App() {
           {viewMode === 'sequence' && (
             <ImageSequencePlayer
               asset={selectedAsset}
-              allFolderItems={groupedItems}
+              allFolderItems={sequenceGroups}
               onClose={() => setViewMode('grid')}
               onSelectAsset={(item) => setSelectedAsset(item)}
               onRevealInExplorer={handleRevealInExplorer}
@@ -1475,10 +1489,13 @@ export default function App() {
         <ItemContextMenu
           x={itemMenu.x}
           y={itemMenu.y}
-          items={itemMenu.items}
+          items={itemMenuItems}
           actions={{
             isFavorite: (item) => favorites.some((f) => f.path === item.path),
             hasIconChoice: (item) => !!folderIconStore.assignments[normalizeFolderKey(item.path)],
+            sequenceFor,
+            onPlaySequence: (sequence) => openAsset(sequence),
+            onEditLabels: (items) => setLabelEditor({ items, anchor: { x: itemMenu.x, y: itemMenu.y } }),
             onOpen: (item) => (item.isDirectory ? navigateTo(item.path) : openAsset(item)),
             onOpenExternal: handleOpenExternal,
             onSetCompareA: handleSetCompareA,
@@ -1492,6 +1509,18 @@ export default function App() {
             onDelete: (items) => setItemAction({ type: 'delete', items })
           }}
           onClose={() => setItemMenu(null)}
+        />
+      )}
+
+      {/* Colour and tags of the item or selection a menu was opened on */}
+      {labelEditor && (
+        <FileLabelPopover
+          anchor={labelEditor.anchor}
+          label={labelForItems(fileLabels.labels, labelEditor.items)}
+          onSetColor={(color) => fileLabels.setColor(labelEditor.items.map((item) => item.path), color)}
+          onAddTag={(tag) => fileLabels.editTags(labelEditor.items.map((item) => item.path), [tag], [])}
+          onRemoveTag={(tag) => fileLabels.editTags(labelEditor.items.map((item) => item.path), [], [tag])}
+          onClose={() => setLabelEditor(null)}
         />
       )}
       {itemAction?.type === 'rename' && (

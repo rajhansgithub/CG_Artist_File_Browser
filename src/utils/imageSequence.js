@@ -2,10 +2,11 @@
  * Image sequence detection.
  *
  * Render passes arrive as numbered files: shot.0001.exr, shot_0001.png, shot0001.png ...
- * `groupImageSequences` folds every such series in a folder listing into ONE item, so the grid
- * shows `shot.####.exr` once instead of a thousand cards. The item keeps the first frame's path,
- * thumbnail, extension and category (the thumbnail pipeline and the card styling keep working) and
- * carries a compact `sequence` description. Frame paths are rebuilt on demand with `framePath`.
+ * The grid shows every file on its own. Only on request ("Play as sequence" on a frame) is a series
+ * folded into ONE item: `groupImageSequences` returns the folder listing with each series as one item,
+ * which the player uses to step through a folder's sequences. The item keeps the first frame's path,
+ * thumbnail, extension and category and carries a compact `sequence` description. Frame paths are
+ * rebuilt on demand with `framePath`.
  */
 
 // Formats the frame decoder (src/workers/sequenceDecoder.worker.js) can read.
@@ -144,6 +145,31 @@ export function groupImageSequences(items) {
     out.push(replaceAt.get(i) || items[i]);
   }
   return out;
+}
+
+/**
+ * The sequence (from `groupImageSequences`) that a single frame file belongs to, or null when the file is not
+ * a frame of any real series in the folder. Used by "Play as sequence" on a file.
+ */
+export function sequenceContaining(sequences, item) {
+  if (!item || item.isDirectory || !isSequenceExtension(item.extension)) return null;
+  const { dir, name } = splitPath(item.path);
+  const m = FRAME_NAME.exec(name);
+  if (!m) return null;
+  const number = parseInt(m[2], 10);
+  return (
+    sequences.find((candidate) => {
+      const seq = candidate.sequence;
+      return (
+        candidate.isSequence &&
+        seq.dir === dir &&
+        seq.prefix === m[1] &&
+        seq.suffix === m[3] &&
+        (seq.pad === 0 || seq.pad === m[2].length) &&
+        seq.numbers.includes(number)
+      );
+    }) || null
+  );
 }
 
 // shot.####.exr  (padding shown as #, unpadded numbers as %d)

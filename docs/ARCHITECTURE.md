@@ -106,7 +106,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `convert_asset` | `file_path` | `ConvertResult` | Converts USD/Alembic assets to `.glb` in the background. |
 | `render_thumbnail` | `file_path` | `ThumbResult` | Headless Blender EEVEE/Workbench studio thumbnail generation. |
 | `get_favorites` / `toggle_favorite` | `item` | `Vec<Value>` | Manages starred folders and assets. |
-| `get_file_labels` | — | `Map<path, FileLabel>` | All colour labels and tags, keyed by normalised path (backslash-separated, lower case). Stored in `file_labels.json` in the same folder as the folder icon store, never next to the files. |
+| `get_file_labels` | — | `Map<path, FileLabel>` | All colour labels and tags of files and folders, keyed by normalised path (backslash-separated, lower case). Stored in `file_labels.json` in the same folder as the folder icon store, never next to the files. |
 | `set_file_color` | `paths`, `color` (`null` clears) | `Map<path, FileLabel>` | Sets one of the seven colours (red, orange, yellow, green, blue, purple, gray) on every path. |
 | `edit_file_tags` | `paths`, `add`, `remove` | `Map<path, FileLabel>` | Adds and removes tags on every path. Tags are lower case, collapse inner spaces, are capped at 24 characters and at 12 per file. A file with no colour and no tags loses its entry. |
 | `get_cache_stats` / `clear_cache` | — | `CacheStats` | Reports and clears `%APPDATA%/AssetStudioCache`. |
