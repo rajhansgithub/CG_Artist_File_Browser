@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadHdrTexture, isLayerCached, getCachedLayerCount } from '../utils/assetLoader';
+import { rawSample } from '../utils/halfFloat';
 import {
   SunMedium,
   Sliders,
@@ -477,6 +478,7 @@ export default function HdrExrInspector({
       cameraRef.current.aspect = w / h;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
+      markActive();
 
       if (probeCameraRef.current) {
         probeCameraRef.current.left = -w / 2;
@@ -490,9 +492,26 @@ export default function HdrExrInspector({
 
     resizeObserver.observe(containerRef.current);
 
+    // Draw at full rate while the user is interacting, and only a few times a second once the view has been
+    // still for a moment, so an idle viewer does not keep the GPU busy at 60 fps. Any pointer, wheel or key
+    // event anywhere in the window (sidebar sliders included) counts as activity.
+    const IDLE_AFTER_MS = 2000;
+    const IDLE_FRAME_MS = 200;
+    let lastActive = performance.now();
+    let lastDraw = 0;
+    function markActive() {
+      lastActive = performance.now();
+    }
+    const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'keyup'];
+    ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, markActive, { passive: true }));
+    controls.addEventListener('change', markActive);
+
     let animId;
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      const now = performance.now();
+      if (now - lastActive > IDLE_AFTER_MS && now - lastDraw < IDLE_FRAME_MS) return;
+      lastDraw = now;
       controls.update();
 
       renderer.clear();
@@ -512,6 +531,8 @@ export default function HdrExrInspector({
     animate();
 
     return () => {
+      ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, markActive));
+      controls.removeEventListener('change', markActive);
       renderer.domElement.removeEventListener('dblclick', onCanvasDblClick);
       resizeObserver.disconnect();
       cancelAnimationFrame(animId);
@@ -799,9 +820,9 @@ export default function HdrExrInspector({
 
     for (let i = 0; i < totalPixels; i += step) {
       const idx = i * channels;
-      const rRaw = rawData[idx] ?? 0;
-      const gRaw = rawData[idx + 1] ?? 0;
-      const bRaw = rawData[idx + 2] ?? 0;
+      const rRaw = rawSample(textureInfo, idx);
+      const gRaw = rawSample(textureInfo, idx + 1);
+      const bRaw = rawSample(textureInfo, idx + 2);
 
       const r = Math.max(0, rRaw * wbR * exposure);
       const g = Math.max(0, gRaw * wbG * tintMult * exposure);
@@ -921,10 +942,10 @@ export default function HdrExrInspector({
     const stride = (rawData.length === width * height * 4) ? 4 : 3;
     const idx = (py * width + px) * stride;
 
-    const rLin = rawData[idx] ?? 0;
-    const gLin = rawData[idx + 1] ?? 0;
-    const bLin = rawData[idx + 2] ?? 0;
-    const aLin = stride === 4 ? (rawData[idx + 3] ?? 1) : 1;
+    const rLin = rawSample(textureInfo, idx);
+    const gLin = rawSample(textureInfo, idx + 1);
+    const bLin = rawSample(textureInfo, idx + 2);
+    const aLin = stride === 4 ? rawSample(textureInfo, idx + 3) : 1;
 
     // Apply White Balance & Tint
     const [wbR, wbG, wbB] = getWhiteBalanceMultiplier(kelvin);
