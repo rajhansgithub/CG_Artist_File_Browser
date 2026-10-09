@@ -155,6 +155,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 | :--- | :--- |
 | **Open Asset** | `Double Click` or `Space` on selected asset card |
 | **Quick Look** | `Space` on the selected file opens it in its viewer, `Space` or `Esc` goes back, `Left` / `Right` move to the next file in the 3D and HDR / EXR viewers |
+| **Shortcut list** | `?` or `F1` shows every shortcut in the app, `Esc` closes it |
 | **Grid Resize** | `Ctrl + Mouse Wheel` (Large icons view only) |
 | **Move the selection** | `Arrow keys` in the folder view, `Home` / `End` for first / last, `Page Up` / `Page Down` a screen at a time |
 | **Select several items** | `Ctrl + Click` to add or remove one, `Shift + Click` for a range, `Shift + Arrow keys` to extend, `Ctrl + A` for all |

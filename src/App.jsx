@@ -11,13 +11,16 @@ import AudioPlayer from './components/AudioPlayer';
 import PdfViewer from './components/PdfViewer';
 import TxTexViewer from './components/TxTexViewer';
 import { isDragOutActive, dockSlotAt } from './utils/dragOut';
+import { loadSavedTheme, rememberTheme, applyTheme } from './utils/themes';
 import CompareView from './components/CompareView';
 import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
+import ShortcutCheatsheet from './components/ShortcutCheatsheet';
 import ConnectNetworkModal from './components/ConnectNetworkModal';
 import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
 import ItemContextMenu from './components/ItemContextMenu';
+import TextureSetModal from './components/TextureSetModal';
 import { RenameItemModal, DeleteItemModal } from './components/ItemActionModals';
 import { copyText } from './utils/itemMenu';
 import FolderIconPicker from './components/FolderIconPicker';
@@ -58,6 +61,7 @@ import {
   findLeftBehindItem
 } from './utils/navHistory';
 import { groupImageSequences, sequenceContaining } from './utils/imageSequence';
+import { findTextureSet } from './utils/textureSets';
 import { parseNetworkError } from './utils/networkErrors';
 import { useQuickLook } from './hooks/useQuickLook';
 import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
@@ -65,6 +69,7 @@ import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRig
 export default function App() {
   const [drives, setDrives] = useState([]);
   const [networkLocations, setNetworkLocations] = useState([]);
+  const [recentFolders, setRecentFolders] = useState([]);
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [navError, setNavError] = useState('');
   const [navErrorPath, setNavErrorPath] = useState('');
@@ -119,7 +124,7 @@ export default function App() {
 
   // Views & UI State
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
   const [isLoadingDir, setIsLoadingDir] = useState(false);
@@ -172,19 +177,16 @@ export default function App() {
   const drivesStampRef = useRef(0);
 
 
-  // Initialize theme from localStorage
   useEffect(() => {
-    const savedTheme = localStorage.getItem('cg_artist_theme') || localStorage.getItem('vfx_studio_theme') || 'dark';
-    setTheme(savedTheme);
-    document.documentElement.setAttribute('data-theme', savedTheme);
-  }, []);
+    applyTheme(theme);
+  }, [theme]);
 
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  const changeTheme = (nextTheme) => {
     setTheme(nextTheme);
-    localStorage.setItem('cg_artist_theme', nextTheme);
-    document.documentElement.setAttribute('data-theme', nextTheme);
+    rememberTheme(nextTheme);
   };
+
+  const toggleTheme = () => changeTheme(theme === 'light' ? 'dark' : 'light');
 
   // Initial load
   useEffect(() => {
@@ -238,6 +240,22 @@ export default function App() {
   const handleRemoveNetworkLocation = async (path) => {
     const next = await window.electronAPI.removeNetworkLocation(path);
     setNetworkLocations(next || []);
+  };
+
+  // The backend records a folder when it is read, so the list is re-read each time the folder changes
+  useEffect(() => {
+    loadRecentFolders();
+  }, [currentPath]);
+
+  const loadRecentFolders = async () => {
+    if (window.electronAPI?.getRecentFolders) {
+      setRecentFolders((await window.electronAPI.getRecentFolders()) || []);
+    }
+  };
+
+  const handleClearRecentFolders = async () => {
+    await window.electronAPI.clearRecentFolders();
+    setRecentFolders([]);
   };
 
   // Signs in to a share from the "Connect to network folder" window, then opens it.
@@ -935,6 +953,7 @@ export default function App() {
   const [itemMenu, setItemMenu] = useState(null); // { x, y, item, useSelection }
   const [itemAction, setItemAction] = useState(null); // { type: 'rename' | 'delete', items }
   const [labelEditor, setLabelEditor] = useState(null); // { items, anchor } for "Colour and tags" opened from a menu
+  const [textureSet, setTextureSet] = useState(null); // { base, maps } for "View as texture set" opened from a menu
   const openItemMenu = useCallback((e, item, useSelection = false) => {
     e.preventDefault();
     setItemMenu({ x: e.clientX, y: e.clientY, item, useSelection });
@@ -949,7 +968,7 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!labelEditor;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!labelEditor || !!textureSet;
   windowOpenRef.current = isWindowOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
@@ -1062,6 +1081,8 @@ export default function App() {
           networkLocations={networkLocations}
           onRemoveNetworkLocation={handleRemoveNetworkLocation}
           onConnectNetwork={() => setConnectDialog({ path: '' })}
+          recentFolders={recentFolders}
+          onClearRecentFolders={handleClearRecentFolders}
           collapsed={sidebarCollapsed}
         />
 
@@ -1455,7 +1476,12 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        theme={theme}
+        onThemeChange={changeTheme}
       />
+
+      {/* Keyboard shortcut list, opened with ? or F1 */}
+      <ShortcutCheatsheet />
 
       {/* Sign in to a network share with a username and password */}
       {connectDialog && (
@@ -1495,6 +1521,8 @@ export default function App() {
             hasIconChoice: (item) => !!folderIconStore.assignments[normalizeFolderKey(item.path)],
             sequenceFor,
             onPlaySequence: (sequence) => openAsset(sequence),
+            textureSetFor: (item) => findTextureSet(item, folderItems),
+            onViewTextureSet: (set) => setTextureSet(set),
             onEditLabels: (items) => setLabelEditor({ items, anchor: { x: itemMenu.x, y: itemMenu.y } }),
             onOpen: (item) => (item.isDirectory ? navigateTo(item.path) : openAsset(item)),
             onOpenExternal: handleOpenExternal,
@@ -1509,6 +1537,18 @@ export default function App() {
             onDelete: (items) => setItemAction({ type: 'delete', items })
           }}
           onClose={() => setItemMenu(null)}
+        />
+      )}
+
+      {/* A texture set's maps side by side, opened from the right-click menu of one of its maps */}
+      {textureSet && (
+        <TextureSetModal
+          set={textureSet}
+          onOpenMap={(item) => {
+            setTextureSet(null);
+            openAsset(item);
+          }}
+          onClose={() => setTextureSet(null)}
         />
       )}
 
