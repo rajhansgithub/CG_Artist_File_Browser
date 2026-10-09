@@ -1,9 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { load3DModel, normalizeModel, focusCameraOnModel } from '../utils/assetLoader';
+import { load3DModel, normalizeModel } from '../utils/assetLoader';
+import {
+  CAMERA_MODES,
+  VIEW_DIRECTIONS,
+  createCameraRig,
+  resizeRig,
+  setCameraMode,
+  snapCameraView,
+  frameModel,
+  getViewState,
+  applyViewState,
+  cameraModeForFov,
+  isOrtho
+} from '../utils/viewportCamera';
+import { MATCAP_OPTIONS, getMatcapMaterial, disposeMatcaps } from '../utils/matcaps';
 import {
   RotateCw,
+  Sun,
   Grid,
   Camera,
   Play,
@@ -92,10 +107,19 @@ function getOrCreateWireframeHelper(mesh) {
   return wireHelper;
 }
 
+// Option styling shared by the HUD dropdowns
+const OPTION_STYLE = { color: '#000000', backgroundColor: '#ffffff' };
+const MATCAP_PREFIX = 'matcap:';
+
+// `onViewChange(viewState)` fires whenever the camera moves or its lens/projection
+// changes. `viewApiRef.current` is filled with { getViewState, setViewState } so another
+// component (for example synced compare) can read and drive this viewport's camera.
 export default function Viewport3D({
   asset,
   onClose,
-  onRevealInExplorer
+  onRevealInExplorer,
+  onViewChange,
+  viewApiRef
 }) {
   const containerRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +133,9 @@ export default function Viewport3D({
   const [showWireframe, setShowWireframe] = useState(false);
   const [renderMode, setRenderMode] = useState('lit'); // 'lit', 'wire_overlay', 'wireframe', 'normals', 'clay'
   const [lightingPreset, setLightingPreset] = useState('studio'); // 'studio', 'sunset', 'neutral', 'cyber'
+  const [lightAngle, setLightAngle] = useState(0); // degrees the light rig is turned around the model
+  const [cameraMode, setCameraModeState] = useState('default'); // lens preset id or 'ortho'
+  const [viewPreset, setViewPreset] = useState('free'); // 'free', 'front', 'back', 'left', 'right', 'top'
   const [stats, setStats] = useState(null);
 
   // Animation State
@@ -121,7 +148,8 @@ export default function Viewport3D({
 
   // Three.js internal references
   const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
+  const cameraRef = useRef(null); // always the active camera (perspective or orthographic)
+  const rigRef = useRef(null);
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
   const modelRef = useRef(null);
@@ -136,6 +164,12 @@ export default function Viewport3D({
   const turntableRef = useRef(false);
   const turntableSpeedRef = useRef(1.0);
   const isPlayingRef = useRef(true);
+  const viewPresetRef = useRef('free');
+  const onViewChangeRef = useRef(onViewChange);
+  const applyingViewRef = useRef(false);
+  const actionsRef = useRef({});
+  onViewChangeRef.current = onViewChange;
+
   // Synchronize turntable and controls autoRotate
   useEffect(() => {
     turntableRef.current = turntable;
@@ -235,9 +269,10 @@ export default function Viewport3D({
     scene.background = new THREE.Color(0x0c0c0c);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(3, 2.5, 4);
-    cameraRef.current = camera;
+    const rig = createCameraRig(width, height);
+    rig.persp.position.set(3, 2.5, 4);
+    rigRef.current = rig;
+    cameraRef.current = rig.active;
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -258,7 +293,7 @@ export default function Viewport3D({
     containerRef.current.innerHTML = '';
     containerRef.current.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
+    const controls = new OrbitControls(rig.active, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.maxPolarAngle = Math.PI / 2 + 0.1; // allow slight under-view
@@ -281,11 +316,10 @@ export default function Viewport3D({
 
     // Responsive ResizeObserver for buttery-smooth window resizing
     const resizeObserver = new ResizeObserver((entries) => {
-      if (!entries[0] || !rendererRef.current || !cameraRef.current) return;
+      if (!entries[0] || !rendererRef.current || !rigRef.current) return;
       const { width: w, height: h } = entries[0].contentRect;
       if (w === 0 || h === 0) return;
-      cameraRef.current.aspect = w / h;
-      cameraRef.current.updateProjectionMatrix();
+      resizeRig(rigRef.current, w, h);
       rendererRef.current.setSize(w, h);
       rendererRef.current.shadowMap.needsUpdate = true;
     });
@@ -294,8 +328,25 @@ export default function Viewport3D({
 
     // Render loop with smart render-on-demand
     let animFrameId;
-    const requestRender = () => { needsRenderRef.current = true; };
-    controls.addEventListener('change', requestRender);
+    const handleControlsChange = () => {
+      needsRenderRef.current = true;
+
+      // Dragging the view away from a Front/Top/... snap hands the dropdown back to "free"
+      const preset = viewPresetRef.current;
+      if (preset !== 'free' && !applyingViewRef.current) {
+        const dir = VIEW_DIRECTIONS[preset];
+        const current = rigRef.current.active.position.clone().sub(controls.target).normalize();
+        if (dir && current.dot(dir) < 0.99995) {
+          viewPresetRef.current = 'free';
+          setViewPreset('free');
+        }
+      }
+
+      if (onViewChangeRef.current && !applyingViewRef.current) {
+        onViewChangeRef.current(getViewState(rigRef.current, controls));
+      }
+    };
+    controls.addEventListener('change', handleControlsChange);
 
     const canvas = renderer.domElement;
     const handleContextLost = (e) => {
@@ -306,11 +357,10 @@ export default function Viewport3D({
 
     const handleContextRestored = () => {
       console.log('WebGL context restored! Re-rendering scene...');
-      if (containerRef.current && rendererRef.current && cameraRef.current) {
+      if (containerRef.current && rendererRef.current && rigRef.current) {
         const w = containerRef.current.clientWidth;
         const h = containerRef.current.clientHeight;
-        cameraRef.current.aspect = w / h;
-        cameraRef.current.updateProjectionMatrix();
+        resizeRig(rigRef.current, w, h);
         rendererRef.current.setSize(w, h);
       }
       needsRenderRef.current = true;
@@ -338,7 +388,7 @@ export default function Viewport3D({
       const controlsMoving = controls.update();
 
       if (isTurntableActive || isAnimActive || controlsMoving || needsRenderRef.current) {
-        renderer.render(scene, camera);
+        renderer.render(scene, cameraRef.current);
         needsRenderRef.current = false;
       }
     };
@@ -346,14 +396,103 @@ export default function Viewport3D({
     animate();
 
     return () => {
-      controls.removeEventListener('change', requestRender);
+      controls.removeEventListener('change', handleControlsChange);
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       resizeObserver.disconnect();
       cancelAnimationFrame(animFrameId);
+      disposeMatcaps();
       renderer.dispose();
     };
   }, []);
+
+  // Camera helpers. They only touch refs and stable setters, so the keyboard handler
+  // (registered once) can call the latest copy through actionsRef.
+  // Run a camera change without the per-event notification; one update goes out afterwards
+  const withoutViewEvents = (fn) => {
+    applyingViewRef.current = true;
+    try {
+      fn();
+    } finally {
+      applyingViewRef.current = false;
+    }
+  };
+
+  const afterCameraChange = () => {
+    cameraRef.current = rigRef.current.active;
+    needsRenderRef.current = true;
+    if (onViewChangeRef.current && controlsRef.current) {
+      onViewChangeRef.current(getViewState(rigRef.current, controlsRef.current));
+    }
+  };
+
+  const changeCameraMode = (modeId) => {
+    if (!rigRef.current || !controlsRef.current) return;
+    withoutViewEvents(() => setCameraMode(rigRef.current, controlsRef.current, modeId));
+    setCameraModeState(modeId);
+    afterCameraChange();
+  };
+
+  const snapView = (name) => {
+    if (!rigRef.current || !controlsRef.current) return;
+    if (name === 'free') {
+      viewPresetRef.current = 'free';
+      setViewPreset('free');
+      return;
+    }
+    viewPresetRef.current = name;
+    setViewPreset(name);
+    withoutViewEvents(() => snapCameraView(rigRef.current, controlsRef.current, name));
+    afterCameraChange();
+  };
+
+  const frameCurrentModel = () => {
+    if (!rigRef.current || !controlsRef.current || !modelRef.current) return;
+    viewPresetRef.current = 'free';
+    setViewPreset('free');
+    withoutViewEvents(() => frameModel(rigRef.current, controlsRef.current, modelRef.current));
+    afterCameraChange();
+  };
+
+  actionsRef.current = {
+    snapView,
+    frameCurrentModel,
+    toggleOrtho: () => changeCameraMode(isOrtho(rigRef.current) ? 'default' : 'ortho')
+  };
+
+  // Programmatic access to the camera for other components (synced compare)
+  useEffect(() => {
+    if (!viewApiRef) return undefined;
+    viewApiRef.current = {
+      getViewState: () => getViewState(rigRef.current, controlsRef.current),
+      setViewState: (state) => {
+        if (!rigRef.current || !controlsRef.current) return;
+        // Silent: applying a state must not echo back through onViewChange
+        withoutViewEvents(() => applyViewState(rigRef.current, controlsRef.current, state));
+        cameraRef.current = rigRef.current.active;
+        viewPresetRef.current = 'free';
+        setViewPreset('free');
+        setCameraModeState(
+          isOrtho(rigRef.current) ? 'ortho' : cameraModeForFov(rigRef.current.persp.fov)
+        );
+        needsRenderRef.current = true;
+      }
+    };
+    return () => {
+      viewApiRef.current = null;
+    };
+  }, [viewApiRef]);
+
+  // Rotate the light rig around the model without touching the camera
+  useEffect(() => {
+    if (lightsGroupRef.current) {
+      lightsGroupRef.current.rotation.y = (lightAngle * Math.PI) / 180;
+    }
+    if (rendererRef.current) {
+      rendererRef.current.shadowMap.needsUpdate = true;
+    }
+    needsRenderRef.current = true;
+  }, [lightAngle]);
 
   useEffect(() => {
     updateLighting(lightingPreset, lightsGroupRef.current);
@@ -407,8 +546,11 @@ export default function Viewport3D({
         setStats(modelStats);
 
         // Perfectly focus and frame model
-        if (controlsRef.current && cameraRef.current) {
-          focusCameraOnModel(cameraRef.current, controlsRef.current, root);
+        if (controlsRef.current && rigRef.current) {
+          viewPresetRef.current = 'free';
+          setViewPreset('free');
+          frameModel(rigRef.current, controlsRef.current, root);
+          cameraRef.current = rigRef.current.active;
         }
 
         // Setup Animations
@@ -440,18 +582,28 @@ export default function Viewport3D({
     };
   }, [asset]);
 
-  // Keyboard shortcut: F to focus/frame model, Esc to close
+  // Keyboard shortcuts: F to focus/frame model, Esc to close, numpad 1/3/7 for
+  // Front/Right/Top (Ctrl for Back/Left), numpad 5 to toggle orthographic
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
       if (e.key === 'f' || e.key === 'F') {
-        if (cameraRef.current && controlsRef.current && modelRef.current) {
-          focusCameraOnModel(cameraRef.current, controlsRef.current, modelRef.current);
-          needsRenderRef.current = true;
-        }
+        actionsRef.current.frameCurrentModel();
       } else if (e.key === 'Escape' && onClose) {
         onClose();
+      } else if (e.code === 'Numpad1') {
+        e.preventDefault();
+        actionsRef.current.snapView(e.ctrlKey ? 'back' : 'front');
+      } else if (e.code === 'Numpad3') {
+        e.preventDefault();
+        actionsRef.current.snapView(e.ctrlKey ? 'left' : 'right');
+      } else if (e.code === 'Numpad7' && !e.ctrlKey) {
+        e.preventDefault();
+        actionsRef.current.snapView('top');
+      } else if (e.code === 'Numpad5') {
+        e.preventDefault();
+        actionsRef.current.toggleOrtho();
       }
     };
 
@@ -509,6 +661,10 @@ export default function Viewport3D({
           }
           child.material = child.userData.normalsMat;
           setMatPolygonOffset(child.material, isWireframeActive);
+        } else if (renderMode.startsWith(MATCAP_PREFIX)) {
+          const matcapMat = getMatcapMaterial(renderMode.slice(MATCAP_PREFIX.length));
+          child.material = matcapMat || child.userData.origMaterial;
+          setMatPolygonOffset(child.material, isWireframeActive);
         } else if (renderMode === 'clay') {
           if (!child.userData.clayMat) {
             child.userData.clayMat = new THREE.MeshStandardMaterial({
@@ -562,6 +718,10 @@ export default function Viewport3D({
     setAnimDuration(animations[index].duration);
     setIsPlaying(true);
   };
+
+  // Lights only shape the result in the lit-style modes
+  const lightsAffectShading =
+    renderMode === 'lit' || renderMode === 'clay' || renderMode === 'wire_overlay';
 
   // Take Snapshot
   const captureSnapshot = async () => {
@@ -666,6 +826,13 @@ export default function Viewport3D({
           <option value="normals" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Normal Vectors</option>
           <option value="wire_overlay" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Wireframe Overlay</option>
           <option value="wireframe" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Pure Wireframe</option>
+          <optgroup label="MatCap" style={OPTION_STYLE}>
+            {MATCAP_OPTIONS.map((m) => (
+              <option key={m.id} value={`${MATCAP_PREFIX}${m.id}`} style={OPTION_STYLE}>
+                MatCap · {m.label}
+              </option>
+            ))}
+          </optgroup>
         </select>
 
         {/* Lighting & Environment Presets */}
@@ -682,16 +849,71 @@ export default function Viewport3D({
           <option value="rim_only" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Rim / Silhouette</option>
         </select>
 
+        {/* Light rig rotation (lights only; MatCap, normals and wireframe do not use them) */}
+        <label
+          className="hud-btn"
+          style={{ cursor: 'default', opacity: lightsAffectShading ? 1 : 0.5 }}
+          title={
+            lightsAffectShading
+              ? `Rotate lights around the model: ${lightAngle}° (double-click to reset)`
+              : 'Light rotation has no effect in this shading mode'
+          }
+        >
+          <Sun size={14} />
+          <span className="hud-label">Light</span>
+          <input
+            type="range"
+            className="scrubber-slider"
+            min="0"
+            max="360"
+            step="1"
+            value={lightAngle}
+            onChange={(e) => setLightAngle(Number(e.target.value))}
+            onDoubleClick={() => setLightAngle(0)}
+            style={{ flex: 'none', width: 70 }}
+          />
+        </label>
+
+        <div className="hud-divider" />
+
+        {/* Camera lens / projection */}
+        <select
+          className="hud-btn"
+          value={cameraMode}
+          onChange={(e) => changeCameraMode(e.target.value)}
+          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
+          title="Camera lens: perspective focal lengths or orthographic (numpad 5 toggles)"
+        >
+          {cameraMode === 'custom' && (
+            <option value="custom" disabled style={OPTION_STYLE}>Custom lens</option>
+          )}
+          {CAMERA_MODES.map((m) => (
+            <option key={m.id} value={m.id} style={OPTION_STYLE}>{m.label}</option>
+          ))}
+        </select>
+
+        {/* Snap to an axis view (numpad 1 / 3 / 7, Ctrl for the opposite side) */}
+        <select
+          className="hud-btn"
+          value={viewPreset}
+          onChange={(e) => snapView(e.target.value)}
+          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
+          title="Snap camera to an axis view (numpad 1 Front, 3 Right, 7 Top; Ctrl for Back / Left)"
+        >
+          <option value="free" style={OPTION_STYLE}>Free view</option>
+          <option value="front" style={OPTION_STYLE}>Front</option>
+          <option value="back" style={OPTION_STYLE}>Back</option>
+          <option value="left" style={OPTION_STYLE}>Left</option>
+          <option value="right" style={OPTION_STYLE}>Right</option>
+          <option value="top" style={OPTION_STYLE}>Top</option>
+        </select>
+
         <div className="hud-divider" />
 
         {/* Focus / Frame Camera */}
         <button
           className="hud-btn"
-          onClick={() => {
-            if (cameraRef.current && controlsRef.current && modelRef.current) {
-              focusCameraOnModel(cameraRef.current, controlsRef.current, modelRef.current);
-            }
-          }}
+          onClick={frameCurrentModel}
           title="Focus / Frame Model (F key)"
         >
           <Maximize2 size={14} />

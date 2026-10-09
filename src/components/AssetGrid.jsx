@@ -12,9 +12,10 @@ import {
   Music,
   FileText
 } from 'lucide-react';
-import { formatBytes, formatDate, getFileBadgeClass, isComparableImage } from '../utils/formatHelpers';
+import { formatBytes, formatDate, getFileBadgeClass, isComparableItem } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail } from '../utils/thumbnailService';
 import { useFolderIcons } from '../utils/folderIconStore';
+import { startNativeDragOut } from '../utils/dragOut';
 import DetailsView from './DetailsView';
 import FolderIcon from './FolderIcon';
 
@@ -150,6 +151,7 @@ function AssetCard({
       className={`asset-card ${isSelected ? 'selected' : ''}`}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
+        if (startNativeDragOut(e, item)) return;
         if (!item.isDirectory) {
           e.dataTransfer.setData('application/json', JSON.stringify(item));
           e.dataTransfer.setData('text/plain', item.path);
@@ -166,12 +168,12 @@ function AssetCard({
       >
         <span className={`card-badge ${badgeClass}`}>{ext || 'FILE'}</span>
 
-        {isComparableImage(item) && compareAssetA?.path === item.path && (
+        {isComparableItem(item) && compareAssetA?.path === item.path && (
           <span className="slot-badge-card slot-badge-a" style={{ left: 50 }}>
             SLOT A
           </span>
         )}
-        {isComparableImage(item) && compareAssetB?.path === item.path && (
+        {isComparableItem(item) && compareAssetB?.path === item.path && (
           <span className="slot-badge-card slot-badge-b" style={{ left: 50 }}>
             SLOT B
           </span>
@@ -316,7 +318,7 @@ function AssetCard({
           >
             <Eye size={12} />
           </button>
-          {isComparableImage(item) && (
+          {isComparableItem(item) && (
             <>
               <button
                 className={`icon-btn ${compareAssetA?.path === item.path ? 'active' : ''}`}
@@ -333,7 +335,7 @@ function AssetCard({
                   e.stopPropagation();
                   if (onSetCompareA) onSetCompareA(item);
                 }}
-                title={compareAssetA?.path === item.path ? 'Assigned as Image A' : 'Set as Image A (Image Comparison)'}
+                title={compareAssetA?.path === item.path ? 'Assigned as A' : 'Set as A (Compare)'}
               >
                 A
               </button>
@@ -352,7 +354,7 @@ function AssetCard({
                   e.stopPropagation();
                   if (onSetCompareB) onSetCompareB(item);
                 }}
-                title={compareAssetB?.path === item.path ? 'Assigned as Image B' : 'Set as Image B (Image Comparison)'}
+                title={compareAssetB?.path === item.path ? 'Assigned as B' : 'Set as B (Compare)'}
               >
                 B
               </button>
@@ -378,7 +380,11 @@ function AssetCard({
           {item.name}
         </span>
         <div className="card-sub">
-          <span>{formatBytes(item.size)}</span>
+          {item.isSequence ? (
+            <span>{item.frameCount} frames</span>
+          ) : (
+            <span>{formatBytes(item.size)}</span>
+          )}
           <span>{formatDate(item.modified).split(',')[0]}</span>
         </div>
       </div>
@@ -401,11 +407,123 @@ export default function AssetGrid({
   onSetCompareB,
   gridSize = 240,
   onGridSizeChange,
-  folderView = 'icons'
+  folderView = 'icons',
+  sort,
+  onSortColumn,
+  keyboardEnabled = true,
+  onGoUp
 }) {
   const wrapRef = useRef(null);
   const folderViewRef = useRef(folderView);
   folderViewRef.current = folderView;
+
+  // Latest values for the keyboard listener, which is attached once and must not see stale props
+  const keyStateRef = useRef({});
+  keyStateRef.current = { items, selectedItem, onSelect, onOpen, onGoUp };
+  const scrollToSelectionRef = useRef(false);
+
+  // The element of the n-th item, in either view
+  const getItemElement = (index) => {
+    const list = wrapRef.current?.querySelector('.grid-container, .details-body');
+    return list?.children[index] || null;
+  };
+
+  // Arrow keys move the selection, Enter opens it and Backspace goes to the parent folder.
+  // Ignored while typing in a box, while a window is open (keyboardEnabled) and with Ctrl / Alt / Shift held.
+  useEffect(() => {
+    if (!keyboardEnabled) return undefined;
+
+    const columnCount = () => {
+      if (folderViewRef.current === 'details') return 1;
+      const grid = wrapRef.current?.querySelector('.grid-container');
+      if (!grid) return 1;
+      const tracks = window.getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
+      return Math.max(1, tracks.length);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      const target = e.target;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+
+      const { items: list, selectedItem: selected, onSelect: select, onOpen: open, onGoUp: goUp } = keyStateRef.current;
+
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (goUp) goUp();
+        return;
+      }
+
+      if (!list || list.length === 0) return;
+      const last = list.length - 1;
+      const cols = columnCount();
+      const current = selected ? list.findIndex((item) => item.path === selected.path) : -1;
+
+      if (e.key === 'Enter') {
+        // A focused button already reacts to Enter by itself
+        if (tag === 'BUTTON' || tag === 'A' || current < 0) return;
+        e.preventDefault();
+        open(list[current]);
+        return;
+      }
+
+      let next = current;
+      switch (e.key) {
+        case 'ArrowRight':
+          if (cols === 1) return;
+          next = current < 0 ? 0 : Math.min(current + 1, last);
+          break;
+        case 'ArrowLeft':
+          if (cols === 1) return;
+          next = current < 0 ? 0 : Math.max(current - 1, 0);
+          break;
+        case 'ArrowDown':
+          if (current < 0) next = 0;
+          else if (current + cols <= last) next = current + cols;
+          else if (Math.floor(current / cols) < Math.floor(last / cols)) next = last; // short last row
+          break;
+        case 'ArrowUp':
+          next = current < 0 ? 0 : current - cols >= 0 ? current - cols : current;
+          break;
+        case 'PageDown':
+        case 'PageUp': {
+          const sample = getItemElement(0);
+          const rowHeight = sample ? sample.offsetHeight + 12 : 100;
+          const view = wrapRef.current?.querySelector('.grid-container, .details-body');
+          const rows = Math.max(1, Math.floor((view?.clientHeight || rowHeight) / rowHeight) - 1);
+          const step = rows * cols;
+          next = current < 0 ? 0 : e.key === 'PageDown' ? Math.min(current + step, last) : Math.max(current - step, 0);
+          break;
+        }
+        case 'Home':
+          next = 0;
+          break;
+        case 'End':
+          next = last;
+          break;
+        default:
+          return;
+      }
+
+      e.preventDefault();
+      if (next !== current) {
+        scrollToSelectionRef.current = true;
+        select(list[next]);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [keyboardEnabled]);
+
+  // Keep the item chosen with the keyboard in view (a mouse click never scrolls)
+  useEffect(() => {
+    if (!scrollToSelectionRef.current) return;
+    scrollToSelectionRef.current = false;
+    const index = selectedItem ? items.findIndex((item) => item.path === selectedItem.path) : -1;
+    getItemElement(index)?.scrollIntoView({ block: 'nearest' });
+  }, [selectedItem, items]);
   const isFav = (item) => favorites.some((f) => f.path === item.path);
 
   // Ctrl + Mouse Scroll Wheel resizes the thumbnails (Large icons view only, like Windows Explorer).
@@ -463,6 +581,8 @@ export default function AssetGrid({
         compareAssetB={compareAssetB}
         onSetCompareA={onSetCompareA}
         onSetCompareB={onSetCompareB}
+        sort={sort}
+        onSortColumn={onSortColumn}
       />
     );
   } else {

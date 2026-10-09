@@ -6,9 +6,11 @@ import Viewport3D from './components/Viewport3D';
 import HdrExrInspector from './components/HdrExrInspector';
 import ImageViewer from './components/ImageViewer';
 import VideoPlayer from './components/VideoPlayer';
+import ImageSequencePlayer from './components/ImageSequencePlayer';
 import AudioPlayer from './components/AudioPlayer';
 import PdfViewer from './components/PdfViewer';
 import TxTexViewer from './components/TxTexViewer';
+import { isDragOutActive, dockSlotAt } from './utils/dragOut';
 import CompareView from './components/CompareView';
 import PathInput from './components/PathInput';
 import SettingsModal from './components/SettingsModal';
@@ -17,6 +19,8 @@ import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
 import FolderContextMenu from './components/FolderContextMenu';
 import FolderIconPicker from './components/FolderIconPicker';
+import SortMenu from './components/SortMenu';
+import StatusBar from './components/StatusBar';
 import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
 import {
   is3DFormat,
@@ -27,11 +31,23 @@ import {
   isAudioFormat,
   isPdfFormat,
   isTxTexFormat,
-  isComparableImage
+  isComparableItem,
+  getCompareKind
 } from './utils/formatHelpers';
 import { getParentDir, buildBreadcrumbs } from './utils/pathHelpers';
+import { DEFAULT_SORT, sortItems, sortByColumn, loadFolderSort, saveFolderSort } from './utils/sortItems';
+import {
+  ListingCache,
+  createHistory,
+  pushEntry,
+  stepHistory,
+  canStep,
+  listingSignature,
+  findLeftBehindItem
+} from './utils/navHistory';
+import { groupImageSequences } from './utils/imageSequence';
 import { parseNetworkError } from './utils/networkErrors';
-import { FolderOpen, ArrowLeft, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
+import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
 
 export default function App() {
   const [drives, setDrives] = useState([]);
@@ -63,6 +79,8 @@ export default function App() {
   const currentPathRef = useRef('');
   const filterTypeRef = useRef('all');
   const searchTermRef = useRef('');
+  const parentPathRef = useRef(null);
+  const folderItemsRef = useRef([]);
 
   // Filter & Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,7 +89,7 @@ export default function App() {
   const [favorites, setFavorites] = useState([]);
 
   // Views & UI State
-  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'compare'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
@@ -113,6 +131,16 @@ export default function App() {
   currentPathRef.current = currentPath;
   filterTypeRef.current = filterType;
   searchTermRef.current = searchTerm;
+  parentPathRef.current = parentPath;
+  folderItemsRef.current = folderItems;
+
+  // Sorting (remembered per folder), back / forward history and the listings kept for instant "back"
+  const [sort, setSort] = useState({ ...DEFAULT_SORT });
+  const [history, setHistory] = useState(createHistory);
+  const historyRef = useRef(history);
+  const listingCacheRef = useRef(new ListingCache());
+  const navSeqRef = useRef(0); // bumped on every folder navigation so a slow, older listing never overwrites a newer one
+  const drivesStampRef = useRef(0);
 
 
   // Initialize theme from localStorage
@@ -140,6 +168,7 @@ export default function App() {
   const loadDrivesAndInitialDir = async () => {
     if (window.electronAPI) {
       const driveList = await window.electronAPI.listDrives();
+      drivesStampRef.current = Date.now();
       setDrives(driveList);
 
       // Default to J:\ if present, or first drive
@@ -233,7 +262,41 @@ export default function App() {
     }
   };
 
-  const navigateTo = async (targetPath, openDirectly = false) => {
+  const updateHistory = (next) => {
+    historyRef.current = next;
+    setHistory(next);
+  };
+
+  // Lists a folder with the current filter and search, and keeps the result for instant back / forward
+  const fetchListing = async (dirPath) => {
+    const filter = filterTypeRef.current === 'all' ? 'all' : filterTypeRef.current;
+    const search = searchTermRef.current;
+    const res = await window.electronAPI.readDirectory(dirPath, { filter, search });
+    if (res && !res.error && res.currentPath) {
+      listingCacheRef.current.set(res.currentPath, filter, search, res);
+    }
+    return res;
+  };
+
+  // Shows a folder listing and picks that folder's remembered sort. `record: false` is for back / forward,
+  // which move through the history instead of adding to it.
+  const showListing = (res, { record = true } = {}) => {
+    setCurrentPath(res.currentPath);
+    setParentPath(res.parentPath);
+    setFolderItems(res.items || []);
+    setSort(loadFolderSort(res.currentPath));
+    if (record) updateHistory(pushEntry(historyRef.current, res.currentPath));
+  };
+
+  // After opening a folder the selection is cleared, except when going up to a folder that contains the one just
+  // left: that one is highlighted so the arrow keys carry on from there, like File Explorer.
+  const selectAfterNavigation = (items, leavingPath, newPath) => {
+    if (normalizeFolderKey(leavingPath) === normalizeFolderKey(newPath)) return;
+    setSelectedAsset(findLeftBehindItem(items, leavingPath, newPath));
+  };
+
+  // `fromHistory` (back / forward): the cached listing is shown at once and refreshed behind the scenes.
+  const navigateTo = async (targetPath, openDirectly = false, { fromHistory = false, previousHistory = null } = {}) => {
     if (!window.electronAPI) return;
 
     if (openDirectly) {
@@ -264,15 +327,8 @@ export default function App() {
 
       const parentDir = getParentDir(targetPath);
       if (parentDir && parentDir !== currentPath) {
-        window.electronAPI.readDirectory(parentDir, {
-          filter: filterType === 'all' ? 'all' : filterType,
-          search: searchTerm
-        }).then((res) => {
-          if (res && !res.error) {
-            setCurrentPath(res.currentPath);
-            setParentPath(res.parentPath);
-            setFolderItems(res.items || []);
-          }
+        fetchListing(parentDir).then((res) => {
+          if (res && !res.error) showListing(res);
         });
       }
 
@@ -282,44 +338,115 @@ export default function App() {
 
     // Opening a folder from anywhere (sidebar, pinned, drives, breadcrumbs) closes any open viewer
     setViewMode('grid');
-    setIsLoadingDir(true);
     setNavError('');
     setNavErrorPath('');
+    const seq = ++navSeqRef.current;
+    const leaving = {
+      path: currentPathRef.current,
+      parentPath: parentPathRef.current,
+      items: folderItemsRef.current
+    };
+
+    let shownFromCache = false;
+    let cachedSignature = '';
+    if (fromHistory) {
+      const cached = listingCacheRef.current.get(targetPath, filterTypeRef.current, searchTermRef.current);
+      if (cached) {
+        shownFromCache = true;
+        cachedSignature = listingSignature(cached.items || []);
+        showListing(cached, { record: false });
+        selectAfterNavigation(cached.items || [], leaving.path, cached.currentPath);
+      }
+    }
+    setIsLoadingDir(!shownFromCache);
+
     try {
-      const res = await window.electronAPI.readDirectory(targetPath, {
-        filter: filterType === 'all' ? 'all' : filterType,
-        search: searchTerm
-      });
+      const res = await fetchListing(targetPath);
+      if (seq !== navSeqRef.current) return; // a newer navigation took over while this one was loading
 
       if (res && !res.error) {
-        setCurrentPath(res.currentPath);
-        setParentPath(res.parentPath);
-        setFolderItems(res.items || []);
+        const unchanged = shownFromCache && listingSignature(res.items || []) === cachedSignature;
+        if (!unchanged) {
+          showListing(res, { record: !fromHistory });
+          selectAfterNavigation(res.items || [], leaving.path, res.currentPath);
+        } else if (!fromHistory) {
+          updateHistory(pushEntry(historyRef.current, res.currentPath));
+        }
       }
     } catch (err) {
+      if (seq !== navSeqRef.current) return;
       // Unreachable drive or share: say why instead of leaving the bar on "Scanning directory..."
       setNavError(String(err?.message || err));
       setNavErrorPath(targetPath);
+      if (fromHistory) {
+        // The folder is gone or unreachable: stay where we were and keep the history as it was
+        if (previousHistory) updateHistory(previousHistory);
+        if (shownFromCache) {
+          setCurrentPath(leaving.path);
+          setParentPath(leaving.parentPath);
+          setFolderItems(leaving.items);
+          setSort(loadFolderSort(leaving.path));
+        }
+      }
     } finally {
-      setIsLoadingDir(false);
+      if (seq === navSeqRef.current) setIsLoadingDir(false);
     }
+  };
+
+  // Back (-1) and forward (+1) through the folders visited
+  const goHistory = (delta) => {
+    const before = historyRef.current;
+    const step = stepHistory(before, delta);
+    if (!step) return;
+    updateHistory(step.history);
+    navigateTo(step.path, false, { fromHistory: true, previousHistory: before });
+  };
+
+  const goUp = () => {
+    if (parentPathRef.current) navigateTo(parentPathRef.current);
   };
 
   // Re-fetch when search or filter changes
   useEffect(() => {
-    if (currentPath && window.electronAPI) {
-      window.electronAPI
-        .readDirectory(currentPath, {
-          filter: filterType === 'all' ? 'all' : filterType,
-          search: searchTerm
-        })
-        .then((res) => {
-          if (res && !res.error) {
-            setFolderItems(res.items || []);
-          }
-        });
-    }
+    if (!currentPath || !window.electronAPI) return undefined;
+    let stale = false;
+    const seq = navSeqRef.current;
+    fetchListing(currentPath)
+      .then((res) => {
+        if (!stale && seq === navSeqRef.current && res && !res.error) {
+          setFolderItems(res.items || []);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
   }, [searchTerm, filterType]);
+
+  // Alt+Left / Alt+Right and the mouse's back / forward buttons walk the folder history
+  const goHistoryRef = useRef(goHistory);
+  goHistoryRef.current = goHistory;
+  const windowOpenRef = useRef(false); // kept up to date below, once every window's state exists
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || windowOpenRef.current) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        goHistoryRef.current(e.key === 'ArrowLeft' ? -1 : 1);
+      }
+    };
+    const onMouseUp = (e) => {
+      if ((e.button !== 3 && e.button !== 4) || windowOpenRef.current) return;
+      e.preventDefault();
+      goHistoryRef.current(e.button === 3 ? -1 : 1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   const handleOpenFolderPicker = async () => {
     if (!window.electronAPI) return;
@@ -343,7 +470,9 @@ export default function App() {
 
   const openAsset = (item) => {
     setSelectedAsset(item);
-    if (item.category === '3d') {
+    if (item.isSequence) {
+      setViewMode('sequence');
+    } else if (item.category === '3d') {
       setViewMode('studio3d');
     } else if (item.category === 'hdr') {
       setViewMode('hdrexr');
@@ -361,13 +490,13 @@ export default function App() {
   };
 
   const handleSetCompareA = (item) => {
-    if (isComparableImage(item)) {
+    if (isComparableItem(item)) {
       setCompareAssetA(item);
     }
   };
 
   const handleSetCompareB = (item) => {
-    if (isComparableImage(item)) {
+    if (isComparableItem(item)) {
       setCompareAssetB(item);
     }
   };
@@ -384,7 +513,7 @@ export default function App() {
   };
 
   const handleAddToCompare = (item) => {
-    if (!isComparableImage(item)) return;
+    if (!isComparableItem(item)) return;
     if (!compareAssetA) {
       setCompareAssetA(item);
     } else if (!compareAssetB) {
@@ -483,18 +612,15 @@ export default function App() {
     // Also populate folder items if file is from a different folder
     const parentDir = getParentDir(firstItem.path);
     if (parentDir && parentDir !== currentPathRef.current && window.electronAPI?.readDirectory) {
-      window.electronAPI.readDirectory(parentDir, { filter: filterTypeRef.current, search: searchTermRef.current }).then((res) => {
-        if (res && !res.error && res.items) {
-          setCurrentPath(res.currentPath);
-          setParentPath(res.parentPath);
-          setFolderItems(res.items);
-        }
+      fetchListing(parentDir).then((res) => {
+        if (res && !res.error && res.items) showListing(res);
       });
     }
 
     // Case 2: Two files dropped simultaneously -> launch compare view directly if both are comparable images
     if (resolvedItems.length >= 2) {
-      if (isComparableImage(resolvedItems[0]) && isComparableImage(resolvedItems[1])) {
+      const kindOfFirst = getCompareKind(resolvedItems[0]);
+      if (kindOfFirst && kindOfFirst === getCompareKind(resolvedItems[1])) {
         setCompareAssetA(resolvedItems[0]);
         setCompareAssetB(resolvedItems[1]);
         setViewMode('compare');
@@ -504,7 +630,7 @@ export default function App() {
 
     // Case 3: Dropped in Compare view - Slot targeting for comparable images only
     if (viewModeRef.current === 'compare') {
-      if (isComparableImage(firstItem)) {
+      if (isComparableItem(firstItem)) {
         if (slot === 'B') {
           setCompareAssetB(firstItem);
         } else if (slot === 'A') {
@@ -524,7 +650,10 @@ export default function App() {
 
     // Smart Auto-Switching: regardless of current viewer (3D, HDR, Image, Video, Audio, Grid),
     // automatically open the dropped file in its dedicated viewer without erroring!
-    if (firstItem.category === '3d') {
+    if (firstItem.isSequence) {
+      setSelectedAsset(firstItem);
+      setViewMode('sequence');
+    } else if (firstItem.category === '3d') {
       setSelectedAsset(firstItem);
       setViewMode('studio3d');
     } else if (firstItem.category === 'hdr') {
@@ -568,7 +697,7 @@ export default function App() {
       if (!isSubscribed || !payload) return;
 
       if (payload.type === 'enter') {
-        setIsDraggingOver(true);
+        setIsDraggingOver(!isDragOutActive());
         if (viewModeRef.current === 'compare' && payload.position) {
           const scale = window.devicePixelRatio || 1;
           const clientX = payload.position.x / scale;
@@ -578,7 +707,7 @@ export default function App() {
           setDropTargetSlot(null);
         }
       } else if (payload.type === 'over') {
-        setIsDraggingOver(true);
+        setIsDraggingOver(!isDragOutActive());
         if (viewModeRef.current === 'compare' && payload.position) {
           const scale = window.devicePixelRatio || 1;
           const clientX = payload.position.x / scale;
@@ -599,7 +728,17 @@ export default function App() {
 
         if (payload.paths && payload.paths.length > 0) {
           lastDropTimeRef.current = Date.now();
-          handleProcessDroppedFiles(payload.paths, slot);
+          // One of our own cards dragged out and dropped back on a compare dock slot
+          const dockSlot = isDragOutActive() ? dockSlotAt(payload.position) : null;
+          if (dockSlot) {
+            resolveFileItem(payload.paths[0]).then((item) => {
+              if (item && isComparableItem(item)) {
+                (dockSlot === 'A' ? setCompareAssetA : setCompareAssetB)(item);
+              }
+            });
+          } else {
+            handleProcessDroppedFiles(payload.paths, slot);
+          }
         }
       } else if (payload.type === 'leave') {
         setIsDraggingOver(false);
@@ -714,13 +853,42 @@ export default function App() {
     [folderIconStore.assignments, folderIconStore.customUrls, openFolderMenu]
   );
 
-  // Filter items for display
-  const displayedItems = folderItems.filter((item) => {
-    if (showFavoritesOnly) {
-      return favorites.some((f) => f.path === item.path);
-    }
-    return true;
-  });
+  // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!folderMenu;
+  windowOpenRef.current = isWindowOpen;
+
+  // Numbered render passes (shot.0001.exr ...) become one item each; the grid, the status bar and the player use this list
+  const groupedItems = useMemo(() => groupImageSequences(folderItems), [folderItems]);
+
+  // Filter and sort items for display
+  const displayedItems = useMemo(() => {
+    const visible = showFavoritesOnly ? groupedItems.filter((item) => favorites.some((f) => f.path === item.path)) : groupedItems;
+    return sortItems(visible, sort);
+  }, [groupedItems, showFavoritesOnly, favorites, sort]);
+
+  // The sort is saved for the folder it was chosen in
+  const handleSortChange = (next) => {
+    setSort(next);
+    saveFolderSort(currentPath, next);
+  };
+
+  // Only a selection that is in the folder on screen is shown in the status bar
+  const selectionInFolder = selectedAsset ? displayedItems.find((item) => item.path === selectedAsset.path) || null : null;
+
+  // Free space on the drive shown in the status bar goes stale as files are copied, so re-read the drives now and then
+  useEffect(() => {
+    if (!currentPath || !window.electronAPI?.listDrives) return;
+    if (Date.now() - drivesStampRef.current < 30000) return;
+    drivesStampRef.current = Date.now();
+    window.electronAPI
+      .listDrives()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) {
+          setDrives((prev) => (JSON.stringify(prev) === JSON.stringify(list) ? prev : list));
+        }
+      })
+      .catch(() => {});
+  }, [currentPath]);
 
   const breadcrumbs = buildBreadcrumbs(currentPath);
 
@@ -754,7 +922,7 @@ export default function App() {
           onNavigate={(p, isFile) => navigateTo(p, isFile)}
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
-          folderItems={folderItems}
+          folderItems={groupedItems}
           blenderStatus={blenderStatus}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onRefresh={refreshDrives}
@@ -769,6 +937,27 @@ export default function App() {
         <div className="content-area">
           {/* Breadcrumbs Navigation Bar */}
           <div className="breadcrumbs-bar">
+            <button
+              className="icon-btn"
+              style={{ width: 28, height: 28 }}
+              onClick={() => goHistory(-1)}
+              disabled={!canStep(history, -1)}
+              title="Back (Alt + Left)"
+              aria-label="Back"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              className="icon-btn"
+              style={{ width: 28, height: 28 }}
+              onClick={() => goHistory(1)}
+              disabled={!canStep(history, 1)}
+              title="Forward (Alt + Right)"
+              aria-label="Forward"
+            >
+              <ChevronRight size={14} />
+            </button>
+
             {(parentPath || viewMode !== 'grid') && (
               <button
                 className="icon-btn"
@@ -780,9 +969,9 @@ export default function App() {
                     navigateTo(parentPath);
                   }
                 }}
-                title={viewMode !== 'grid' ? 'Close preview and return to folder' : 'Go up to parent folder'}
+                title={viewMode !== 'grid' ? 'Close preview and return to folder' : 'Go up to parent folder (Backspace)'}
               >
-                <ArrowLeft size={14} />
+                {viewMode !== 'grid' ? <ArrowLeft size={14} /> : <ArrowUp size={14} />}
               </button>
             )}
 
@@ -860,6 +1049,8 @@ export default function App() {
               </span>
             )}
 
+            {viewMode === 'grid' && <SortMenu sort={sort} onChange={handleSortChange} />}
+
             {viewMode === 'grid' && (
               <div className="view-switcher" role="group" aria-label="Folder view">
                 <button
@@ -919,6 +1110,20 @@ export default function App() {
               gridSize={gridSize}
               onGridSizeChange={setGridSize}
               folderView={folderView}
+              sort={sort}
+              onSortColumn={(key) => handleSortChange(sortByColumn(sort, key))}
+              keyboardEnabled={!isWindowOpen && !isEditingPath}
+              onGoUp={goUp}
+            />
+          )}
+
+          {viewMode === 'grid' && (
+            <StatusBar
+              items={displayedItems}
+              filtered={filterType !== 'all' || !!searchTerm.trim() || showFavoritesOnly}
+              selectedItem={selectionInFolder}
+              drives={drives}
+              currentPath={currentPath}
             />
           )}
 
@@ -938,14 +1143,14 @@ export default function App() {
                   if (data) {
                     try {
                       const item = JSON.parse(data);
-                      if (item && isComparableImage(item)) setCompareAssetA(item);
+                      if (item && isComparableItem(item)) setCompareAssetA(item);
                     } catch (_) {}
                   }
                 }}
               >
                 <span className="dock-slot-tag a">SLOT A</span>
                 <span className="dock-name" title={compareAssetA?.name || 'Not assigned'}>
-                  {compareAssetA ? compareAssetA.name : 'Select image for A'}
+                  {compareAssetA ? compareAssetA.name : 'Select asset for A'}
                 </span>
                 {compareAssetA && (
                   <button
@@ -980,14 +1185,14 @@ export default function App() {
                   if (data) {
                     try {
                       const item = JSON.parse(data);
-                      if (item && isComparableImage(item)) setCompareAssetB(item);
+                      if (item && isComparableItem(item)) setCompareAssetB(item);
                     } catch (_) {}
                   }
                 }}
               >
                 <span className="dock-slot-tag b">SLOT B</span>
                 <span className="dock-name" title={compareAssetB?.name || 'Not assigned'}>
-                  {compareAssetB ? compareAssetB.name : 'Select image for B'}
+                  {compareAssetB ? compareAssetB.name : 'Select asset for B'}
                 </span>
                 {compareAssetB && (
                   <button
@@ -1003,10 +1208,10 @@ export default function App() {
               <button
                 className="dock-launch-btn"
                 onClick={() => setViewMode('compare')}
-                title="Launch Image Comparison"
+                title="Launch Comparison"
               >
                 <Split size={14} />
-                <span>Compare Images</span>
+                <span>Compare</span>
               </button>
 
               <button
@@ -1034,6 +1239,16 @@ export default function App() {
             <TxTexViewer
               asset={selectedAsset}
               allFolderItems={folderItems}
+              onClose={() => setViewMode('grid')}
+              onSelectAsset={(item) => setSelectedAsset(item)}
+              onRevealInExplorer={handleRevealInExplorer}
+            />
+          )}
+
+          {viewMode === 'sequence' && (
+            <ImageSequencePlayer
+              asset={selectedAsset}
+              allFolderItems={groupedItems}
               onClose={() => setViewMode('grid')}
               onSelectAsset={(item) => setSelectedAsset(item)}
               onRevealInExplorer={handleRevealInExplorer}
@@ -1089,8 +1304,8 @@ export default function App() {
           {viewMode === 'compare' && (
             <CompareView
               folderItems={folderItems}
-              initialAssetA={isComparableImage(compareAssetA) ? compareAssetA : (isComparableImage(selectedAsset) ? selectedAsset : null)}
-              initialAssetB={isComparableImage(compareAssetB) ? compareAssetB : null}
+              initialAssetA={isComparableItem(compareAssetA) ? compareAssetA : (isComparableItem(selectedAsset) ? selectedAsset : null)}
+              initialAssetB={isComparableItem(compareAssetB) ? compareAssetB : null}
               onClose={() => setViewMode('grid')}
               onRevealInExplorer={handleRevealInExplorer}
             />

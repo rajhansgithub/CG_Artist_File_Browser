@@ -28,3 +28,7 @@ md5 = "0.7"
 base64 = "0.22"
 exr = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "hdr", "tga", "tiff"] }
+
+# Native drag of real files out of the window (OLE drag source), Windows only
+[target.'cfg(windows)'.dependencies]
+drag = "2.1"

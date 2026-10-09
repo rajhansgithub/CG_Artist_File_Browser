@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod drag_out;
 mod folder_icons;
 mod network;
 mod network_login;
@@ -1401,6 +1402,31 @@ async fn get_system_folder_icon(app: tauri::AppHandle, folder_path: String) -> O
     .flatten()
 }
 
+// IPC: Drag real files out of the window into another application (Windows). Resolves when the drag ends.
+#[tauri::command]
+async fn start_drag_out(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let files = drag_out::checked_files(paths)?;
+
+    // The picture that follows the cursor: the first file's cached thumbnail, when it has one
+    let thumb_stem = files.first().and_then(|first| {
+        let meta = first.metadata().ok()?;
+        let hash = thumbnail_cache_hash(&first.to_string_lossy(), &meta);
+        Some(get_cache_dir(&app).join("thumbs").join(hash))
+    });
+    let icon = tauri::async_runtime::spawn_blocking(move || {
+        let thumb = thumb_stem.and_then(|stem| thumbnails::cached_thumbnail(&stem));
+        drag_out::drag_icon(thumb.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    drag_out::run(window, files, icon).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1444,7 +1470,8 @@ pub fn run() {
             set_folder_icon,
             import_folder_icons,
             remove_folder_icon,
-            get_system_folder_icon
+            get_system_folder_icon,
+            start_drag_out
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

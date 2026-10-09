@@ -73,9 +73,24 @@ export function isTxTexFormat(ext) {
 
 // Strictly 2D image and texture files eligible for Image Comparison (excludes 360 skybox HDR/EXR)
 export function isComparableImage(item) {
-  if (!item || item.isDirectory) return false;
+  if (!item || item.isDirectory || item.isSequence) return false;
   const ext = (item.extension || (item.name && item.name.includes('.') ? item.name.slice(item.name.lastIndexOf('.')) : '')).toLowerCase();
   return (isImageFormat(ext) || isTextureFormat(ext)) && !isHdrFormat(ext) && !isTxTexFormat(ext);
+}
+
+// Kind of synced comparison an item can take part in: 'image', 'model' (3D), 'video' or null.
+// Slots A and B always hold the same kind. Blender-only formats (.blend, .dae) are left out.
+export function getCompareKind(item) {
+  if (!item || item.isDirectory) return null;
+  const ext = (item.extension || (item.name && item.name.includes('.') ? item.name.slice(item.name.lastIndexOf('.')) : '')).toLowerCase();
+  if (isComparableImage(item)) return 'image';
+  if (is3DFormat(ext) && ext !== '.blend' && ext !== '.dae') return 'model';
+  if (isVideoFormat(ext)) return 'video';
+  return null;
+}
+
+export function isComparableItem(item) {
+  return getCompareKind(item) !== null;
 }
 
 export function isVideoFormat(ext) {

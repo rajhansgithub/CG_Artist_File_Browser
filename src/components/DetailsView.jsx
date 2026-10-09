@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   Folder,
   Box,
@@ -15,8 +15,9 @@ import {
   ChevronUp,
   ChevronDown
 } from 'lucide-react';
-import { formatBytes, formatDate, getTypeLabel, isComparableImage } from '../utils/formatHelpers';
+import { formatBytes, formatDate, getTypeLabel, isComparableItem } from '../utils/formatHelpers';
 import { useFolderIcons } from '../utils/folderIconStore';
+import { startNativeDragOut } from '../utils/dragOut';
 import FolderIcon from './FolderIcon';
 
 const COLUMNS = [
@@ -37,19 +38,6 @@ const CATEGORY_ICONS = {
   pdf: FileText
 };
 
-function compareItems(a, b, key) {
-  switch (key) {
-    case 'modified':
-      return (a.modified || 0) - (b.modified || 0);
-    case 'size':
-      return (a.size || 0) - (b.size || 0);
-    case 'type':
-      return getTypeLabel(a).localeCompare(getTypeLabel(b)) || a.name.localeCompare(b.name, undefined, { numeric: true });
-    default:
-      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-  }
-}
-
 function DetailsRow({
   item,
   isSelected,
@@ -65,13 +53,14 @@ function DetailsRow({
 }) {
   const { openMenu } = useFolderIcons();
   const Icon = CATEGORY_ICONS[item.category] || FileQuestion;
-  const comparable = isComparableImage(item);
+  const comparable = isComparableItem(item);
 
   return (
     <div
       className={`details-row ${isSelected ? 'selected' : ''}`}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
+        if (startNativeDragOut(e, item)) return;
         if (!item.isDirectory) {
           e.dataTransfer.setData('application/json', JSON.stringify(item));
           e.dataTransfer.setData('text/plain', item.path);
@@ -96,10 +85,10 @@ function DetailsRow({
           <Icon size={15} strokeWidth={1.5} className="details-icon" />
         )}
         <span className="details-name-text">{item.name}</span>
-        {isComparableImage(item) && compareAssetA?.path === item.path && (
+        {isComparableItem(item) && compareAssetA?.path === item.path && (
           <span className="details-slot-tag">A</span>
         )}
-        {isComparableImage(item) && compareAssetB?.path === item.path && (
+        {isComparableItem(item) && compareAssetB?.path === item.path && (
           <span className="details-slot-tag">B</span>
         )}
       </div>
@@ -137,7 +126,7 @@ function DetailsRow({
                 e.stopPropagation();
                 if (onSetCompareA) onSetCompareA(item);
               }}
-              title="Set as Image A (Image Comparison)"
+              title="Set as A (Compare)"
             >
               A
             </button>
@@ -147,7 +136,7 @@ function DetailsRow({
                 e.stopPropagation();
                 if (onSetCompareB) onSetCompareB(item);
               }}
-              title="Set as Image B (Image Comparison)"
+              title="Set as B (Compare)"
             >
               B
             </button>
@@ -169,6 +158,7 @@ function DetailsRow({
 }
 
 // Windows Explorer-style "Details" list: one row per item, sortable columns, no thumbnails to load.
+// The items arrive already sorted; the column headers only report which column was clicked.
 export default function DetailsView({
   items,
   selectedItem,
@@ -180,24 +170,11 @@ export default function DetailsView({
   compareAssetA,
   compareAssetB,
   onSetCompareA,
-  onSetCompareB
+  onSetCompareB,
+  sort,
+  onSortColumn
 }) {
-  const [sort, setSort] = useState(null); // null keeps the folder's own order; otherwise { key, dir: 1 | -1 }
-
   const favoritePaths = useMemo(() => new Set(favorites.map((f) => f.path)), [favorites]);
-
-  const rows = useMemo(() => {
-    if (!sort) return items;
-    // Folders stay on top, like Explorer, whichever way a column is sorted
-    return [...items].sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      return compareItems(a, b, sort.key) * sort.dir;
-    });
-  }, [items, sort]);
-
-  const handleHeaderClick = (key) => {
-    setSort((prev) => (prev && prev.key === key ? { key, dir: -prev.dir } : { key, dir: 1 }));
-  };
 
   return (
     <div className="details-view" role="table">
@@ -206,7 +183,7 @@ export default function DetailsView({
           <button
             key={col.key}
             className={`details-header-cell ${col.align === 'right' ? 'right' : ''} ${sort?.key === col.key ? 'sorted' : ''}`}
-            onClick={() => handleHeaderClick(col.key)}
+            onClick={() => onSortColumn(col.key)}
             title={`Sort by ${col.label.toLowerCase()}`}
           >
             <span>{col.label}</span>
@@ -216,7 +193,7 @@ export default function DetailsView({
         <div className="details-header-cell details-actions-head" aria-hidden="true" />
       </div>
       <div className="details-body">
-        {rows.map((item) => (
+        {items.map((item) => (
           <DetailsRow
             key={item.path}
             item={item}

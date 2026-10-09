@@ -105,6 +105,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `get_cache_stats` / `clear_cache` | — | `CacheStats` | Reports and clears `%APPDATA%/AssetStudioCache`. |
 | `get_folder_icons` / `set_folder_icon` | — / `folder_path`, `icon` | `FolderIconState` | The user's folder icon choices (`assignments`, keyed by lower-cased folder path, value `lib:<id>` or `custom:<id>`) and imported icons (`custom`). `set_folder_icon` with no `icon` resets the folder. |
 | `import_folder_icons` / `remove_folder_icon` | `file_paths` / `icon_id` | `FolderIconState` | Copies the user's PNG / SVG / ICO / WebP / JPG files (max 2 MB each) into the icon store, or removes one (folders using it revert to their default icon). |
+| `start_drag_out` | `paths` | `()` | Windows only. Starts a native OLE file drag of the given files (copy only) so they can be dropped into other apps. Resolves when the drag ends. Used by `AssetGrid` and `DetailsView` cards. |
 | `get_system_folder_icon` | `folder_path` | `Option<String>` | Windows only. The icon File Explorer shows for a folder customised through `desktop.ini` (`IconResource` / `IconFile`, including icons inside `imageres.dll` and similar), exported once as a 96 px PNG under `AssetStudioCache/folder_icons`. `None` for plain folders. |
 
 ---
@@ -142,7 +143,10 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
   - Lit PBR (Studio 3-point, neutral diffuse, sunset rim, high-contrast key)
   - Clay (neutral sculpting matte)
   - Normal Map visualization
+  - MatCap (Clay, Red Wax, Chrome, Zebra, Ceramic): `MeshMatcapMaterial` with textures drawn procedurally on a canvas the first time each one is used (nothing bundled), one shared material per MatCap ([`src/utils/matcaps.js`](../src/utils/matcaps.js))
   - Full Wireframe & Optimized Wireframe Overlay (uses pre-allocated typed arrays for fast line segments without V8 heap spikes)
+- **Camera**: [`src/utils/viewportCamera.js`](../src/utils/viewportCamera.js) owns a perspective and an orthographic camera that share one position and target. Lens presets (18/35/50/85/200 mm, 24 mm film height) dolly the camera so the model keeps its size on screen; switching to Ortho keeps the framing too. Front/Back/Left/Right/Top snap views use Blender axes. `Viewport3D` takes an optional `onViewChange(viewState)` prop and an optional `viewApiRef` (filled with `getViewState()` / `setViewState(state)`), so another component (synced compare) can follow or drive the camera; `setViewState` never echoes back through `onViewChange`. A view state is `{ projection, fov, position, target, viewHeight }`.
+- **Lights**: the Light slider rotates the whole light group around the model (0°–360°); it has no effect in MatCap, normals and wireframe modes.
 - **Features**: Turntable 360° spin, skeletal animation playback, real-time vertex/triangle/mesh statistics, bounding box framing.
 
 ### 🌅 32-Bit Float HDR & EXR Inspector ([`src/components/HdrExrInspector.jsx`](../src/components/HdrExrInspector.jsx))
@@ -161,8 +165,14 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - Synchronized pan and zoom.
 
 ### 🗂️ Folder Views (Large icons / Details)
-- **View switcher** (breadcrumb bar, right side) toggles between **Large icons** (the thumbnail grid, default) and **Details** (an Explorer-style list with Name, Date modified, Type and Size columns). The choice is remembered in `localStorage` (`cg_artist_folder_view`). Details rows load no thumbnails, so very large folders stay light, and clicking a column header sorts by it (folders always stay on top).
+- **View switcher** (breadcrumb bar, right side) toggles between **Large icons** (the thumbnail grid, default) and **Details** (an Explorer-style list with Name, Date modified, Type and Size columns). The choice is remembered in `localStorage` (`cg_artist_folder_view`). Details rows load no thumbnails, so very large folders stay light, and clicking a column header sorts by it (see Sorting below).
 - **Ctrl + mouse wheel** resizes thumbnails (120–500 px) in **Large icons only**; in Details it is ignored (the webview's page zoom is still blocked). The wheel listener lives on the always-rendered `.asset-view` wrapper in [`AssetGrid.jsx`](../src/components/AssetGrid.jsx), not on the grid element, because the grid does not exist while a folder is empty or loading and a listener attached then was never re-attached.
+
+### 🧭 Folder Navigation (sorting, keyboard, history, status bar)
+- **Sorting** ([`src/utils/sortItems.js`](../src/utils/sortItems.js), [`SortMenu.jsx`](../src/components/SortMenu.jsx)): `App.jsx` sorts the listing once and both folder views draw it in that order, so the backend's unordered (parallel) listing never reaches the screen. The **Name** button in the breadcrumb bar and the Details column headers set the same sort: name (natural order, so `file2` comes before `file10`), date modified, size or type, ascending or descending, folders first on or off. A new column starts in its natural direction (A-Z for text, newest and largest first for date and size) and clicking it again flips it. The choice is saved per folder in `localStorage` (`cg_artist_folder_sorts`, newest 300 folders kept); a folder with no entry uses name, A-Z, folders first.
+- **Keyboard** ([`AssetGrid.jsx`](../src/components/AssetGrid.jsx)): arrow keys move the selection (up and down move a whole row of cards in Large icons, one row in Details), `Home` / `End`, `Page Up` / `Page Down`, `Enter` opens the selected item and `Backspace` goes to the parent folder. The listener is only active in the folder view, ignores text boxes and any open window, and does nothing with Ctrl, Alt or Shift held. Going up (or back) to a folder highlights the folder you came from, as File Explorer does.
+- **History** ([`src/utils/navHistory.js`](../src/utils/navHistory.js)): back and forward buttons beside the up arrow, `Alt + Left` / `Alt + Right` and the mouse's back / forward buttons. Opening a folder drops the forward entries, like a browser (100 entries kept). Every listing is also kept in memory (40 folders, per filter and search), so back and forward draw the saved listing at once and re-read the folder in the background, redrawing only if something changed. If the folder has gone, the view stays where it was and the history is left untouched. Each navigation carries a sequence number, so a slow listing that arrives late never replaces a newer one.
+- **Status bar** ([`StatusBar.jsx`](../src/components/StatusBar.jsx)): under the folder view, it shows the item count (with a "filtered" note while a filter, search or Favorites is on), counts by kind, the total size of the files listed, the selected item and the free space of the drive the folder is on (mapped network drives included; unmapped network shares show none). Drive space is re-read from the system when a folder opens and the last read is over 30 seconds old.
 
 ### 🎨 Folder Icons (right-click → Change icon)
 - **Windows folder icons**: folders customised in File Explorer show their own icon in the grid, Details view and sidebar. `read_directory` marks only folders that are read-only or system (the only ones Explorer applies a `desktop.ini` to) with `systemIcon: true`, which costs no extra disk access; the webview then asks `get_system_folder_icon` for those folders only, lazily and once per session. [`folder_icons.rs`](../src-tauri/src/folder_icons.rs) parses the `desktop.ini` and extracts the icon with `PrivateExtractIconsW` (raw FFI, no extra crate).
@@ -236,7 +246,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── PathInput.jsx          # Address-bar text box for typed folder / network paths
 │   │   ├── Sidebar.jsx            # Drive list, network locations, pinned favorites
 │   │   ├── VideoPlayer.jsx        # SMPTE frame-accurate video review player
-│   │   └── Viewport3D.jsx         # Three.js 3D viewport (PBR, wireframe, clay, turntable)
+│   │   └── Viewport3D.jsx         # Three.js 3D viewport (PBR, wireframe, clay, MatCaps, turntable)
 │   ├── styles/
 │   │   └── index.css              # Dark/light theme design system
 │   ├── utils/
@@ -246,17 +256,20 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── folderIconStore.js     # Folder icon state hook, context and Windows-icon lookup
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
+│   │   ├── matcaps.js             # Procedural MatCap textures and shared materials for the 3D viewport
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
 │   │   ├── thumbnailService.js    # Thumbnail generation queue & cache lookup
 │   │   ├── txTexAnalysis.js       # Sharpness maths and plain-words verdicts for .tx / .tex
 │   │   ├── txTexDecoder.js        # TIFF mip-pyramid reader for .tx / .tex (tiles, region decoding)
-│   │   └── txTexPreview.js        # Canvas painting of a texture at final-render pixel size
+│   │   ├── txTexPreview.js        # Canvas painting of a texture at final-render pixel size
+│   │   └── viewportCamera.js      # 3D viewport camera rig: lens presets, ortho, snap views, view state
 │   ├── App.jsx                    # Root view routing & global state
 │   ├── main.jsx                   # React 19 entrypoint
 │   └── tauriBridge.js             # window.electronAPI <-> Tauri v2 IPC bridge
 ├── src-tauri/
 │   ├── src/
+│   │   ├── drag_out.rs            # Native drag-out: OLE file drag from the grid into other apps (Windows)
 │   │   ├── folder_icons.rs        # Folder icon store (portable-aware) and Windows desktop.ini icon export
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])

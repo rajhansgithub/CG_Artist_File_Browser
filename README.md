@@ -36,6 +36,8 @@
 - **Interactive Orbit Controls**: Smooth orbit, pan, and zoom with auto-centering and framing bounding boxes.
 - **Studio Lighting Presets**: Switch between Studio Three-Point, Neutral Diffuse, Sunset Rim, High-Contrast Key, and Rim-Only lighting presets.
 - **Shading & Inspection Modes**: Full Lit PBR, Wireframe, Wireframe Overlay, Normal Map Visualization, and Clay mode.
+- **MatCaps**: Clay, Red Wax, Chrome, Zebra and Ceramic MatCap shading (in the Shading Mode list) to read form, dents and surface flow without lights.
+- **Camera & Lights**: Focal length presets (18, 35, 50, 85 and 200 mm), an Ortho projection for silhouette checks, Front / Back / Left / Right / Top snap views (numpad `1`, `3`, `7`, `Ctrl` for the opposite side, `5` toggles Ortho) and a Light slider that turns the light rig around the model.
 - **Turntable & Animation**: 360° turntable rotation with adjustable speed and full playback controls for rigged skeletal animations.
 - **Mesh Statistics**: Real-time vertex count, triangle count, geometry bounding size, and draw-call telemetry.
 
@@ -153,6 +155,11 @@ We follow an iterative release cadence with standalone testable builds for each 
 | :--- | :--- |
 | **Open Asset** | `Double Click` or `Space` on selected asset card |
 | **Grid Resize** | `Ctrl + Mouse Wheel` (Large icons view only) |
+| **Move the selection** | `Arrow keys` in the folder view, `Home` / `End` for first / last, `Page Up` / `Page Down` a screen at a time |
+| **Open the selected item** | `Enter` (folders open, files open in their viewer) |
+| **Parent folder** | `Backspace` or the up arrow in the address bar |
+| **Folder history** | `Alt + Left` / `Alt + Right` or the back / forward buttons (the mouse's back / forward buttons work too) |
+| **Sort** | The **Name** button in the address bar (name, date modified, size, type, folders first), or click a column header in Details view; remembered per folder |
 | **Orbit 3D Scene** | `Left Click + Drag` |
 | **Pan 3D / Image** | `Right Click + Drag` |
 | **Zoom** | `Mouse Wheel` |

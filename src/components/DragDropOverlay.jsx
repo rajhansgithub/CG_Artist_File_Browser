@@ -105,7 +105,7 @@ export default function DragDropOverlay({ viewMode, dropTargetSlot }) {
               borderTop: '1px dashed #333333'
             }}
           >
-            Drop 2D image or HDR to compare • 3D meshes & media auto-switch to full viewport
+            Drop an image, 3D model or video to compare • other files auto-switch to their full viewport
           </div>
         </div>
       ) : (
