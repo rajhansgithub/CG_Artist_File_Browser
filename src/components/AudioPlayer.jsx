@@ -290,10 +290,53 @@ export default function AudioPlayer({
     setIsPlaying(false);
   };
 
+  // Hold Left-Click on the waveform and drag left / right to scrub. Playback keeps going while dragging.
+  const isScrubDragRef = useRef(false);
+  const wasScrubDraggedRef = useRef(false);
+  const scrubStartXRef = useRef(0);
+  const scrubStartTimeRef = useRef(0);
+  const scrubWidthRef = useRef(1);
+
+  const handleWaveformMouseDown = (e) => {
+    if (e.button !== 0 || duration <= 0) return;
+    e.preventDefault();
+    scrubStartXRef.current = e.clientX;
+    scrubStartTimeRef.current = audioRef.current ? audioRef.current.currentTime : 0;
+    scrubWidthRef.current = e.currentTarget.getBoundingClientRect().width || 1;
+    isScrubDragRef.current = true;
+  };
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!isScrubDragRef.current || !audioRef.current) return;
+      const deltaX = e.clientX - scrubStartXRef.current;
+      if (Math.abs(deltaX) > 4) wasScrubDraggedRef.current = true;
+      if (!wasScrubDraggedRef.current) return;
+      // Dragging across the whole waveform scrubs the whole track
+      const newTime = Math.max(0, Math.min(duration, scrubStartTimeRef.current + (deltaX / scrubWidthRef.current) * duration));
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    };
+    const onUp = () => {
+      if (!isScrubDragRef.current) return;
+      isScrubDragRef.current = false;
+      // The click that follows the release must not seek again, so the flag is cleared after that click
+      setTimeout(() => {
+        wasScrubDraggedRef.current = false;
+      }, 80);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [duration]);
+
   // Waveform click to scrub
   const handleWaveformClick = (e) => {
     const canvas = canvasRef.current;
-    if (!canvas || duration <= 0) return;
+    if (!canvas || duration <= 0 || wasScrubDraggedRef.current) return;
     const rect = canvas.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, clickX / rect.width));
@@ -489,7 +532,7 @@ export default function AudioPlayer({
           </div>
 
           {/* Waveform Canvas */}
-          <div className="waveform-wrapper" onClick={handleWaveformClick}>
+          <div className="waveform-wrapper" onMouseDown={handleWaveformMouseDown} onClick={handleWaveformClick}>
             {isDecodingWaveform ? (
               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
                 Decoding audio waveform...
