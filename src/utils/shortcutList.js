@@ -15,16 +15,22 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Enter']], action: 'Open the selected folder or file' },
       { keys: [['Backspace']], action: 'Go up to the parent folder' },
       { keys: [['Alt', 'Left'], ['Alt', 'Right']], action: 'Back / forward through folder history' },
-      { keys: [['Mouse back'], ['Mouse forward']], action: 'Back / forward through folder history' },
+      { keys: [['Mouse back'], ['Mouse forward']], action: 'Side buttons on the mouse: back / forward' },
       { keys: [['Ctrl', 'L'], ['Alt', 'D']], action: 'Type a folder path or network address' },
       { keys: [['Ctrl', 'A']], action: 'Select all' },
       { keys: [['Click']], action: 'Select one item' },
       { keys: [['Ctrl', 'Click']], action: 'Add or remove one item' },
       { keys: [['Shift', 'Click']], action: 'Select a range' },
       { keys: [['Ctrl', 'Shift', 'Click']], action: 'Add a range to the selection' },
-      { keys: [['Drag']], action: 'Box select on empty space (a click on empty space clears it)' },
+      { keys: [['Drag']], action: 'Box select: drag on empty space' },
       { keys: [['Ctrl', 'Mouse wheel']], action: 'Resize thumbnails (Large icons view)' }
     ]
+  },
+  {
+    // Every viewer's own Escape handler (ImageViewer, TxTexViewer, VideoPlayer, ImageSequencePlayer, AudioPlayer,
+    // PdfViewer, Viewport3D, HdrExrInspector)
+    title: 'Any viewer',
+    items: [{ keys: [['Esc']], action: 'Close the viewer (leaves full screen first)' }]
   },
   {
     // useQuickLook.js (Space and Esc in the grid, arrows inside Quick Look)
@@ -41,8 +47,7 @@ export const SHORTCUT_GROUPS = [
     items: [
       { keys: [['Left'], ['Right']], action: 'Previous / next image or texture' },
       { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag (image viewer)' },
-      { keys: [['Ctrl', '0']], action: 'Fit to screen (or hold Z and press 0)' },
-      { keys: [['Esc']], action: 'Close the viewer' }
+      { keys: [['Ctrl', '0']], action: 'Fit to screen (or hold Z and press 0)' }
     ]
   },
   {
@@ -50,21 +55,20 @@ export const SHORTCUT_GROUPS = [
     title: 'Video and image sequences',
     items: [
       { keys: [['Space']], action: 'Play / pause' },
-      { keys: [['Left'], ['Right']], action: 'Step one frame back / forward (Shift: one second)' },
-      { keys: [[','], ['.']], action: 'Step one frame back / forward' },
+      { keys: [['Left'], ['Right'], [','], ['.']], action: 'Step one frame back / forward (Shift + Left / Right: one second)' },
       { keys: [['Home'], ['End']], action: 'First / last frame (image sequences)' },
       { keys: [['I'], ['[']], action: 'Set the in point of the loop' },
       { keys: [['O'], [']']], action: 'Set the out point of the loop' },
       { keys: [['\\']], action: 'Clear the loop' },
       { keys: [['S']], action: 'Snapshot the current frame' },
       { keys: [['F']], action: 'Full screen' },
-      { keys: [['1'], ['2'], ['3'], ['4'], ['5'], ['6']], action: 'Show RGB, R, G, B, alpha or luminance only' },
+      { keys: [['1 – 6']], action: 'Show RGB, R, G, B, alpha or luminance only' },
       { keys: [['C']], action: 'Cycle through the channel views' },
       { keys: [['E', 'Drag']], action: 'Exposure: hold E and drag' },
-      { keys: [['E', '+'], ['E', '-']], action: 'While E is held: step exposure by 0.5, 0 resets it' },
+      { keys: [['E', '+'], ['E', '-']], action: 'Step exposure by 0.5 while E is held' },
+      { keys: [['E', '0']], action: 'Reset exposure while E is held' },
       { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag' },
-      { keys: [['Z', '0']], action: 'While Z is held: reset zoom' },
-      { keys: [['Esc']], action: 'Leave full screen, or close the player' }
+      { keys: [['Z', '0']], action: 'Reset zoom while Z is held' }
     ]
   },
   {
@@ -73,8 +77,7 @@ export const SHORTCUT_GROUPS = [
     items: [
       { keys: [['Space']], action: 'Play / pause' },
       { keys: [['Left'], ['Right']], action: 'Back / forward 5 seconds' },
-      { keys: [['L']], action: 'Loop on / off' },
-      { keys: [['Esc']], action: 'Close the player' }
+      { keys: [['L']], action: 'Loop on / off' }
     ]
   },
   {
@@ -88,10 +91,9 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Left'], ['Right']], action: 'Previous / next file' },
       { keys: [['+'], ['-']], action: 'Zoom in / out' },
       { keys: [['Ctrl', '0']], action: 'Fit width' },
-      { keys: [['Ctrl', '1']], action: '100%' },
+      { keys: [['Ctrl', '1']], action: 'Actual size (100%)' },
       { keys: [['F']], action: 'Fit page' },
-      { keys: [['R']], action: 'Rotate 90 degrees' },
-      { keys: [['Esc']], action: 'Close the viewer' }
+      { keys: [['R']], action: 'Rotate 90 degrees' }
     ]
   },
   {
@@ -100,8 +102,7 @@ export const SHORTCUT_GROUPS = [
     items: [
       { keys: [['F']], action: 'Frame the model' },
       { keys: [['Numpad 1'], ['Numpad 3'], ['Numpad 7']], action: 'Front, right or top view (Ctrl: back or left for 1 and 3)' },
-      { keys: [['Numpad 5']], action: 'Toggle orthographic view' },
-      { keys: [['Esc']], action: 'Close the viewer' }
+      { keys: [['Numpad 5']], action: 'Toggle orthographic view' }
     ]
   },
   {
@@ -111,24 +112,25 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag' },
       { keys: [['0']], action: 'Reset zoom' },
       { keys: [['E', 'Drag']], action: 'Exposure: hold E and drag' },
-      { keys: [['E', '+'], ['E', '-']], action: 'While E is held: step exposure by 0.5, 0 resets it' },
+      { keys: [['E', '+'], ['E', '-']], action: 'Step exposure by 0.5 while E is held' },
+      { keys: [['E', '0']], action: 'Reset exposure while E is held' },
       { keys: [['V']], action: 'Flip vertically' },
       { keys: [['F']], action: 'Fit view' },
       { keys: [['W']], action: 'Wipe on / off' },
       { keys: [['P']], action: 'Probes on / off' },
-      { keys: [['I'], ['N']], action: 'Show / hide the sidebar' },
-      { keys: [['Esc']], action: 'Close the viewer' }
+      { keys: [['I'], ['N']], action: 'Show / hide the sidebar' }
     ]
   },
   {
     // CompareView.jsx, CompareVideoTransport.jsx
     title: 'Compare',
     items: [
-      { keys: [['Space'], ['X']], action: 'Switch between A and B (X for video, where Space plays)' },
+      { keys: [['Space']], action: 'Switch between A and B (images and 3D models)' },
+      { keys: [['X']], action: 'Switch between A and B (video)' },
       { keys: [['1'], ['2'], ['3'], ['4']], action: 'Wipe, split, toggle and diff modes (4 is not for 3D models)' },
       { keys: [['R']], action: 'Reset the view (F also does it for 3D models)' },
       { keys: [['Space']], action: 'Play / pause the video compare' },
-      { keys: [['Left'], ['Right']], action: 'Step one frame (Shift: one second)' },
+      { keys: [['Left'], ['Right']], action: 'Step one frame in the video compare (Shift: one second)' },
       { keys: [['Home']], action: 'Back to the start of the video compare' }
     ]
   },
