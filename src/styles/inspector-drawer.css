@@ -1,7 +1,8 @@
 /* Inspector drawer (InspectorDrawer.jsx): file details beside the folder grid. Shown and hidden with I or its button. */
 
 .inspector-drawer {
-  width: 280px;
+  position: relative; /* the resize edge is positioned against it */
+  width: 280px; /* the width the user chose is set inline */
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -10,6 +11,41 @@
   border-left: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+/* A wider grab area than the line it marks, centred on the drawer's left border */
+.inspector-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.inspector-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.inspector-resize-handle:hover::after,
+.inspector-resize-handle.resizing::after {
+  background: var(--accent-mid);
+}
+
+/* While the edge is dragged the cursor and text selection stay put, wherever the pointer goes */
+body.inspector-resizing,
+body.inspector-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .inspector-header {
