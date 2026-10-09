@@ -1,0 +1,110 @@
+diff --git a/README.md b/README.md
+index 3679670..330c2b9 100644
+--- a/README.md
++++ b/README.md
+@@ -40,7 +40,7 @@
+ - **Mesh Statistics**: Real-time vertex count, triangle count, geometry bounding size, and draw-call telemetry.
+ 
+ ### 🌅 32-Bit Float HDR & EXR Inspector
+-- **360° Equirectangular Panoramic Skybox**: Interactive spherical environment preview with smooth horizon locks.
++- **360° Equirectangular Panoramic Skybox**: Opens straight into the interactive spherical dome (switch to the flat view from the toolbar) with smooth horizon locks.
+ - **Dynamic Exposure EV Controls**: Real-time exposure adjustment spanning EV -10.0 to +10.0.
+ - **Tone-Mapping Operators**: ACES Filmic, Reinhard, AgX, Linear, and Neutral tone-mapping pipelines.
+ - **Precision Color Eyedropper**: Inspect raw 32-bit floating-point linear RGB values, normalized hex codes, and luminance per pixel.
+@@ -57,7 +57,7 @@
+   - `Key 5`: Instant A/B Toggle Flips
+ 
+ ### 🧱 Arnold `.tx` & RenderMan `.tex` Texture Viewer
+-- **Opens render textures directly**: the mip levels, tiles and channels of `.tx` and `.tex` files, with grid thumbnails read from a small mip level so big folders stay fast.
++- **Opens render textures directly** (straight onto the "In the render" view, with a Texture tab for browsing levels): the mip levels, tiles and channels of `.tx` and `.tex` files, with grid thumbnails read from a small mip level so big folders stay fast.
+ - **"Will it be sharp enough?"**: pick the final render size (1K, 2K, 3K, 4K, 8K), slide how much of the frame the object covers (or type a pixel size, e.g. "10 pixels") and see the texture as it lands on the pixels of that render, magnified so single pixels are visible.
+ - **Plain-words verdict**: *Too soft*, *A little soft*, *Sharp enough*, *More than enough* or *Overkill*, plus the texture size you actually need and which mip level the renderer reads.
+ - **Where does it hold up?** A colour chart of every shot size and distance for the open texture, and a mip level list where you can click a smaller level to test "is 2K enough?".
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index ca6a3ea..c720950 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -146,7 +146,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
+ - **Features**: Turntable 360° spin, skeletal animation playback, real-time vertex/triangle/mesh statistics, bounding box framing.
+ 
+ ### 🌅 32-Bit Float HDR & EXR Inspector ([`src/components/HdrExrInspector.jsx`](../src/components/HdrExrInspector.jsx))
+-- **Equirectangular Skybox & Flat Viewer**: Interactive spherical environment preview.
++- **Equirectangular Skybox & Flat Viewer**: Interactive spherical environment preview. The inspector opens straight into the 360° dome; the **Flat** button in the toolbar switches to the flat 2D view.
+ - **Exposure (EV) Controls**: Real-time slider from EV -60 to +60.
+ - **Hold-E Interactive EV Drag**: Hold **`E`** and drag mouse left/right to adjust exposure interactively (like professional DCCs). Keys `+`/`-` step by 0.5 EV, `0` resets.
+ - **Tone-Mapping Operators**: ACES Filmic, AgX, Reinhard, Cineon, Linear.
+@@ -176,6 +176,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
+ - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
+ - **Image Viewer ([`src/components/ImageViewer.jsx`](../src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
+ - **Render Texture Viewer ([`src/components/TxTexViewer.jsx`](../src/components/TxTexViewer.jsx))**: opens Arnold `.tx` and RenderMan `.tex` files (category `texture`, but routed to this viewer instead of the Image Viewer by extension in `App.jsx`). Both are TIFF files (classic or BigTIFF) where every mip level is its own image stored as tiles, with a few extra tags: Pixar's texture format / wrap modes (33302-33304) and OpenImageIO's notes in the ImageDescription tag. Nothing new is bundled: [`src/utils/txTexDecoder.js`](../src/utils/txTexDecoder.js) reads the IFD chain itself and decodes tiles (none, LZW, PackBits, deflate via the `fflate` that ships with three; horizontal and floating point predictors; 8/16-bit integer, 16/32-bit float, planar or chunky, strips or tiles, either byte order). Because levels are tiled, any level or any rectangle of it can be decoded alone (`decodeRegion`, `decodeLevelReduced`), so an 8K texture is inspected pixel for pixel without holding it in memory; decoded tiles are cached (96 MB) so slider moves are instant. Grid thumbnails decode the smallest mip level of at least 256 px (see `thumbnailService.js`), not the full image.
++  - Both tabs share one toolbar; the viewer opens on **In the render**, and the header only says "TX TEXTURE" / "TEX TEXTURE" from the file extension, because the file itself does not reliably say which renderer made it (a RenderMan `txmake` file can be named `.tx`).
+   - **Texture tab**: one mip level at a time (levels over 4096 px are averaged down for display), RGB / R / G / B / A, zoom and pan. Floating point data is shown with an sRGB curve.
+   - **In the render tab**: [`src/utils/txTexAnalysis.js`](../src/utils/txTexAnalysis.js) holds all the maths and no UI. The texture's width in render pixels is `frame width × coverage ÷ repeats`; texture pixels per render pixel is `texture width ÷ that`. Its log2 picks the mip level(s) like a trilinear filter (`pickMipLevels`), and `judge()` turns the ratio into the verdict (below 0.5 soft, 0.5-0.9 slightly soft, 0.9-2 sharp, 2-4 more than enough, above 4 overkill) and the recommended power-of-two size. [`src/utils/txTexPreview.js`](../src/utils/txTexPreview.js) paints the footprint onto a canvas that is exactly one canvas pixel per render pixel (decoding only the visible region of the chosen levels) and the viewer magnifies it without smoothing. Clicking a level in the list while on this tab tests "what if the texture were only this big".
+   - **Unsupported on purpose** (clear message shown, the size-based verdict still works): PixarLog / Pixar "lossless" compression, JPEG compression, palette / CMYK / YCbCr data, OpenEXR-based `.tx`/`.tex` (and Pixar's own `-format pixar`), RenderMan ripmaps beyond the normal pyramid. A `.tex` that is not a TIFF (for example a LaTeX file) is reported as such.
+diff --git a/src/components/HdrExrInspector.jsx b/src/components/HdrExrInspector.jsx
+index 2851562..fb69940 100644
+--- a/src/components/HdrExrInspector.jsx
++++ b/src/components/HdrExrInspector.jsx
+@@ -91,10 +91,10 @@ export default function HdrExrInspector({
+   const [channel, setChannel] = useState('rgb'); // 'rgb', 'r', 'g', 'b', 'a', 'lum'
+   const [falseColor, setFalseColor] = useState(false);
+   const [flipVertical, setFlipVertical] = useState(false); // Vertical flip orientation
+-  const [viewMode, setViewMode] = useState('flat'); // 'flat' or 'pano' (360 sphere)
++  const [viewMode, setViewMode] = useState('pano'); // 'pano' (360 dome, opens here) or 'flat'
+   const [sphereSize, setSphereSize] = useState('large'); // 'big_bada', 'large', 'medium', 'small'
+   const [selectedLayer, setSelectedLayer] = useState(null);
+-  const prevViewModeRef = useRef(viewMode);
++  const prevViewModeRef = useRef(null); // null until the first geometry setup, so the 360 camera is initialised on open
+ 
+   // Zoom control via Hold Z + Drag Left/Right (in 360 pano & flat)
+   const [isZActive, setIsZActive] = useState(false);
+diff --git a/src/components/TxTexViewer.jsx b/src/components/TxTexViewer.jsx
+index bf4afb3..34f14b3 100644
+--- a/src/components/TxTexViewer.jsx
++++ b/src/components/TxTexViewer.jsx
+@@ -113,7 +113,7 @@ export default function TxTexViewer({
+   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+   const [error, setError] = useState(null);
+   const [model, setModel] = useState(null); // { parsed, reader }
+-  const [tab, setTab] = useState('texture'); // 'texture' | 'render'
++  const [tab, setTab] = useState('render'); // 'render' (opens here) | 'texture'
+   const [viewLevel, setViewLevel] = useState(0); // level shown on the Texture tab
+   const [selectedLevel, setSelectedLevel] = useState(0); // top level of the texture being tested for sharpness
+   const [pxDraft, setPxDraft] = useState(null);
+@@ -733,7 +733,7 @@ export default function TxTexViewer({
+           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12.5, color: '#ffffff' }}>
+               <Layers size={15} color="#38bdf8" />
+-              <span>{info?.renderer === 'renderman' ? 'RENDERMAN TEX' : info?.renderer === 'arnold' ? 'ARNOLD TX' : 'TX / TEX'}</span>
++              <span>{asset.extension?.toLowerCase() === '.tex' ? 'TEX TEXTURE' : asset.extension?.toLowerCase() === '.tx' ? 'TX TEXTURE' : 'TX / TEX TEXTURE'}</span>
+               <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{asset.extension}</span>
+             </div>
+           </div>
+@@ -955,7 +955,6 @@ export default function TxTexViewer({
+               </Section>
+ 
+               <Section title="FILE DETAILS" badge={info.compression} open={open.details} onToggle={() => setOpen((o) => ({ ...o, details: !o.details }))}>
+-                <StatRow label="Made for" value={info.renderer === 'arnold' ? 'Arnold (.tx)' : info.renderer === 'renderman' ? 'RenderMan (.tex)' : 'Unknown'} />
+                 {info.madeWith && <StatRow label="Written by" value={info.madeWith} />}
+                 {info.textureFormat && <StatRow label="Texture type" value={info.textureFormat} />}
+                 {info.wrapModes && <StatRow label="Edges (wrap)" value={info.wrapModes} title="What happens outside the 0-1 texture area" />}
+diff --git a/src/utils/txTexDecoder.js b/src/utils/txTexDecoder.js
+index 429c29e..39271b1 100644
+--- a/src/utils/txTexDecoder.js
++++ b/src/utils/txTexDecoder.js
+@@ -343,15 +343,11 @@ export function parseTxTex(arrayBuffer, extension = '') {
+     }
+   }
+ 
+-  let renderer = 'unknown';
+-  if (ext === '.tx') renderer = 'arnold';
+-  else if (ext === '.tex') renderer = 'renderman';
+   const madeWith = /OpenImageIO/i.test(software) || Object.keys(notes).length > 0 ? 'OpenImageIO maketx' : '';
+ 
+   const info = {
+     container,
+     littleEndian: little,
+-    renderer,
+     madeWith,
+     software,
+     textureFormat,
