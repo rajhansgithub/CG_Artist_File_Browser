@@ -146,7 +146,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **Features**: Turntable 360° spin, skeletal animation playback, real-time vertex/triangle/mesh statistics, bounding box framing.
 
 ### 🌅 32-Bit Float HDR & EXR Inspector ([`src/components/HdrExrInspector.jsx`](../src/components/HdrExrInspector.jsx))
-- **Equirectangular Skybox & Flat Viewer**: Interactive spherical environment preview.
+- **Equirectangular Skybox & Flat Viewer**: Interactive spherical environment preview. The inspector opens straight into the 360° dome; the **Flat** button in the toolbar switches to the flat 2D view.
 - **Exposure (EV) Controls**: Real-time slider from EV -60 to +60.
 - **Hold-E Interactive EV Drag**: Hold **`E`** and drag mouse left/right to adjust exposure interactively (like professional DCCs). Keys `+`/`-` step by 0.5 EV, `0` resets.
 - **Tone-Mapping Operators**: ACES Filmic, AgX, Reinhard, Cineon, Linear.
@@ -176,6 +176,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **Audio Player ([`src/components/AudioPlayer.jsx`](../src/components/AudioPlayer.jsx))**: Decoded waveform visualizer, loop controls, real-time stereo VU meter.
 - **Image Viewer ([`src/components/ImageViewer.jsx`](../src/components/ImageViewer.jsx))**: Pan/zoom/rotate with native TIFF, TGA, WebP, PNG, JPG decoding.
 - **Render Texture Viewer ([`src/components/TxTexViewer.jsx`](../src/components/TxTexViewer.jsx))**: opens Arnold `.tx` and RenderMan `.tex` files (category `texture`, but routed to this viewer instead of the Image Viewer by extension in `App.jsx`). Both are TIFF files (classic or BigTIFF) where every mip level is its own image stored as tiles, with a few extra tags: Pixar's texture format / wrap modes (33302-33304) and OpenImageIO's notes in the ImageDescription tag. Nothing new is bundled: [`src/utils/txTexDecoder.js`](../src/utils/txTexDecoder.js) reads the IFD chain itself and decodes tiles (none, LZW, PackBits, deflate via the `fflate` that ships with three; horizontal and floating point predictors; 8/16-bit integer, 16/32-bit float, planar or chunky, strips or tiles, either byte order). Because levels are tiled, any level or any rectangle of it can be decoded alone (`decodeRegion`, `decodeLevelReduced`), so an 8K texture is inspected pixel for pixel without holding it in memory; decoded tiles are cached (96 MB) so slider moves are instant. Grid thumbnails decode the smallest mip level of at least 256 px (see `thumbnailService.js`), not the full image.
+  - Both tabs share one toolbar; the viewer opens on **In the render**, and the header only says "TX TEXTURE" / "TEX TEXTURE" from the file extension, because the file itself does not reliably say which renderer made it (a RenderMan `txmake` file can be named `.tx`).
   - **Texture tab**: one mip level at a time (levels over 4096 px are averaged down for display), RGB / R / G / B / A, zoom and pan. Floating point data is shown with an sRGB curve.
   - **In the render tab**: [`src/utils/txTexAnalysis.js`](../src/utils/txTexAnalysis.js) holds all the maths and no UI. The texture's width in render pixels is `frame width × coverage ÷ repeats`; texture pixels per render pixel is `texture width ÷ that`. Its log2 picks the mip level(s) like a trilinear filter (`pickMipLevels`), and `judge()` turns the ratio into the verdict (below 0.5 soft, 0.5-0.9 slightly soft, 0.9-2 sharp, 2-4 more than enough, above 4 overkill) and the recommended power-of-two size. [`src/utils/txTexPreview.js`](../src/utils/txTexPreview.js) paints the footprint onto a canvas that is exactly one canvas pixel per render pixel (decoding only the visible region of the chosen levels) and the viewer magnifies it without smoothing. Clicking a level in the list while on this tab tests "what if the texture were only this big".
   - **Unsupported on purpose** (clear message shown, the size-based verdict still works): PixarLog / Pixar "lossless" compression, JPEG compression, palette / CMYK / YCbCr data, OpenEXR-based `.tx`/`.tex` (and Pixar's own `-format pixar`), RenderMan ripmaps beyond the normal pyramid. A `.tex` that is not a TIFF (for example a LaTeX file) is reported as such.
@@ -226,7 +227,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── FolderIcon.jsx         # One folder's icon: user pick, Windows custom icon or default
 │   │   ├── FolderIconPicker.jsx   # "Change icon" dialog (library, my icons, search)
 │   │   ├── HdrExrInspector.jsx    # 360° skybox, EV grade, eyedropper, false color
-│   │   ├── Header.jsx             # Search bar, filter pills, theme toggle
+│   │   ├── Header.jsx             # Search bar, filter pills (icon + text when they fit, icons only when not), settings
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
 │   │   ├── SettingsModal.jsx      # Blender path settings & cache management

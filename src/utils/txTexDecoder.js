@@ -343,15 +343,11 @@ export function parseTxTex(arrayBuffer, extension = '') {
     }
   }
 
-  let renderer = 'unknown';
-  if (ext === '.tx') renderer = 'arnold';
-  else if (ext === '.tex') renderer = 'renderman';
   const madeWith = /OpenImageIO/i.test(software) || Object.keys(notes).length > 0 ? 'OpenImageIO maketx' : '';
 
   const info = {
     container,
     littleEndian: little,
-    renderer,
     madeWith,
     software,
     textureFormat,

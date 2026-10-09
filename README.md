@@ -40,7 +40,7 @@
 - **Mesh Statistics**: Real-time vertex count, triangle count, geometry bounding size, and draw-call telemetry.
 
 ### 🌅 32-Bit Float HDR & EXR Inspector
-- **360° Equirectangular Panoramic Skybox**: Interactive spherical environment preview with smooth horizon locks.
+- **360° Equirectangular Panoramic Skybox**: Opens straight into the interactive spherical dome (switch to the flat view from the toolbar) with smooth horizon locks.
 - **Dynamic Exposure EV Controls**: Real-time exposure adjustment spanning EV -10.0 to +10.0.
 - **Tone-Mapping Operators**: ACES Filmic, Reinhard, AgX, Linear, and Neutral tone-mapping pipelines.
 - **Precision Color Eyedropper**: Inspect raw 32-bit floating-point linear RGB values, normalized hex codes, and luminance per pixel.
@@ -57,7 +57,7 @@
   - `Key 5`: Instant A/B Toggle Flips
 
 ### 🧱 Arnold `.tx` & RenderMan `.tex` Texture Viewer
-- **Opens render textures directly**: the mip levels, tiles and channels of `.tx` and `.tex` files, with grid thumbnails read from a small mip level so big folders stay fast.
+- **Opens render textures directly** (straight onto the "In the render" view, with a Texture tab for browsing levels): the mip levels, tiles and channels of `.tx` and `.tex` files, with grid thumbnails read from a small mip level so big folders stay fast.
 - **"Will it be sharp enough?"**: pick the final render size (1K, 2K, 3K, 4K, 8K), slide how much of the frame the object covers (or type a pixel size, e.g. "10 pixels") and see the texture as it lands on the pixels of that render, magnified so single pixels are visible.
 - **Plain-words verdict**: *Too soft*, *A little soft*, *Sharp enough*, *More than enough* or *Overkill*, plus the texture size you actually need and which mip level the renderer reads.
 - **Where does it hold up?** A colour chart of every shot size and distance for the open texture, and a mip level list where you can click a smaller level to test "is 2K enough?".

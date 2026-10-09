@@ -123,6 +123,7 @@ body {
   z-index: 100;
   overflow-x: auto;
   overflow-y: hidden;
+  position: relative;
 }
 
 .logo-section {
@@ -231,6 +232,20 @@ body {
   padding: 0;
   justify-content: center;
   gap: 0;
+}
+
+/* Zero-size clipped holder for the hidden labelled bar that Header measures */
+.filters-measure {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.filters-measure .filters-bar {
+  width: max-content;
 }
 
 .filter-expand-btn {
