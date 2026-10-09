@@ -1,0 +1,151 @@
+// Every keyboard shortcut the app handles, grouped for the cheatsheet overlay (? or F1).
+//
+// Each item has `keys` and `action`. `keys` is a list of alternatives, shown with "/" between them.
+// Each alternative is a list of keys pressed together, shown with "+" between them, e.g. ['Ctrl', 'L'].
+// Each group names the handler it mirrors in its comment. When a handler's keys change, change them here too.
+export const SHORTCUT_GROUPS = [
+  {
+    // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, Alt + arrows, mouse side buttons)
+    title: 'Folders and selection',
+    items: [
+      { keys: [['Arrow keys']], action: 'Move the selection (up and down move a row)' },
+      { keys: [['Shift', 'Arrow keys']], action: 'Extend the selection from the anchor item' },
+      { keys: [['Home'], ['End']], action: 'First / last item' },
+      { keys: [['Page Up'], ['Page Down']], action: 'Move a screen at a time' },
+      { keys: [['Enter']], action: 'Open the selected folder or file' },
+      { keys: [['Backspace']], action: 'Go up to the parent folder' },
+      { keys: [['Alt', 'Left'], ['Alt', 'Right']], action: 'Back / forward through folder history' },
+      { keys: [['Mouse back'], ['Mouse forward']], action: 'Back / forward through folder history' },
+      { keys: [['Ctrl', 'L'], ['Alt', 'D']], action: 'Type a folder path or network address' },
+      { keys: [['Ctrl', 'A']], action: 'Select all' },
+      { keys: [['Click']], action: 'Select one item' },
+      { keys: [['Ctrl', 'Click']], action: 'Add or remove one item' },
+      { keys: [['Shift', 'Click']], action: 'Select a range' },
+      { keys: [['Ctrl', 'Shift', 'Click']], action: 'Add a range to the selection' },
+      { keys: [['Drag']], action: 'Box select on empty space (a click on empty space clears it)' },
+      { keys: [['Ctrl', 'Mouse wheel']], action: 'Resize thumbnails (Large icons view)' }
+    ]
+  },
+  {
+    // useQuickLook.js (Space and Esc in the grid, arrows inside Quick Look)
+    title: 'Quick Look',
+    items: [
+      { keys: [['Space']], action: 'Open the selected file in its viewer' },
+      { keys: [['Space'], ['Esc']], action: 'Back to the grid (video, audio and PDF keep Space for playback or paging)' },
+      { keys: [['Left'], ['Right']], action: 'Previous / next file (3D and HDR / EXR viewers)' }
+    ]
+  },
+  {
+    // ImageViewer.jsx, TxTexViewer.jsx
+    title: 'Image and texture viewers',
+    items: [
+      { keys: [['Left'], ['Right']], action: 'Previous / next image or texture' },
+      { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag (image viewer)' },
+      { keys: [['Ctrl', '0']], action: 'Fit to screen (or hold Z and press 0)' },
+      { keys: [['Esc']], action: 'Close the viewer' }
+    ]
+  },
+  {
+    // VideoPlayer.jsx, ImageSequencePlayer.jsx (the two share these keys)
+    title: 'Video and image sequences',
+    items: [
+      { keys: [['Space']], action: 'Play / pause' },
+      { keys: [['Left'], ['Right']], action: 'Step one frame back / forward (Shift: one second)' },
+      { keys: [[','], ['.']], action: 'Step one frame back / forward' },
+      { keys: [['Home'], ['End']], action: 'First / last frame (image sequences)' },
+      { keys: [['I'], ['[']], action: 'Set the in point of the loop' },
+      { keys: [['O'], [']']], action: 'Set the out point of the loop' },
+      { keys: [['\\']], action: 'Clear the loop' },
+      { keys: [['S']], action: 'Snapshot the current frame' },
+      { keys: [['F']], action: 'Full screen' },
+      { keys: [['1'], ['2'], ['3'], ['4'], ['5'], ['6']], action: 'Show RGB, R, G, B, alpha or luminance only' },
+      { keys: [['C']], action: 'Cycle through the channel views' },
+      { keys: [['E', 'Drag']], action: 'Exposure: hold E and drag' },
+      { keys: [['E', '+'], ['E', '-']], action: 'While E is held: step exposure by 0.5, 0 resets it' },
+      { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag' },
+      { keys: [['Z', '0']], action: 'While Z is held: reset zoom' },
+      { keys: [['Esc']], action: 'Leave full screen, or close the player' }
+    ]
+  },
+  {
+    // AudioPlayer.jsx
+    title: 'Audio player',
+    items: [
+      { keys: [['Space']], action: 'Play / pause' },
+      { keys: [['Left'], ['Right']], action: 'Back / forward 5 seconds' },
+      { keys: [['L']], action: 'Loop on / off' },
+      { keys: [['Esc']], action: 'Close the player' }
+    ]
+  },
+  {
+    // PdfViewer.jsx
+    title: 'PDF viewer',
+    items: [
+      { keys: [['Page Down'], ['Space']], action: 'Next page' },
+      { keys: [['Page Up'], ['Shift', 'Space']], action: 'Previous page' },
+      { keys: [['Home'], ['End']], action: 'First / last page' },
+      { keys: [['Up'], ['Down']], action: 'Scroll a little' },
+      { keys: [['Left'], ['Right']], action: 'Previous / next file' },
+      { keys: [['+'], ['-']], action: 'Zoom in / out' },
+      { keys: [['Ctrl', '0']], action: 'Fit width' },
+      { keys: [['Ctrl', '1']], action: '100%' },
+      { keys: [['F']], action: 'Fit page' },
+      { keys: [['R']], action: 'Rotate 90 degrees' },
+      { keys: [['Esc']], action: 'Close the viewer' }
+    ]
+  },
+  {
+    // Viewport3D.jsx
+    title: '3D model viewer',
+    items: [
+      { keys: [['F']], action: 'Frame the model' },
+      { keys: [['Numpad 1'], ['Numpad 3'], ['Numpad 7']], action: 'Front, right or top view (Ctrl: back or left for 1 and 3)' },
+      { keys: [['Numpad 5']], action: 'Toggle orthographic view' },
+      { keys: [['Esc']], action: 'Close the viewer' }
+    ]
+  },
+  {
+    // HdrExrInspector.jsx
+    title: 'HDR and EXR inspector',
+    items: [
+      { keys: [['Z', 'Drag']], action: 'Zoom: hold Z and drag' },
+      { keys: [['0']], action: 'Reset zoom' },
+      { keys: [['E', 'Drag']], action: 'Exposure: hold E and drag' },
+      { keys: [['E', '+'], ['E', '-']], action: 'While E is held: step exposure by 0.5, 0 resets it' },
+      { keys: [['V']], action: 'Flip vertically' },
+      { keys: [['F']], action: 'Fit view' },
+      { keys: [['W']], action: 'Wipe on / off' },
+      { keys: [['P']], action: 'Probes on / off' },
+      { keys: [['I'], ['N']], action: 'Show / hide the sidebar' },
+      { keys: [['Esc']], action: 'Close the viewer' }
+    ]
+  },
+  {
+    // CompareView.jsx, CompareVideoTransport.jsx
+    title: 'Compare',
+    items: [
+      { keys: [['Space'], ['X']], action: 'Switch between A and B (X for video, where Space plays)' },
+      { keys: [['1'], ['2'], ['3'], ['4']], action: 'Wipe, split, toggle and diff modes (4 is not for 3D models)' },
+      { keys: [['R']], action: 'Reset the view (F also does it for 3D models)' },
+      { keys: [['Space']], action: 'Play / pause the video compare' },
+      { keys: [['Left'], ['Right']], action: 'Step one frame (Shift: one second)' },
+      { keys: [['Home']], action: 'Back to the start of the video compare' }
+    ]
+  },
+  {
+    // PathInput.jsx, SortMenu.jsx, ItemContextMenu.jsx, LabelPanels.jsx, FolderIconPicker.jsx
+    title: 'Menus and the address box',
+    items: [
+      { keys: [['Enter']], action: 'Go to the path typed in the address box (Esc cancels)' },
+      { keys: [['Esc']], action: 'Close the sort, context, label or icon menu' }
+    ]
+  },
+  {
+    // ShortcutCheatsheet.jsx
+    title: 'This list',
+    items: [
+      { keys: [['?'], ['F1']], action: 'Show or hide this list' },
+      { keys: [['Esc']], action: 'Close this list' }
+    ]
+  }
+];

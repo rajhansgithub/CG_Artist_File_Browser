@@ -1,0 +1,87 @@
+/* Keyboard shortcut cheatsheet (ShortcutCheatsheet.jsx). Uses the shared modal classes from index.css. */
+
+.shortcut-cheatsheet-card {
+  width: 880px;
+}
+
+.shortcut-cheatsheet-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 18px 28px;
+  align-items: start;
+}
+
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcut-group-title {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 3px 0;
+}
+
+.shortcut-action {
+  min-width: 0;
+}
+
+.shortcut-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 45%;
+}
+
+.shortcut-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.shortcut-combo kbd {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 18px;
+  padding: 1px 6px;
+  text-align: center;
+  color: var(--text-main);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.shortcut-plus,
+.shortcut-or {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .shortcut-cheatsheet-card {
+    width: auto;
+  }
+
+  .shortcut-cheatsheet-body {
+    grid-template-columns: 1fr;
+  }
+}

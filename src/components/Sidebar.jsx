@@ -14,6 +14,7 @@ import {
   Volume2
 } from 'lucide-react';
 import FolderIcon from './FolderIcon';
+import RecentFolders from './RecentFolders';
 import { useFolderIcons } from '../utils/folderIconStore';
 
 // "Z:" plus the share name, e.g. "Z: library" for Z:\ -> \\mypc\library
@@ -36,7 +37,9 @@ export default function Sidebar({
   onToggleFavorite,
   networkLocations,
   onRemoveNetworkLocation,
-  onConnectNetwork
+  onConnectNetwork,
+  recentFolders,
+  onClearRecentFolders
 }) {
   const { openMenu } = useFolderIcons();
   const folders = (folderItems || []).filter((item) => item.isDirectory);
@@ -160,6 +163,14 @@ export default function Sidebar({
           ))}
         </div>
       </div>
+
+      {/* Recently opened folders, newest first */}
+      <RecentFolders
+        paths={recentFolders}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onClear={onClearRecentFolders}
+      />
 
       {/* Pinned Folders Section */}
       {starredFolders.length > 0 && (

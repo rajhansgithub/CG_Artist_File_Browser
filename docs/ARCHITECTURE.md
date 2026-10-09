@@ -89,6 +89,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `resolve_path` | `input` | `ResolvedPath` | Validates a path typed into the address bar (`\\mypc\library`, `//mypc/library`, `D:/x`), returns it in Windows form and remembers reachable network shares. Gives up after 15 s with a readable reason (Windows' own error text when there is no friendlier wording). If Windows refuses `\\server\share` but a mapped drive letter points at the same share, that drive's path is used instead. |
 | `connect_network` | `path`, `username`, `password`, `remember` | `ResolvedPath` | Signs in to a share (`\\server\share`) with a username and password using `WNetAddConnection2W`, for the case where File Explorer opens a share but the app gets Windows error 1272 (guest access blocked) because Windows keeps sign-ins per program. With `remember`, the password is saved in Windows Credential Manager twice (a generic entry `CGArtistFileBrowser:\\server\share\` the app reads to sign in again, and the same entry File Explorer writes under the bare server name, so Windows signs in to every share on that PC by itself) and only the username goes into `network_logins` in `studio_config.json`. Saved shares are signed in again in the background at start-up and whenever Windows asks for a sign-in (a sign-in saved for one share on a PC is reused for its other shares, and opening a bare `\\\\server` opens the share already known for it) (error messages starting with `[sign-in] ` make the UI offer the Connect window). |
 | `get_network_locations` / `remove_network_location` | — / `path` | `Vec<NetworkLocation>` | Network shares for the sidebar: typed shares remembered in `network_locations` in `studio_config.json` (newest first, max 10, removable; removing one also forgets its saved sign-in) plus the "network locations" Windows Explorer already has under `%APPDATA%\Microsoft\Windows\Network Shortcuts` (read-only). |
+| `get_recent_folders` / `clear_recent_folders` | — / — | `Vec<String>` / — | Recently opened folders for the sidebar (`recent_folders` in `studio_config.json`, newest first, max 15 recorded, shown up to 10). Folders that no longer exist are skipped but stay in the config, so a folder on a share that is offline comes back when the share does. The list is recorded by `read_directory`, matching paths case-insensitively. `clear_recent_folders` empties it. Code in [`recent_folders.rs`](../src-tauri/src/recent_folders.rs). |
 | `read_directory` | `dir_path`, `options` | `DirectoryResult` | Reads folders off the main thread; resolves cached thumbnails immediately. |
 | `get_item_details` | `target_path` | `FileItem` | Resolves single item size, modified timestamp, category, and extension. |
 | `read_file_buffer` | `file_path` | `Vec<u8>` | Streams raw binary files into JavaScript as `ArrayBuffer` without JSON/Base64 overhead. |
@@ -253,15 +254,16 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── Header.jsx             # Search bar, filter pills (icon + text when they fit, icons only when not), settings
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
-│   │   ├── SettingsModal.jsx      # Blender path settings & cache management
+│   │   ├── SettingsModal.jsx      # Appearance (colour scheme), Blender path settings & cache management
 │   │   ├── TxTexViewer.jsx        # Arnold .tx / RenderMan .tex viewer: mip levels, "will it be sharp enough?" check
 │   │   ├── ConnectNetworkModal.jsx # "Connect to network folder" window (path, username, password, stay connected)
 │   │   ├── PathInput.jsx          # Address-bar text box for typed folder / network paths
 │   │   ├── Sidebar.jsx            # Drive list, network locations, pinned favorites
 │   │   ├── VideoPlayer.jsx        # SMPTE frame-accurate video review player
+│   │   ├── TextureSetModal.jsx    # "View as texture set": a material's maps side by side (opt-in)
 │   │   └── Viewport3D.jsx         # Three.js 3D viewport (PBR, wireframe, clay, MatCaps, turntable)
 │   ├── styles/
-│   │   └── index.css              # Dark/light theme design system
+│   │   └── index.css              # Colour scheme design system (dark, dark gray, true black, light)
 │   ├── hooks/
 │   │   └── useQuickLook.js        # Space / Esc / arrow keys for Quick Look
 │   ├── utils/
@@ -280,9 +282,11 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── thumbnailScheduler.js  # Bounded, cancellable lanes for thumbnail jobs
 │   │   ├── thumbnailService.js    # Thumbnail generation lanes & cache lookup
 │   │   ├── thumbnailToneMap.js    # HDR / EXR float to thumbnail pixels (auto exposure, ACES)
+│   │   ├── textureSets.js         # PBR map names (basecolor, normal, roughness...) and strict texture set matching
 │   │   ├── txTexAnalysis.js       # Sharpness maths and plain-words verdicts for .tx / .tex
 │   │   ├── txTexDecoder.js        # TIFF mip-pyramid reader for .tx / .tex (tiles, region decoding)
 │   │   ├── txTexPreview.js        # Canvas painting of a texture at final-render pixel size
+│   │   ├── themes.js              # Colour scheme list, remembered choice and apply (Settings > Appearance)
 │   │   └── viewportCamera.js      # 3D viewport camera rig: lens presets, ortho, snap views, view state
 │   ├── App.jsx                    # Root view routing & global state
 │   ├── main.jsx                   # React 19 entrypoint
@@ -295,6 +299,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
 │   │   ├── network_login.rs       # Share sign-in (WNetAddConnection2) and Credential Manager password storage
+│   │   ├── recent_folders.rs      # Recent folders for the sidebar: read back (existing ones only) and clear
 │   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, extra/network drives, Explorer network shortcuts
 │   │   └── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)

@@ -5,6 +5,7 @@ mod file_labels;
 mod folder_icons;
 mod network;
 mod network_login;
+mod recent_folders;
 mod thumbnails;
 
 use rayon::prelude::*;
@@ -341,10 +342,11 @@ fn lock_config() -> MutexGuard<'static, ()> {
 fn record_recent_folder(app: &tauri::AppHandle, dir_path: &str) {
     let _guard = lock_config();
     let mut cfg = load_config(app);
-    if cfg.recent_folders.first().map(String::as_str) == Some(dir_path) {
+    // Windows paths are case-insensitive, so `j:\assets` and `J:\Assets` are the same folder
+    if cfg.recent_folders.first().is_some_and(|p| p.eq_ignore_ascii_case(dir_path)) {
         return;
     }
-    cfg.recent_folders.retain(|p| p != dir_path);
+    cfg.recent_folders.retain(|p| !p.eq_ignore_ascii_case(dir_path));
     cfg.recent_folders.insert(0, dir_path.to_string());
     cfg.recent_folders.truncate(15);
     save_config(app, &cfg);
@@ -1589,6 +1591,8 @@ pub fn run() {
             connect_network,
             get_network_locations,
             remove_network_location,
+            recent_folders::get_recent_folders,
+            recent_folders::clear_recent_folders,
             get_item_details,
             read_file_buffer,
             read_file_range,

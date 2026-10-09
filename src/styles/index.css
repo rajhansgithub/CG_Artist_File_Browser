@@ -70,6 +70,28 @@
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 
+/* Extra colour schemes (Settings > Appearance). They only change surface and text tokens. */
+[data-theme="gray"] {
+  --bg-primary: #2b2b2b;
+  --bg-secondary: #303030;
+  --bg-tertiary: #373737;
+  --bg-elevated: #444444;
+  --bg-glass: rgba(48, 48, 48, 0.88);
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-active: rgba(255, 255, 255, 0.14);
+
+  --text-secondary: #bcbcbc;
+  --text-muted: #8c8c8c;
+}
+
+[data-theme="oled"] {
+  --bg-primary: #000000;
+  --bg-secondary: #000000;
+  --bg-tertiary: #0d0d0d;
+  --bg-elevated: #1a1a1a;
+  --bg-glass: rgba(0, 0, 0, 0.88);
+}
+
 /* Scrollbar fallback */
 @supports not (scrollbar-color: auto) {
   ::-webkit-scrollbar {
@@ -2861,4 +2883,80 @@ select option {
   height: 6px;
   border-radius: 50%;
   background: var(--text-main);
+}
+
+/* Texture set view ("View as texture set" on a map) */
+.texture-set-modal {
+  width: 640px;
+}
+
+.texture-set-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.texture-set-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.texture-set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.texture-set-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-width: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.texture-set-card:hover {
+  border-color: var(--border-medium);
+}
+
+.texture-set-thumb {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.texture-set-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.texture-set-role {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.texture-set-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.texture-set-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
 }

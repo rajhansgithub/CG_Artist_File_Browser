@@ -60,6 +60,15 @@ export function setupTauriBridge() {
       return await invoke('remove_network_location', { path });
     },
 
+    // Recently opened folders that still exist, most recent first
+    getRecentFolders: async () => {
+      return await invoke('get_recent_folders');
+    },
+
+    clearRecentFolders: async () => {
+      return await invoke('clear_recent_folders');
+    },
+
     openFolderDialog: async (defaultPath) => {
       try {
         const selected = await openDialog({

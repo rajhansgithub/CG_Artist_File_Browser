@@ -1,4 +1,4 @@
-import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Pencil, Play, RotateCcw, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -21,7 +21,7 @@ export function registerItemMenuProvider(provider) {
 // Entries for the right-click menu. `items` is what the menu was opened on (one item today, a selection later).
 // `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
 // onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
-// onResetIcon, onRename, onDelete.
+// onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet.
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -45,6 +45,11 @@ export function buildItemMenu(items, actions) {
     const sequence = !single.isDirectory && actions.sequenceFor(single);
     if (sequence) {
       add({ id: 'play-sequence', label: 'Play as sequence', icon: Play, onSelect: () => actions.onPlaySequence(sequence) });
+    }
+    // Opt-in only: a file with real sibling maps (wood_basecolor next to wood_normal) can be viewed as its texture set
+    const textureSet = !single.isDirectory && actions.textureSetFor?.(single);
+    if (textureSet) {
+      add({ id: 'texture-set', label: 'View as texture set', icon: Layers, onSelect: () => actions.onViewTextureSet(textureSet) });
     }
     if (isComparableItem(single)) {
       add({ id: 'compare-a', label: 'Set as compare slot A', onSelect: () => actions.onSetCompareA(single) });
