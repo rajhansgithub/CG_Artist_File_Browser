@@ -59,7 +59,7 @@ export function findDriveForPath(drives, path) {
 }
 
 // Slim bar under the folder view: what is listed, what is selected, and how much room is left on the drive.
-export default function StatusBar({ items, filtered, selectedItem, drives, currentPath }) {
+export default function StatusBar({ items, filtered, selectedItem, selectedPaths, drives, currentPath }) {
   const summary = useMemo(() => summarizeItems(items), [items]);
   const drive = useMemo(() => findDriveForPath(drives, currentPath), [drives, currentPath]);
 
@@ -67,7 +67,11 @@ export default function StatusBar({ items, filtered, selectedItem, drives, curre
   const detailText = [summary.breakdown, summary.bytes ? formatBytes(summary.bytes) : ''].filter(Boolean).join(' · ');
 
   let selectionText = '';
-  if (selectedItem) {
+  const picked = selectedPaths && selectedPaths.size > 1 ? items.filter((item) => selectedPaths.has(item.path)) : [];
+  if (picked.length > 1) {
+    const bytes = picked.reduce((sum, item) => sum + (item.isDirectory ? 0 : item.size || 0), 0);
+    selectionText = `${picked.length} selected${bytes ? ` (${formatBytes(bytes)})` : ''}`;
+  } else if (selectedItem) {
     selectionText = selectedItem.isDirectory
       ? `1 selected: ${selectedItem.name}`
       : `1 selected: ${selectedItem.name} (${formatBytes(selectedItem.size)})`;

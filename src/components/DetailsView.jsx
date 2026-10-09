@@ -49,7 +49,8 @@ function DetailsRow({
   compareAssetA,
   compareAssetB,
   onSetCompareA,
-  onSetCompareB
+  onSetCompareB,
+  getDragPaths
 }) {
   const { openMenu } = useFolderIcons();
   const Icon = CATEGORY_ICONS[item.category] || FileQuestion;
@@ -60,23 +61,20 @@ function DetailsRow({
       className={`details-row ${isSelected ? 'selected' : ''}`}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
-        if (startNativeDragOut(e, item)) return;
+        if (startNativeDragOut(e, item, getDragPaths?.(item))) return;
         if (!item.isDirectory) {
           e.dataTransfer.setData('application/json', JSON.stringify(item));
           e.dataTransfer.setData('text/plain', item.path);
           e.dataTransfer.effectAllowed = 'copy';
         }
       }}
-      onClick={() => onSelect(item)}
+      onClick={(e) => onSelect(item, e)}
       onDoubleClick={() => onOpen(item)}
-      onContextMenu={
-        item.isDirectory
-          ? (e) => {
-              onSelect(item);
-              openMenu(e, item);
-            }
-          : undefined
-      }
+      onContextMenu={(e) => {
+        // Right-clicking a selected item keeps the whole selection, like Explorer
+        if (!isSelected) onSelect(item);
+        openMenu(e, item);
+      }}
     >
       <div className="details-cell details-name" title={item.name}>
         {item.isDirectory ? (
@@ -161,8 +159,9 @@ function DetailsRow({
 // The items arrive already sorted; the column headers only report which column was clicked.
 export default function DetailsView({
   items,
-  selectedItem,
+  selectedPaths,
   onSelect,
+  getDragPaths,
   onOpen,
   onToggleFavorite,
   favorites,
@@ -197,9 +196,10 @@ export default function DetailsView({
           <DetailsRow
             key={item.path}
             item={item}
-            isSelected={selectedItem?.path === item.path}
+            isSelected={selectedPaths.has(item.path)}
             isFavorite={favoritePaths.has(item.path)}
             onSelect={onSelect}
+            getDragPaths={getDragPaths}
             onOpen={onOpen}
             onToggleFavorite={onToggleFavorite}
             onRevealInExplorer={onRevealInExplorer}

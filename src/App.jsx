@@ -17,11 +17,22 @@ import SettingsModal from './components/SettingsModal';
 import ConnectNetworkModal from './components/ConnectNetworkModal';
 import DropErrorModal from './components/DropErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
-import FolderContextMenu from './components/FolderContextMenu';
+import ItemContextMenu from './components/ItemContextMenu';
+import { RenameItemModal, DeleteItemModal } from './components/ItemActionModals';
+import { copyText } from './utils/itemMenu';
 import FolderIconPicker from './components/FolderIconPicker';
 import SortMenu from './components/SortMenu';
 import StatusBar from './components/StatusBar';
 import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
+import {
+  EMPTY_LABEL_FILTER,
+  collectTags,
+  isLabelFilterActive,
+  labelFor,
+  matchesLabelFilter,
+  useFileLabelStore
+} from './utils/fileLabelStore';
+import { LabelFilterMenu } from './components/LabelPanels';
 import {
   is3DFormat,
   isHdrFormat,
@@ -47,6 +58,7 @@ import {
 } from './utils/navHistory';
 import { groupImageSequences } from './utils/imageSequence';
 import { parseNetworkError } from './utils/networkErrors';
+import { useQuickLook } from './hooks/useQuickLook';
 import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
 
 export default function App() {
@@ -60,7 +72,19 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState('');
   const [folderItems, setFolderItems] = useState([]);
   const [parentPath, setParentPath] = useState(null);
-  const [selectedAsset, setSelectedAsset] = useState(null);
+  // The focused item (what the viewer, compare and status bar follow) and the paths of the whole selection
+  const [selectedAsset, setSingleSelectedAsset] = useState(null);
+  const [selectedPaths, setSelectedPaths] = useState(() => new Set());
+  // Choosing one item on its own, or navigating, selects just that item
+  const setSelectedAsset = (item) => {
+    setSingleSelectedAsset(item);
+    setSelectedPaths(new Set(item ? [item.path] : []));
+  };
+  // Ctrl / Shift click, Ctrl + A and box selection set several items at once
+  const setSelection = (paths, focus) => {
+    setSingleSelectedAsset(focus || null);
+    setSelectedPaths(paths);
+  };
   const [compareAssetA, setCompareAssetA] = useState(null);
   const [compareAssetB, setCompareAssetB] = useState(null);
 
@@ -87,6 +111,10 @@ export default function App() {
   const [filterType, setFilterType] = useState('all'); // 'all', '3d', 'hdr'
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favorites, setFavorites] = useState([]);
+  // Colour labels and tags, and the filter on them (a file must match every chosen tag and any chosen colour)
+  const fileLabels = useFileLabelStore();
+  const [labelFilter, setLabelFilter] = useState(EMPTY_LABEL_FILTER);
+  const labelTags = useMemo(() => collectTags(fileLabels.labels), [fileLabels.labels]);
 
   // Views & UI State
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
@@ -468,6 +496,68 @@ export default function App() {
     }
   };
 
+  const handleOpenExternal = (item) => {
+    if (window.electronAPI) {
+      window.electronAPI.openExternal(item.path);
+    }
+  };
+
+  const handleCopyPaths = (items) => {
+    copyText(items.map((item) => item.path).join('\n'));
+  };
+
+  // Lists the open folder again after a rename or delete
+  const refreshCurrentFolder = async () => {
+    const res = await fetchListing(currentPath);
+    if (res && !res.error) setFolderItems(res.items || []);
+  };
+
+  // Rename: resolves to an error message for the dialog, or to null when it worked.
+  // The viewer, the compare slots, the favorites and a folder's custom icon follow the item to its new path.
+  const handleRenameItem = async (item, newName) => {
+    const res = await window.electronAPI.renameItem(item.path, newName);
+    if (!res.ok) return res.error;
+    const renamed = { ...item, name: newName, path: res.path };
+    const isItem = (other) => other && other.path === item.path;
+    setSelectedAsset((prev) => (isItem(prev) ? renamed : prev));
+    setCompareAssetA((prev) => (isItem(prev) ? renamed : prev));
+    setCompareAssetB((prev) => (isItem(prev) ? renamed : prev));
+    if (favorites.some((f) => f.path === item.path)) {
+      await handleToggleFavorite(item);
+      await handleToggleFavorite(renamed);
+    }
+    // A custom folder icon follows the folder to its new name
+    const iconId = item.isDirectory ? folderIconStore.assignments[normalizeFolderKey(item.path)] : null;
+    if (iconId) {
+      await folderIconStore.setIcon(renamed.path, iconId);
+      await folderIconStore.resetIcon(item.path);
+    }
+    setItemAction(null);
+    await refreshCurrentFolder();
+    return null;
+  };
+
+  // Delete (to the Recycle Bin): stops at the first failure and reports it to the dialog
+  const handleDeleteItems = async (items) => {
+    for (const item of items) {
+      const res = await window.electronAPI.deleteItem(item.path);
+      if (!res.ok) {
+        await refreshCurrentFolder();
+        return res.error;
+      }
+      const isItem = (other) => other && other.path === item.path;
+      setSelectedAsset((prev) => (isItem(prev) ? null : prev));
+      setCompareAssetA((prev) => (isItem(prev) ? null : prev));
+      setCompareAssetB((prev) => (isItem(prev) ? null : prev));
+      if (favorites.some((f) => f.path === item.path)) {
+        await handleToggleFavorite(item);
+      }
+    }
+    setItemAction(null);
+    await refreshCurrentFolder();
+    return null;
+  };
+
   const openAsset = (item) => {
     setSelectedAsset(item);
     if (item.isSequence) {
@@ -836,25 +926,27 @@ export default function App() {
     };
   }, []);
 
-  // Folder icons: the user's picks, the right-click menu on folders and the "Change icon" dialog
+  // Folder icons: the user's picks and the "Change icon" dialog
   const folderIconStore = useFolderIconStore();
-  const [folderMenu, setFolderMenu] = useState(null); // { x, y, item }
   const [iconPickerItem, setIconPickerItem] = useState(null);
-  const openFolderMenu = useCallback((e, item) => {
+  // Right-click menu for files and folders (grid card, details row, sidebar). Its entries come from utils/itemMenu.js
+  const [itemMenu, setItemMenu] = useState(null); // { x, y, items }
+  const [itemAction, setItemAction] = useState(null); // { type: 'rename' | 'delete', items }
+  const openItemMenu = useCallback((e, item) => {
     e.preventDefault();
-    setFolderMenu({ x: e.clientX, y: e.clientY, item });
+    setItemMenu({ x: e.clientX, y: e.clientY, items: [item] });
   }, []);
   const folderIconsValue = useMemo(
     () => ({
       assignments: folderIconStore.assignments,
       customUrls: folderIconStore.customUrls,
-      openMenu: openFolderMenu
+      openMenu: openItemMenu
     }),
-    [folderIconStore.assignments, folderIconStore.customUrls, openFolderMenu]
+    [folderIconStore.assignments, folderIconStore.customUrls, openItemMenu]
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!folderMenu;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction;
   windowOpenRef.current = isWindowOpen;
 
   // Numbered render passes (shot.0001.exr ...) become one item each; the grid, the status bar and the player use this list
@@ -862,9 +954,13 @@ export default function App() {
 
   // Filter and sort items for display
   const displayedItems = useMemo(() => {
-    const visible = showFavoritesOnly ? groupedItems.filter((item) => favorites.some((f) => f.path === item.path)) : groupedItems;
+    const favoritesOnly = showFavoritesOnly ? groupedItems.filter((item) => favorites.some((f) => f.path === item.path)) : groupedItems;
+    // Folders always stay in view so the label filter never hides the way to the files
+    const visible = isLabelFilterActive(labelFilter)
+      ? favoritesOnly.filter((item) => item.isDirectory || matchesLabelFilter(labelFor(fileLabels.labels, item.path), labelFilter))
+      : favoritesOnly;
     return sortItems(visible, sort);
-  }, [groupedItems, showFavoritesOnly, favorites, sort]);
+  }, [groupedItems, showFavoritesOnly, favorites, sort, labelFilter, fileLabels.labels]);
 
   // The sort is saved for the folder it was chosen in
   const handleSortChange = (next) => {
@@ -874,6 +970,26 @@ export default function App() {
 
   // Only a selection that is in the folder on screen is shown in the status bar
   const selectionInFolder = selectedAsset ? displayedItems.find((item) => item.path === selectedAsset.path) || null : null;
+
+  // Items that leave the folder on screen (a new folder, a filter, Favorites only) drop out of the multi-selection
+  useEffect(() => {
+    setSelectedPaths((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(displayedItems.map((item) => item.path));
+      const kept = new Set([...prev].filter((path) => visible.has(path)));
+      return kept.size === prev.size ? prev : kept;
+    });
+  }, [displayedItems]);
+  // Space previews the selected file in its viewer, Space or Esc goes back (see hooks/useQuickLook.js)
+  useQuickLook({
+    viewMode,
+    setViewMode,
+    openAsset,
+    selectedAsset,
+    gridSelection: selectionInFolder,
+    items: displayedItems,
+    blocked: isWindowOpen || isEditingPath
+  });
 
   // Free space on the drive shown in the status bar goes stale as files are copied, so re-read the drives now and then
   useEffect(() => {
@@ -907,6 +1023,9 @@ export default function App() {
         setShowFavoritesOnly={setShowFavoritesOnly}
         theme={theme}
         toggleTheme={toggleTheme}
+        labelFilter={labelFilter}
+        setLabelFilter={setLabelFilter}
+        labelTags={labelTags}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenFolderPicker={handleOpenFolderPicker}
         sidebarCollapsed={sidebarCollapsed}
@@ -1091,7 +1210,9 @@ export default function App() {
             <AssetGrid
               items={displayedItems}
               selectedItem={selectedAsset}
+              selectedPaths={selectedPaths}
               onSelect={(item) => setSelectedAsset(item)}
+              onSelectionChange={setSelection}
               onOpen={(item) => {
                 if (item.isDirectory) {
                   navigateTo(item.path);
@@ -1107,6 +1228,8 @@ export default function App() {
               compareAssetB={compareAssetB}
               onSetCompareA={handleSetCompareA}
               onSetCompareB={handleSetCompareB}
+              labels={fileLabels.labels}
+              labelActions={fileLabels}
               gridSize={gridSize}
               onGridSizeChange={setGridSize}
               folderView={folderView}
@@ -1120,8 +1243,9 @@ export default function App() {
           {viewMode === 'grid' && (
             <StatusBar
               items={displayedItems}
-              filtered={filterType !== 'all' || !!searchTerm.trim() || showFavoritesOnly}
+              filtered={filterType !== 'all' || !!searchTerm.trim() || showFavoritesOnly || isLabelFilterActive(labelFilter)}
               selectedItem={selectionInFolder}
+              selectedPaths={selectedPaths}
               drives={drives}
               currentPath={currentPath}
             />
@@ -1346,21 +1470,42 @@ export default function App() {
         />
       )}
 
-      {/* Folder right-click menu and icon picker */}
-      {folderMenu && (
-        <FolderContextMenu
-          x={folderMenu.x}
-          y={folderMenu.y}
-          hasChoice={!!folderIconStore.assignments[normalizeFolderKey(folderMenu.item.path)]}
-          onChangeIcon={() => {
-            setIconPickerItem(folderMenu.item);
-            setFolderMenu(null);
+      {/* Right-click menu, rename and delete dialogs, and the folder icon picker */}
+      {itemMenu && (
+        <ItemContextMenu
+          x={itemMenu.x}
+          y={itemMenu.y}
+          items={itemMenu.items}
+          actions={{
+            isFavorite: (item) => favorites.some((f) => f.path === item.path),
+            hasIconChoice: (item) => !!folderIconStore.assignments[normalizeFolderKey(item.path)],
+            onOpen: (item) => (item.isDirectory ? navigateTo(item.path) : openAsset(item)),
+            onOpenExternal: handleOpenExternal,
+            onSetCompareA: handleSetCompareA,
+            onSetCompareB: handleSetCompareB,
+            onCopyPaths: handleCopyPaths,
+            onReveal: (item) => handleRevealInExplorer(item.path),
+            onToggleFavorite: handleToggleFavorite,
+            onChangeIcon: (item) => setIconPickerItem(item),
+            onResetIcon: (item) => folderIconStore.resetIcon(item.path),
+            onRename: (item) => setItemAction({ type: 'rename', items: [item] }),
+            onDelete: (items) => setItemAction({ type: 'delete', items })
           }}
-          onResetIcon={() => {
-            folderIconStore.resetIcon(folderMenu.item.path);
-            setFolderMenu(null);
-          }}
-          onClose={() => setFolderMenu(null)}
+          onClose={() => setItemMenu(null)}
+        />
+      )}
+      {itemAction?.type === 'rename' && (
+        <RenameItemModal
+          item={itemAction.items[0]}
+          onSubmit={(newName) => handleRenameItem(itemAction.items[0], newName)}
+          onClose={() => setItemAction(null)}
+        />
+      )}
+      {itemAction?.type === 'delete' && (
+        <DeleteItemModal
+          items={itemAction.items}
+          onConfirm={() => handleDeleteItems(itemAction.items)}
+          onClose={() => setItemAction(null)}
         />
       )}
       {iconPickerItem && (

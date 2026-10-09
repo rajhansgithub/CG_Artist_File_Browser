@@ -99,11 +99,16 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `save_image_file` | `file_path`, `data_url` | `bool` | Exports a viewport snapshot to PNG. |
 | `show_in_folder` | `file_path` | `bool` | Spawns Windows Explorer with `/select,<path>`. |
 | `open_external` | `file_path` | `bool` | Opens file with default Windows associated application. |
+| `rename_item` | `file_path`, `new_name` | `String` | Renames a file or folder inside its own folder and returns the new path. Rejects names with `< > : " / \ \| ? *`, names ending in a space or dot, and names that already exist (a case-only change is allowed). |
+| `delete_item` | `file_path` | `()` | Moves a file or folder to the Recycle Bin (never a permanent delete). Drive and share roots are refused. |
 | `get_blender_status` | — | `BlenderStatus` | Scans program files and Steam libraries across drives for `blender.exe`. |
 | `set_blender_path` | `new_path` | `BlenderStatus` | Persists user-defined Blender executable path in `studio_config.json`. |
 | `convert_asset` | `file_path` | `ConvertResult` | Converts USD/Alembic assets to `.glb` in the background. |
 | `render_thumbnail` | `file_path` | `ThumbResult` | Headless Blender EEVEE/Workbench studio thumbnail generation. |
 | `get_favorites` / `toggle_favorite` | `item` | `Vec<Value>` | Manages starred folders and assets. |
+| `get_file_labels` | — | `Map<path, FileLabel>` | All colour labels and tags, keyed by normalised path (backslash-separated, lower case). Stored in `file_labels.json` in the same folder as the folder icon store, never next to the files. |
+| `set_file_color` | `paths`, `color` (`null` clears) | `Map<path, FileLabel>` | Sets one of the seven colours (red, orange, yellow, green, blue, purple, gray) on every path. |
+| `edit_file_tags` | `paths`, `add`, `remove` | `Map<path, FileLabel>` | Adds and removes tags on every path. Tags are lower case, collapse inner spaces, are capped at 24 characters and at 12 per file. A file with no colour and no tags loses its entry. |
 | `get_cache_stats` / `clear_cache` | — | `CacheStats` | Reports and clears `%APPDATA%/AssetStudioCache`. |
 | `get_folder_icons` / `set_folder_icon` | — / `folder_path`, `icon` | `FolderIconState` | The user's folder icon choices (`assignments`, keyed by lower-cased folder path, value `lib:<id>` or `custom:<id>`) and imported icons (`custom`). `set_folder_icon` with no `icon` resets the folder. |
 | `import_folder_icons` / `remove_folder_icon` | `file_paths` / `icon_id` | `FolderIconState` | Copies the user's PNG / SVG / ICO / WebP / JPG files (max 2 MB each) into the icon store, or removes one (folders using it revert to their default icon). |
@@ -169,11 +174,13 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 
 ### 🗂️ Folder Views (Large icons / Details)
 - **View switcher** (breadcrumb bar, right side) toggles between **Large icons** (the thumbnail grid, default) and **Details** (an Explorer-style list with Name, Date modified, Type and Size columns). The choice is remembered in `localStorage` (`cg_artist_folder_view`). Details rows load no thumbnails, so very large folders stay light, and clicking a column header sorts by it (see Sorting below).
+- **Selecting several items** ([`src/utils/gridSelection.js`](../src/utils/gridSelection.js), wired in [`AssetGrid.jsx`](../src/components/AssetGrid.jsx)): `Ctrl + click` adds or removes one item, `Shift + click` selects the range from the anchor (the last plain or Ctrl click), `Ctrl + A` selects everything, and a drag over empty space draws a box that selects the items it touches (the list scrolls when the box reaches its top or bottom edge). A click on empty space clears the selection. `Shift + arrow` keys extend the selection from the anchor. Right-clicking a selected item keeps the whole selection. Dragging a selected file out drags every selected file (up to 500 at once). The status bar shows the count and total size. `App.jsx` keeps the focused item (`selectedAsset`, which the viewer, compare and status bar follow) and the set of selected paths (`selectedPaths`) separately; choosing one item, or navigating, resets the set to that item and leaving the folder on screen drops items that are no longer listed.
 - **Ctrl + mouse wheel** resizes thumbnails (120–500 px) in **Large icons only**; in Details it is ignored (the webview's page zoom is still blocked). The wheel listener lives on the always-rendered `.asset-view` wrapper in [`AssetGrid.jsx`](../src/components/AssetGrid.jsx), not on the grid element, because the grid does not exist while a folder is empty or loading and a listener attached then was never re-attached.
 
 ### 🧭 Folder Navigation (sorting, keyboard, history, status bar)
 - **Sorting** ([`src/utils/sortItems.js`](../src/utils/sortItems.js), [`SortMenu.jsx`](../src/components/SortMenu.jsx)): `App.jsx` sorts the listing once and both folder views draw it in that order, so the backend's unordered (parallel) listing never reaches the screen. The **Name** button in the breadcrumb bar and the Details column headers set the same sort: name (natural order, so `file2` comes before `file10`), date modified, size or type, ascending or descending, folders first on or off. A new column starts in its natural direction (A-Z for text, newest and largest first for date and size) and clicking it again flips it. The choice is saved per folder in `localStorage` (`cg_artist_folder_sorts`, newest 300 folders kept); a folder with no entry uses name, A-Z, folders first.
-- **Keyboard** ([`AssetGrid.jsx`](../src/components/AssetGrid.jsx)): arrow keys move the selection (up and down move a whole row of cards in Large icons, one row in Details), `Home` / `End`, `Page Up` / `Page Down`, `Enter` opens the selected item and `Backspace` goes to the parent folder. The listener is only active in the folder view, ignores text boxes and any open window, and does nothing with Ctrl, Alt or Shift held. Going up (or back) to a folder highlights the folder you came from, as File Explorer does.
+- **Keyboard** ([`AssetGrid.jsx`](../src/components/AssetGrid.jsx)): arrow keys move the selection (up and down move a whole row of cards in Large icons, one row in Details), `Home` / `End`, `Page Up` / `Page Down`, `Enter` opens the selected item and `Backspace` goes to the parent folder. The listener is only active in the folder view, ignores text boxes and any open window, and does nothing with Alt held. `Shift` with the arrow, `Home`, `End` and page keys extends the selection, and `Ctrl + A` selects all (see Folder Views). Going up (or back) to a folder highlights the folder you came from, as File Explorer does.
+- **Quick Look** ([`useQuickLook.js`](../src/hooks/useQuickLook.js), [`quickLook.js`](../src/utils/quickLook.js)): `Space` on the selected file opens it in the viewer it would normally get (`openAsset`), so no viewer is duplicated. `Space` or `Esc` goes back to the grid, and the selection stays on the file. Video, audio and PDF keep `Space` for play / pause and page down, so there only `Esc` closes. `Left` / `Right` step to the neighbouring file in the 3D and HDR/EXR viewers; the image and texture viewers already do that with the same keys, and video, audio, PDF and image sequences keep them for seeking, pages and frames. Quick Look ignores the keys while a dialog or the address box is open.
 - **History** ([`src/utils/navHistory.js`](../src/utils/navHistory.js)): back and forward buttons beside the up arrow, `Alt + Left` / `Alt + Right` and the mouse's back / forward buttons. Opening a folder drops the forward entries, like a browser (100 entries kept). Every listing is also kept in memory (40 folders, per filter and search), so back and forward draw the saved listing at once and re-read the folder in the background, redrawing only if something changed. If the folder has gone, the view stays where it was and the history is left untouched. Each navigation carries a sequence number, so a slow listing that arrives late never replaces a newer one.
 - **Status bar** ([`StatusBar.jsx`](../src/components/StatusBar.jsx)): under the folder view, it shows the item count (with a "filtered" note while a filter, search or Favorites is on), counts by kind, the total size of the files listed, the selected item and the free space of the drive the folder is on (mapped network drives included; unmapped network shares show none). Drive space is re-read from the system when a folder opens and the last read is over 30 seconds old.
 
@@ -252,6 +259,8 @@ Local_WebFileBrowser_Tauri/
 │   │   └── Viewport3D.jsx         # Three.js 3D viewport (PBR, wireframe, clay, MatCaps, turntable)
 │   ├── styles/
 │   │   └── index.css              # Dark/light theme design system
+│   ├── hooks/
+│   │   └── useQuickLook.js        # Space / Esc / arrow keys for Quick Look
 │   ├── utils/
 │   │   ├── assetLoader.js         # Three.js loaders (OBJ, FBX, GLTF, STL, PLY, USDZ, HDR)
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
@@ -260,7 +269,9 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── folderIconStore.js     # Folder icon state hook, context and Windows-icon lookup
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
 │   │   ├── imageDecoder.js        # TIFF/TGA client-side buffer decoding
+│   │   ├── gridSelection.js       # Multi-select helpers for the folder grid and Details list (Ctrl / Shift click, box select)
 │   │   ├── matcaps.js             # Procedural MatCap textures and shared materials for the 3D viewport
+│   │   ├── quickLook.js           # Quick Look: which files preview, neighbour lookup
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
 │   │   ├── thumbnailService.js    # Thumbnail generation queue & cache lookup

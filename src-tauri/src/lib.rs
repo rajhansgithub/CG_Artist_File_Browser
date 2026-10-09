@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 mod drag_out;
 mod exr_view;
+mod file_labels;
 mod folder_icons;
 mod network;
 mod network_login;
 mod thumbnails;
 
 use rayon::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -903,6 +904,67 @@ async fn decode_exr_rgba(
     .map(tauri::ipc::Response::new)
 }
 
+// IPC: Rename a file or folder inside its own folder. Returns the new full path.
+// Async so the rename runs on a worker thread like the other file commands.
+#[tauri::command]
+async fn rename_item(file_path: String, new_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || rename_item_blocking(&file_path, &new_name))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn rename_item_blocking(file_path: &str, new_name: &str) -> Result<String, String> {
+    let from = Path::new(file_path);
+    if !from.exists() {
+        return Err("This item no longer exists".into());
+    }
+    let parent = from.parent().ok_or("This location can't be renamed")?;
+    let name = new_name.trim();
+    validate_item_name(name)?;
+    // Windows names are not case sensitive: "Shot" -> "shot" is a rename of the same item, not a clash
+    let only_case_changed = from
+        .file_name()
+        .map(|old| old.to_string_lossy().eq_ignore_ascii_case(name))
+        .unwrap_or(false);
+    let to = parent.join(name);
+    if to.exists() && !only_case_changed {
+        return Err("An item with that name already exists".into());
+    }
+    fs::rename(from, &to).map_err(|e| e.to_string())?;
+    Ok(to.to_string_lossy().into_owned())
+}
+
+fn validate_item_name(name: &str) -> Result<(), String> {
+    if name.is_empty() || name == "." || name == ".." {
+        return Err("Enter a name".into());
+    }
+    if name.ends_with('.') || name.ends_with(' ') {
+        return Err("A name can't end with a space or a dot".into());
+    }
+    if name.chars().any(|c| c.is_control() || "<>:\"/\\|?*".contains(c)) {
+        return Err("A name can't contain any of these characters: < > : \" / \\ | ? *".into());
+    }
+    Ok(())
+}
+
+// IPC: Move a file or folder to the Recycle Bin. Never a permanent delete, so it can be restored from there.
+#[tauri::command]
+async fn delete_item(file_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&file_path);
+        if !p.exists() {
+            return Err("This item no longer exists".to_string());
+        }
+        // Drive roots and share roots have no parent; they are never sent to the Recycle Bin from here
+        if p.parent().is_none() {
+            return Err("Drives and network shares can't be deleted here".to_string());
+        }
+        trash::delete(p).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // IPC: Show in folder / explorer
 #[tauri::command]
 fn show_in_folder(file_path: String) -> bool {
@@ -1267,6 +1329,35 @@ fn toggle_favorite(app: tauri::AppHandle, item: serde_json::Value) -> Vec<serde_
     cfg.favorites
 }
 
+// IPC: Colour labels and tags (kept in the app's own store, never written next to the files)
+#[tauri::command]
+fn get_file_labels(app: tauri::AppHandle) -> std::collections::BTreeMap<String, file_labels::FileLabel> {
+    file_labels::all(&file_labels_dir(&app))
+}
+
+#[tauri::command]
+fn set_file_color(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    color: Option<String>,
+) -> Result<HashMap<String, file_labels::FileLabel>, String> {
+    file_labels::set_color(&file_labels_dir(&app), &paths, color.as_deref())
+}
+
+#[tauri::command]
+fn edit_file_tags(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<HashMap<String, file_labels::FileLabel>, String> {
+    file_labels::edit_tags(&file_labels_dir(&app), &paths, &add, &remove)
+}
+
+fn file_labels_dir(app: &tauri::AppHandle) -> PathBuf {
+    folder_icons::data_dir(get_app_dir(app)).0
+}
+
 // IPC: Cache Management
 #[derive(Serialize)]
 pub struct CacheStats {
@@ -1504,12 +1595,17 @@ pub fn run() {
             decode_exr_rgba,
             show_in_folder,
             open_external,
+            rename_item,
+            delete_item,
             get_blender_status,
             set_blender_path,
             convert_asset,
             render_thumbnail,
             get_favorites,
             toggle_favorite,
+            get_file_labels,
+            set_file_color,
+            edit_file_tags,
             get_cache_stats,
             clear_cache,
             save_thumbnail,
@@ -1529,6 +1625,16 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn item_names_are_checked_before_rename() {
+        assert!(validate_item_name("shot_010.exr").is_ok());
+        assert!(validate_item_name("").is_err());
+        assert!(validate_item_name("..").is_err());
+        assert!(validate_item_name("bad:name").is_err());
+        assert!(validate_item_name("back\\slash").is_err());
+        assert!(validate_item_name("ends with dot.").is_err());
+    }
 
     #[test]
     fn config_saved_before_network_locations_still_loads() {

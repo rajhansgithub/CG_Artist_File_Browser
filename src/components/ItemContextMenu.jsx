@@ -1,8 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, RotateCcw } from 'lucide-react';
+import { buildItemMenu } from '../utils/itemMenu';
 
-// Right-click menu for a folder (grid card, details row or sidebar entry).
-export default function FolderContextMenu({ x, y, hasChoice, onChangeIcon, onResetIcon, onClose }) {
+// Right-click menu for files and folders (grid card, details row or sidebar entry). The entries come from buildItemMenu.
+export default function ItemContextMenu({ x, y, items, actions, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -34,6 +34,8 @@ export default function FolderContextMenu({ x, y, hasChoice, onChangeIcon, onRes
     };
   }, [onClose]);
 
+  const entries = buildItemMenu(items, actions);
+
   return (
     <div
       className="context-menu-backdrop"
@@ -51,16 +53,27 @@ export default function FolderContextMenu({ x, y, hasChoice, onChangeIcon, onRes
         onMouseDown={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <button className="context-menu-item" role="menuitem" onClick={onChangeIcon}>
-          <ImagePlus size={13} />
-          <span>Change icon…</span>
-        </button>
-        {hasChoice && (
-          <button className="context-menu-item" role="menuitem" onClick={onResetIcon}>
-            <RotateCcw size={13} />
-            <span>Use default icon</span>
-          </button>
-        )}
+        {entries.map((entry, index) => {
+          if (entry.separator) {
+            return <div key={`sep-${index}`} className="context-menu-sep" role="separator" />;
+          }
+          const Icon = entry.icon;
+          return (
+            <button
+              key={entry.id}
+              className={`context-menu-item ${entry.danger ? 'danger' : ''}`}
+              role="menuitem"
+              disabled={entry.disabled}
+              onClick={() => {
+                onClose();
+                entry.onSelect();
+              }}
+            >
+              {Icon ? <Icon size={13} /> : <span className="context-menu-icon-gap" />}
+              <span>{entry.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

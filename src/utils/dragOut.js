@@ -12,15 +12,16 @@ export function isDragOutActive() {
   return dragOutActive;
 }
 
-// Call from a card's onDragStart. Returns true when the native drag took over.
-export function startNativeDragOut(event, item) {
+// Call from a card's onDragStart. `paths` is the whole selection when several files are selected; without it
+// only the item's own file is dragged. Returns true when the native drag took over.
+export function startNativeDragOut(event, item, paths = null) {
   const api = window.electronAPI;
   if (!isWindows || !api?.startDragOut || !item || item.isDirectory || !item.path) return false;
 
   event.preventDefault();
   dragOutActive = true;
   api
-    .startDragOut([item.path])
+    .startDragOut(paths?.length ? paths : [item.path])
     .catch((err) => console.warn('Drag out failed:', err))
     .finally(() => {
       setTimeout(() => {

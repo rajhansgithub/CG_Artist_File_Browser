@@ -347,6 +347,13 @@ export async function getFileBuffer(filePath) {
 }
 
 /**
+ * Thumbnail already in memory, or null. Synchronous, so a card can show it on its first render.
+ */
+export function getCachedThumbnail(path) {
+  return memoryCache.get(path) || null;
+}
+
+/**
  * Generate or retrieve thumbnail for any file
  */
 export async function getOrGenerateThumbnail(item) {

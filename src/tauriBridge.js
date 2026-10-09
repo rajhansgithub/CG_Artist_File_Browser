@@ -115,6 +115,26 @@ export function setupTauriBridge() {
       return await invoke('open_external', { filePath });
     },
 
+    // Renames inside the same folder. Resolves { ok, path } or { ok: false, error }
+    renameItem: async (filePath, newName) => {
+      try {
+        const path = await invoke('rename_item', { filePath, newName });
+        return { ok: true, path };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    // Moves a file or folder to the Recycle Bin. Resolves { ok } or { ok: false, error }
+    deleteItem: async (filePath) => {
+      try {
+        await invoke('delete_item', { filePath });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
     readFileBuffer: async (filePath) => {
       const bytes = await invoke('read_file_buffer', { filePath });
       // Raw ipc::Response arrives as an ArrayBuffer (no JSON array round trip)
@@ -271,6 +291,19 @@ export function setupTauriBridge() {
 
     toggleFavorite: async (item) => {
       return await invoke('toggle_favorite', { item });
+    },
+
+    // Colour labels & tags (kept in the app's own store, never written next to the files)
+    getFileLabels: async () => {
+      return await invoke('get_file_labels');
+    },
+
+    setFileColor: async (paths, color) => {
+      return await invoke('set_file_color', { paths, color: color || null });
+    },
+
+    editFileTags: async (paths, add, remove) => {
+      return await invoke('edit_file_tags', { paths, add, remove });
     },
 
     // Cache Management
