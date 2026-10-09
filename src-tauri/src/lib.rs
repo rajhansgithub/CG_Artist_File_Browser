@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 mod drag_out;
 mod exr_view;
+mod external_apps;
+mod file_info;
 mod file_labels;
 mod folder_icons;
 mod network;
@@ -86,6 +88,12 @@ pub struct StudioConfig {
     // Windows Credential Manager, never in this file.
     #[serde(default)]
     pub network_logins: Vec<NetworkLogin>,
+    // Apps the right-click "Send to" menu opens files in (see external_apps.rs)
+    #[serde(default)]
+    pub external_apps: Vec<external_apps::ExternalAppEntry>,
+    // Set after the first look for installed apps, so an app the user removed is not added back
+    #[serde(default)]
+    pub external_apps_scanned: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -103,6 +111,8 @@ impl Default for StudioConfig {
             recent_folders: Vec::new(),
             network_locations: Vec::new(),
             network_logins: Vec::new(),
+            external_apps: Vec::new(),
+            external_apps_scanned: false,
         }
     }
 }
@@ -845,6 +855,14 @@ fn get_item_details(target_path: String) -> Result<FileItem, String> {
         thumbnail: None,
         system_icon: false,
     })
+}
+
+// IPC: Header details for the Inspector drawer (size, colour layout, EXR channels, dates). Reads headers only.
+#[tauri::command]
+async fn get_file_info(file_path: String) -> Result<file_info::FileInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || file_info::read_file_info(Path::new(&file_path)))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // IPC: Read binary buffer (fast byte transfer)
@@ -1594,6 +1612,7 @@ pub fn run() {
             recent_folders::get_recent_folders,
             recent_folders::clear_recent_folders,
             get_item_details,
+            get_file_info,
             read_file_buffer,
             read_file_range,
             decode_exr_rgba,
@@ -1620,7 +1639,12 @@ pub fn run() {
             import_folder_icons,
             remove_folder_icon,
             get_system_folder_icon,
-            start_drag_out
+            start_drag_out,
+            external_apps::get_external_apps,
+            external_apps::add_external_app,
+            external_apps::remove_external_app,
+            external_apps::scan_external_apps,
+            external_apps::send_to_external_app
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

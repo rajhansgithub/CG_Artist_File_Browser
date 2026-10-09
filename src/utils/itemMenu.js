@@ -1,4 +1,4 @@
-import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { Copy, Eye, ExternalLink, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -21,7 +21,7 @@ export function registerItemMenuProvider(provider) {
 // Entries for the right-click menu. `items` is what the menu was opened on (one item today, a selection later).
 // `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
 // onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
-// onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet.
+// onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet, externalApps (the apps from Settings), onSendTo.
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -55,6 +55,15 @@ export function buildItemMenu(items, actions) {
       add({ id: 'compare-a', label: 'Set as compare slot A', onSelect: () => actions.onSetCompareA(single) });
       add({ id: 'compare-b', label: 'Set as compare slot B', onSelect: () => actions.onSetCompareB(single) });
     }
+  }
+
+  // Files (not folders or image sequences) go to each app set up in Settings > External apps; a selection goes in one launch
+  const sendable = items.filter((item) => !item.isDirectory && !item.isSequence);
+  if (sendable.length && actions.externalApps?.length) {
+    separator();
+    actions.externalApps.forEach((app) => {
+      add({ id: `send-to-${app.path}`, label: `Send to ${app.name}`, icon: Send, onSelect: () => actions.onSendTo(sendable, app) });
+    });
   }
 
   separator();

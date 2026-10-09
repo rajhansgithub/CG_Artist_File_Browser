@@ -26,6 +26,8 @@ import { copyText } from './utils/itemMenu';
 import FolderIconPicker from './components/FolderIconPicker';
 import SortMenu from './components/SortMenu';
 import StatusBar from './components/StatusBar';
+import InspectorDrawer from './components/InspectorDrawer';
+import { isTextEntryTarget } from './utils/quickLook';
 import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
 import {
   EMPTY_LABEL_FILTER,
@@ -63,9 +65,15 @@ import {
 import { groupImageSequences, sequenceContaining } from './utils/imageSequence';
 import { findTextureSet } from './utils/textureSets';
 import { parseNetworkError } from './utils/networkErrors';
+import { useExternalApps, refreshExternalApps, sendToExternalApp } from './utils/externalAppStore';
 import { useQuickLook } from './hooks/useQuickLook';
+import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { clampGridSize, loadFolderGridSize, loadGlobalGridSize, saveFolderGridSize } from './utils/folderGridSize';
 import QuickLookWindow from './components/QuickLookWindow';
-import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List } from 'lucide-react';
+import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List, Info } from 'lucide-react';
+
+// How long the search box waits after the last keystroke before the folder is searched again
+const SEARCH_DEBOUNCE_MS = 250;
 
 export default function App() {
   const [drives, setDrives] = useState([]);
@@ -113,8 +121,9 @@ export default function App() {
   const parentPathRef = useRef(null);
   const folderItemsRef = useRef([]);
 
-  // Filter & Search
+  // Filter & Search. The box shows every keystroke at once, but the folder is only searched again once typing pauses
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, SEARCH_DEBOUNCE_MS);
   const [filterType, setFilterType] = useState('all'); // 'all', '3d', 'hdr'
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favorites, setFavorites] = useState([]);
@@ -126,21 +135,26 @@ export default function App() {
   // Views & UI State
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
   const [previewOpen, setPreviewOpen] = useState(false); // the floating Quick Look window, shown over the grid
+  const [inspectorOpen, setInspectorOpen] = useState(false); // the file details drawer beside the grid, toggled with I
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blenderStatus, setBlenderStatus] = useState(null);
+  // Apps the right-click "Send to" menu lists, set up in Settings > External apps
+  const externalApps = useExternalApps();
   const [isLoadingDir, setIsLoadingDir] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Interactive Grid Sizing (Ctrl + Mouse Scroll Wheel)
-  const [gridSize, setGridSize] = useState(() => {
-    const saved = localStorage.getItem('cg_artist_grid_size') || localStorage.getItem('vfx_grid_size');
-    return saved ? Math.min(500, Math.max(120, Number(saved))) : 240;
-  });
+  // Interactive Grid Sizing (Ctrl + Mouse Scroll Wheel). Each folder keeps its own size; see utils/folderGridSize.js
+  const [gridSize, setGridSize] = useState(loadGlobalGridSize);
+  const gridSizeRef = useRef(gridSize);
 
-  useEffect(() => {
-    localStorage.setItem('cg_artist_grid_size', gridSize);
-  }, [gridSize]);
+  // Ctrl + wheel changes the size of the folder on screen (and the global size used by folders with none of their own)
+  const handleGridSizeChange = useCallback((change) => {
+    const next = clampGridSize(typeof change === 'function' ? change(gridSizeRef.current) : change);
+    gridSizeRef.current = next;
+    setGridSize(next);
+    saveFolderGridSize(currentPathRef.current, next);
+  }, []);
 
   // Folder view: 'icons' (Large icons thumbnail grid, default) or 'details' (Explorer-style list)
   const [folderView, setFolderView] = useState(() => {
@@ -166,7 +180,7 @@ export default function App() {
   compareAssetBRef.current = compareAssetB;
   currentPathRef.current = currentPath;
   filterTypeRef.current = filterType;
-  searchTermRef.current = searchTerm;
+  searchTermRef.current = debouncedSearchTerm;
   parentPathRef.current = parentPath;
   folderItemsRef.current = folderItems;
 
@@ -196,6 +210,7 @@ export default function App() {
     loadNetworkLocations();
     loadFavorites();
     loadBlenderStatus();
+    refreshExternalApps();
   }, []);
 
   const loadDrivesAndInitialDir = async () => {
@@ -327,13 +342,21 @@ export default function App() {
     return res;
   };
 
-  // Shows a folder listing and picks that folder's remembered sort. `record: false` is for back / forward,
+  // The per-folder view choices (sort and thumbnail size) of the folder being shown
+  const applyFolderView = (path) => {
+    setSort(loadFolderSort(path));
+    const size = loadFolderGridSize(path);
+    gridSizeRef.current = size;
+    setGridSize(size);
+  };
+
+  // Shows a folder listing and picks that folder's remembered sort and size. `record: false` is for back / forward,
   // which move through the history instead of adding to it.
   const showListing = (res, { record = true } = {}) => {
     setCurrentPath(res.currentPath);
     setParentPath(res.parentPath);
     setFolderItems(res.items || []);
-    setSort(loadFolderSort(res.currentPath));
+    applyFolderView(res.currentPath);
     if (record) updateHistory(pushEntry(historyRef.current, res.currentPath));
   };
 
@@ -434,7 +457,7 @@ export default function App() {
           setCurrentPath(leaving.path);
           setParentPath(leaving.parentPath);
           setFolderItems(leaving.items);
-          setSort(loadFolderSort(leaving.path));
+          applyFolderView(leaving.path);
         }
       }
     } finally {
@@ -455,7 +478,7 @@ export default function App() {
     if (parentPathRef.current) navigateTo(parentPathRef.current);
   };
 
-  // Re-fetch when search or filter changes
+  // Re-fetch when the (debounced) search or filter changes
   useEffect(() => {
     if (!currentPath || !window.electronAPI) return undefined;
     let stale = false;
@@ -470,7 +493,7 @@ export default function App() {
     return () => {
       stale = true;
     };
-  }, [searchTerm, filterType]);
+  }, [debouncedSearchTerm, filterType]);
 
   // Alt+Left / Alt+Right and the mouse's back / forward buttons walk the folder history
   const goHistoryRef = useRef(goHistory);
@@ -497,6 +520,18 @@ export default function App() {
     };
   }, []);
 
+  // I shows or hides the Inspector beside the folder grid. The viewers have their own I, so it only works in the grid
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key?.toLowerCase() !== 'i' || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+      if (viewModeRef.current !== 'grid' || windowOpenRef.current || isTextEntryTarget(e.target)) return;
+      e.preventDefault();
+      setInspectorOpen((open) => !open);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const handleOpenFolderPicker = async () => {
     if (!window.electronAPI) return;
     const folder = await window.electronAPI.openFolderDialog(currentPath);
@@ -520,6 +555,14 @@ export default function App() {
   const handleOpenExternal = (item) => {
     if (window.electronAPI) {
       window.electronAPI.openExternal(item.path);
+    }
+  };
+
+  // Right-click "Send to": opens the selected files in an app from Settings > External apps
+  const handleSendToApp = async (items, app) => {
+    const res = await sendToExternalApp(app, items.map((item) => item.path));
+    if (!res.ok) {
+      window.electronAPI?.showError(res.error, `Send to ${app.name}`);
     }
   };
 
@@ -1232,6 +1275,20 @@ export default function App() {
               </div>
             )}
 
+            {viewMode === 'grid' && (
+              <div className="view-switcher" role="group" aria-label="Inspector">
+                <button
+                  className={`view-switch-btn ${inspectorOpen ? 'active' : ''}`}
+                  onClick={() => setInspectorOpen((open) => !open)}
+                  title="Show or hide the Inspector (I)"
+                  aria-label="Inspector"
+                  aria-pressed={inspectorOpen}
+                >
+                  <Info size={13} />
+                </button>
+              </div>
+            )}
+
             {!isEditingPath && (
               <button
                 className="icon-btn"
@@ -1270,7 +1327,7 @@ export default function App() {
               labels={fileLabels.labels}
               labelActions={fileLabels}
               gridSize={gridSize}
-              onGridSizeChange={setGridSize}
+              onGridSizeChange={handleGridSizeChange}
               folderView={folderView}
               sort={sort}
               onSortColumn={(key) => handleSortChange(sortByColumn(sort, key))}
@@ -1490,6 +1547,11 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* File details beside the grid: the selected file or folder, read without opening it */}
+        {viewMode === 'grid' && inspectorOpen && (
+          <InspectorDrawer item={selectionInFolder} onClose={() => setInspectorOpen(false)} />
+        )}
       </div>
 
       {/* Settings Modal */}
@@ -1546,6 +1608,8 @@ export default function App() {
             onEditLabels: (items) => setLabelEditor({ items, anchor: { x: itemMenu.x, y: itemMenu.y } }),
             onOpen: (item) => (item.isDirectory ? navigateTo(item.path) : openAsset(item)),
             onOpenExternal: handleOpenExternal,
+            externalApps,
+            onSendTo: handleSendToApp,
             onSetCompareA: handleSetCompareA,
             onSetCompareB: handleSetCompareB,
             onCopyPaths: handleCopyPaths,

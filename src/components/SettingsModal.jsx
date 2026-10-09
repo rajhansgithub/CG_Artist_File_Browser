@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { Settings, CheckCircle2, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
 import { APP_VERSION } from '../version.js';
 import { THEMES } from '../utils/themes.js';
+import { useExternalApps, addExternalApp, removeExternalApp, scanExternalApps } from '../utils/externalAppStore.js';
 
 export default function SettingsModal({ isOpen, onClose, theme, onThemeChange }) {
   const [blenderPath, setBlenderPath] = useState('');
   const [blenderStatus, setBlenderStatus] = useState(null);
   const [cacheStats, setCacheStats] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
+  const externalApps = useExternalApps();
+  const [appPath, setAppPath] = useState('');
+  const [appName, setAppName] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -58,6 +62,51 @@ export default function SettingsModal({ isOpen, onClose, theme, onThemeChange })
       setStatusMsg(`Error: ${err?.message || err}`);
     }
     setSaving(false);
+  };
+
+  const handleBrowseApp = async () => {
+    if (window.electronAPI?.openFileDialog) {
+      const filePath = await window.electronAPI.openFileDialog({
+        filters: [
+          { name: 'Applications (*.exe)', extensions: ['exe'] },
+          { name: 'All Files (*.*)', extensions: ['*'] }
+        ]
+      });
+      if (filePath) {
+        setAppPath(filePath);
+      }
+    }
+  };
+
+  const handleAddApp = async () => {
+    setStatusMsg('');
+    try {
+      await addExternalApp(appPath.trim(), appName);
+      setAppPath('');
+      setAppName('');
+      setStatusMsg('App added. It now appears in the right-click menu as Send to…');
+    } catch (err) {
+      setStatusMsg(`Error: ${err?.message || err}`);
+    }
+  };
+
+  const handleRemoveApp = async (app) => {
+    setStatusMsg('');
+    try {
+      await removeExternalApp(app.path);
+    } catch (err) {
+      setStatusMsg(`Error: ${err?.message || err}`);
+    }
+  };
+
+  const handleScanApps = async () => {
+    setStatusMsg('');
+    try {
+      const added = await scanExternalApps();
+      setStatusMsg(added ? `Added ${added} app${added === 1 ? '' : 's'} found on this PC.` : 'No new apps found on this PC.');
+    } catch (err) {
+      setStatusMsg(`Error: ${err?.message || err}`);
+    }
   };
 
   const handleClearCache = async () => {
@@ -164,6 +213,91 @@ export default function SettingsModal({ isOpen, onClose, theme, onThemeChange })
                   <span>Blender not found. Please provide path to blender.exe</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+          {/* External apps: the Send to… entries of the right-click menu */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>
+              External Apps (Send to…)
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Files chosen in the right-click menu open in these apps, such as Blender or Maya. Apps found on this PC are added automatically.
+            </div>
+
+            {externalApps.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No apps yet. Add one below or scan this PC.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {externalApps.map((app) => (
+                  <div
+                    key={app.path}
+                    style={{
+                      background: 'var(--bg-tertiary)',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      fontSize: 12
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#ffffff', fontWeight: 600 }}>{app.name}</div>
+                      <div
+                        title={app.path}
+                        style={{
+                          color: 'var(--text-secondary)',
+                          fontFamily: 'var(--font-mono)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {app.path}
+                      </div>
+                    </div>
+                    <button className="filter-btn" onClick={() => handleRemoveApp(app)} title="Remove from the list" style={{ color: '#ef4444' }}>
+                      <Trash2 size={13} />
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="search-input"
+                style={{ paddingLeft: 12, fontSize: 12, width: 160 }}
+                placeholder="Name, e.g. Maya"
+                value={appName}
+                onChange={(e) => setAppName(e.target.value)}
+              />
+              <input
+                type="text"
+                className="search-input"
+                style={{ paddingLeft: 12, fontFamily: 'var(--font-mono)', fontSize: 12, flex: 1, minWidth: 220 }}
+                placeholder="C:\Program Files\Autodesk\Maya2025\bin\maya.exe"
+                value={appPath}
+                onChange={(e) => setAppPath(e.target.value)}
+              />
+              <button className="btn-secondary" onClick={handleBrowseApp} title="Browse for an app" style={{ whiteSpace: 'nowrap' }}>
+                Browse...
+              </button>
+              <button className="btn-primary" onClick={handleAddApp} disabled={!appPath.trim()}>
+                Add
+              </button>
+            </div>
+
+            <div>
+              <button className="btn-secondary" onClick={handleScanApps} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <RefreshCw size={13} />
+                Scan this PC
+              </button>
             </div>
           </div>
 
