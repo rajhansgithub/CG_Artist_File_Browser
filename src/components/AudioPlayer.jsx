@@ -12,6 +12,7 @@ import {
   Activity,
   Square
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatDuration } from '../utils/formatHelpers';
 
 export default function AudioPlayer({
@@ -19,7 +20,8 @@ export default function AudioPlayer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
@@ -342,6 +344,7 @@ export default function AudioPlayer({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
       if (e.code === 'Space') {
@@ -374,6 +377,7 @@ export default function AudioPlayer({
       {/* Audio element */}
       <audio
         ref={audioRef}
+        autoPlay={floating}
         src={streamUrl}
         loop={isLooping}
         crossOrigin="anonymous"

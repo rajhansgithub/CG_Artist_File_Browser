@@ -33,12 +33,13 @@ export const SHORTCUT_GROUPS = [
     items: [{ keys: [['Esc']], action: 'Close the viewer (leaves full screen first)' }]
   },
   {
-    // useQuickLook.js (Space and Esc in the grid, arrows inside Quick Look)
+    // useQuickLook.js (Space and Esc), QuickLookWindow.jsx (the floating preview)
     title: 'Quick Look',
     items: [
-      { keys: [['Space']], action: 'Open the selected file in its viewer' },
-      { keys: [['Space'], ['Esc']], action: 'Back to the grid (video, audio and PDF keep Space for playback or paging)' },
-      { keys: [['Left'], ['Right']], action: 'Previous / next file (3D and HDR / EXR viewers)' }
+      { keys: [['Space']], action: 'Open the selected file in a small floating preview (audio and video start playing)' },
+      { keys: [['Space'], ['Esc']], action: 'Close the floating preview' },
+      { keys: [['Arrow keys']], action: 'While the preview is open, move through the folder and the preview follows' },
+      { keys: [['Double-click']], action: 'Open the file in the full viewer (also from the floating preview)' }
     ]
   },
   {

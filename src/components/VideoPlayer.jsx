@@ -15,6 +15,7 @@ import {
   Film,
   SunMedium
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatDuration, formatTimecode } from '../utils/formatHelpers';
 
 // Color Matrix computation for Channel soloing (RGB, R, G, B, Alpha, Lum) and Exposure EV
@@ -46,7 +47,8 @@ export default function VideoPlayer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -389,6 +391,7 @@ export default function VideoPlayer({
   // Keyboard navigation & Shortcuts (Exposure hold E, Channel Soloing 1-6/C, Playback)
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
       // Shift Key for Timeline Scrubbing hint
@@ -970,6 +973,7 @@ export default function VideoPlayer({
       >
         <video
           ref={videoRef}
+          autoPlay={floating}
           src={streamUrl}
           className="video-element"
           style={getVideoStyle()}

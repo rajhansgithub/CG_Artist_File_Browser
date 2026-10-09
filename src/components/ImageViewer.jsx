@@ -10,6 +10,7 @@ import {
   Camera,
   Check
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, isTxTexFormat } from '../utils/formatHelpers';
 import { decodeTiffToRGBA } from '../utils/tiffDecoder';
 
@@ -18,7 +19,8 @@ export default function ImageViewer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -207,6 +209,7 @@ export default function ImageViewer({
   // Keyboard navigation & Z Zoom Shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
       if (e.key === 'z' || e.key === 'Z') {

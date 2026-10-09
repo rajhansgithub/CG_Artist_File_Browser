@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes } from '../utils/formatHelpers';
 import { openPdfDocument } from '../utils/pdfLoader';
 
@@ -105,7 +106,8 @@ export default function PdfViewer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const [pdf, setPdf] = useState(null);
   const [pageSizes, setPageSizes] = useState([]); // [width, height] in PDF points at rotation 0
@@ -349,6 +351,7 @@ export default function PdfViewer({
   // Keyboard
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       const el = scrollRef.current;
       const page = currentPageRef.current;

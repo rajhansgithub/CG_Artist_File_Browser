@@ -14,6 +14,7 @@ import {
   Repeat,
   SunMedium
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatTimecode } from '../utils/formatHelpers';
 import {
   formatFrameNumber,
@@ -68,7 +69,8 @@ export default function ImageSequencePlayer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -630,6 +632,7 @@ export default function ImageSequencePlayer({
     };
   }, []);
   const handleKeyDown = (e) => {
+    if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
     if (e.key === 'Shift') setIsShiftActive(true);

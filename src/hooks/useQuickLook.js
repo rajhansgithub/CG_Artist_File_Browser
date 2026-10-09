@@ -1,70 +1,47 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  QUICK_LOOK_ARROW_VIEWERS,
-  QUICK_LOOK_SPACE_KEPT_VIEWERS,
-  getAdjacentQuickLookItem,
-  isQuickLookItem,
-  isTextEntryTarget
-} from '../utils/quickLook';
+import { useEffect, useRef } from 'react';
+import { isQuickLookItem, isTextEntryTarget } from '../utils/quickLook';
 
 // A focused button would also be pressed when Space is released, so focus is dropped first
 function dropButtonFocus(target) {
   if (target?.tagName === 'BUTTON' || target?.tagName === 'A') target.blur();
 }
 
-// Quick Look opens the selected file in the viewer it would normally get (openAsset), so nothing new is drawn.
-// `blocked` is true while a dialog or the address box is open, and Quick Look then ignores the keys.
-export function useQuickLook({ viewMode, setViewMode, openAsset, selectedAsset, gridSelection, items, blocked }) {
-  const [active, setActive] = useState(false);
+// Space opens the floating Quick Look window for the selected file, and Space or Esc closes it.
+// Enter drops the window and lets the grid open the file as usual. Arrow keys are left to the grid, which moves the
+// selection and the window follows it (see QuickLookWindow). Keys go through the capture phase, so they are handled
+// before the viewers' and the grid's own listeners on window. `blocked` is true while a dialog or the address box is
+// open, and then the keys are left alone.
+export function useQuickLook({ viewMode, previewOpen, setPreviewOpen, selectedAsset, blocked }) {
   const latest = useRef({});
-  latest.current = { viewMode, setViewMode, openAsset, selectedAsset, gridSelection, items, blocked, active };
-
-  // Leaving the viewer by any route (its own Esc or close button, Alt + arrows) ends Quick Look.
-  // Also clears it again if the file could not be opened, so the grid is never left in a half state.
-  useEffect(() => {
-    if (viewMode === 'grid') setActive(false);
-  }, [viewMode, active]);
+  latest.current = { viewMode, previewOpen, setPreviewOpen, selectedAsset, blocked };
 
   useEffect(() => {
     const onKeyDown = (e) => {
       const s = latest.current;
-      if (s.blocked || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if (s.blocked || s.viewMode !== 'grid' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
       if (isTextEntryTarget(e.target)) return;
 
       const isSpace = e.code === 'Space';
 
-      if (s.viewMode === 'grid') {
-        if (isSpace && !e.repeat && isQuickLookItem(s.gridSelection)) {
+      if (s.previewOpen) {
+        if (e.key === 'Enter') {
+          s.setPreviewOpen(false);
+        } else if (isSpace || (e.key === 'Escape' && !document.fullscreenElement)) {
+          // A viewer in full screen uses Esc to leave full screen first
           e.preventDefault();
+          e.stopImmediatePropagation();
           dropButtonFocus(e.target);
-          s.openAsset(s.gridSelection);
-          setActive(true);
+          if (!e.repeat) s.setPreviewOpen(false);
         }
-        return;
-      }
-
-      if (!s.active) return;
-
-      if (e.key === 'Escape') {
-        // A viewer in full screen uses Esc to leave full screen first
-        if (document.fullscreenElement) return;
+      } else if (isSpace && !e.repeat && isQuickLookItem(s.selectedAsset)) {
         e.preventDefault();
-        s.setViewMode('grid');
-      } else if (isSpace) {
-        if (e.repeat || QUICK_LOOK_SPACE_KEPT_VIEWERS.has(s.viewMode)) return;
-        e.preventDefault();
+        e.stopImmediatePropagation();
         dropButtonFocus(e.target);
-        s.setViewMode('grid');
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (!QUICK_LOOK_ARROW_VIEWERS.has(s.viewMode)) return;
-        const next = getAdjacentQuickLookItem(s.items, s.selectedAsset, e.key === 'ArrowRight' ? 1 : -1);
-        if (!next) return;
-        e.preventDefault();
-        s.openAsset(next);
+        s.setPreviewOpen(true);
       }
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
 }

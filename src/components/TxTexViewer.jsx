@@ -12,6 +12,7 @@ import {
   Camera,
   Check
 } from 'lucide-react';
+import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, isTxTexFormat } from '../utils/formatHelpers';
 import { getFileBuffer } from '../utils/thumbnailService';
 import { parseTxTex, TxTexReader, TxTexError } from '../utils/txTexDecoder';
@@ -105,7 +106,8 @@ export default function TxTexViewer({
   allFolderItems = [],
   onClose,
   onSelectAsset,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const containerRef = useRef(null);
   const previewCanvasRef = useRef(null);
@@ -381,6 +383,7 @@ export default function TxTexViewer({
 
   useEffect(() => {
     const onKey = (e) => {
+      if (floating && isQuickLookNavKey(e)) return; // the floating window's arrow keys move the grid selection
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.key === 'Escape') onClose();
