@@ -8,11 +8,49 @@
 use std::fs;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use std::sync::{Condvar, Mutex};
 
 pub const THUMB_W: usize = 256;
 pub const THUMB_H: usize = 128;
 const JPEG_QUALITY: u8 = 85;
 const NO_LATTICE: u32 = u32::MAX;
+
+/// How many thumbnails may be decoded at the same time. Each EXR decode already spreads its block
+/// decompression over every core, so a couple in parallel is enough. Opening a folder of hundreds of large
+/// renders used to start one decode per visible card and saturated the CPU and disk for the whole app.
+const MAX_CONCURRENT_DECODES: usize = 2;
+
+struct DecodeSlots {
+    in_use: Mutex<usize>,
+    freed: Condvar,
+}
+
+static DECODE_SLOTS: DecodeSlots = DecodeSlots {
+    in_use: Mutex::new(0),
+    freed: Condvar::new(),
+};
+
+/// Holds one decode slot. Dropping it (also on error or panic) frees the slot for the next waiting thumbnail.
+struct DecodeSlot;
+
+impl DecodeSlot {
+    fn acquire() -> Self {
+        let mut in_use = DECODE_SLOTS.in_use.lock().unwrap_or_else(|e| e.into_inner());
+        while *in_use >= MAX_CONCURRENT_DECODES {
+            in_use = DECODE_SLOTS.freed.wait(in_use).unwrap_or_else(|e| e.into_inner());
+        }
+        *in_use += 1;
+        DecodeSlot
+    }
+}
+
+impl Drop for DecodeSlot {
+    fn drop(&mut self) {
+        let mut in_use = DECODE_SLOTS.in_use.lock().unwrap_or_else(|e| e.into_inner());
+        *in_use -= 1;
+        DECODE_SLOTS.freed.notify_one();
+    }
+}
 
 /// Computes target thumbnail dimensions preserving each file's aspect ratio.
 /// A 2:1 panorama yields 256x128, a 1:1 square yields 256x256, 16:9 yields 256x144, etc.
@@ -52,6 +90,8 @@ pub fn thumbnail_rgb(src: &Path) -> Result<(Vec<u8>, usize, usize), String> {
 /// images that have transparency). Returns the path written. Files are written to a temporary name first,
 /// then renamed, so a half-written file is never picked up by the cache lookup in `read_directory`.
 pub fn generate_thumbnail(src: &Path, out_stem: &Path) -> Result<PathBuf, String> {
+    let _slot = DecodeSlot::acquire();
+
     let ext = src
         .extension()
         .and_then(|e| e.to_str())
@@ -392,6 +432,32 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_decode_slots_never_exceed_limit() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let running = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                let (running, peak) = (running.clone(), peak.clone());
+                std::thread::spawn(move || {
+                    let _slot = DecodeSlot::acquire();
+                    let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    running.fetch_sub(1, Ordering::SeqCst);
+                })
+            })
+            .collect();
+        for w in workers {
+            w.join().unwrap();
+        }
+        assert!(peak.load(Ordering::SeqCst) <= MAX_CONCURRENT_DECODES);
+        assert_eq!(*DECODE_SLOTS.in_use.lock().unwrap(), 0);
+    }
 
     #[test]
     fn test_square_thumbnail_dimensions() {

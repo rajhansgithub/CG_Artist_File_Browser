@@ -1,169 +1,64 @@
 import * as THREE from 'three';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { EXRLoader } from './exrLoaderExtended.js';
 import { TIFFLoader } from 'three/addons/loaders/TIFFLoader.js';
 import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { load3DModel } from './assetLoader.js';
 import { openPdfDocument } from './pdfLoader.js';
 import { decodeTiffToRGBA } from './tiffDecoder.js';
 import { parseTxTex, TxTexReader, pickPreviewLevel } from './txTexDecoder.js';
+import { ThumbnailLane } from './thumbnailScheduler.js';
+import { getThumbnailDimensions } from './thumbnailToneMap.js';
 
 // In-memory cache for ultra-fast UI rendering
 const memoryCache = new Map();
 
-// Concurrency queue to keep scrolling butter-smooth
-class ThumbnailQueue {
-  constructor(concurrency = 3) {
-    this.concurrency = concurrency;
-    this.running = 0;
-    this.queue = [];
-  }
-
-  enqueue(task) {
-    return new Promise((resolve, reject) => {
-      this.queue.push({ task, resolve, reject });
-      this.process();
-    });
-  }
-
-  async process() {
-    if (this.running >= this.concurrency || this.queue.length === 0) return;
-
-    this.running++;
-    const { task, resolve, reject } = this.queue.shift();
-
-    try {
-      const result = await task();
-      resolve(result);
-    } catch (err) {
-      reject(err);
-    } finally {
-      this.running--;
-      this.process();
-    }
-  }
-}
-
-const queue = new ThumbnailQueue(3);
-
-// Native thumbnails decode off the UI thread, so they can run a little wider than the JS decoders.
-const nativeQueue = new ThumbnailQueue(4);
+// Two lanes keep scrolling smooth. `mainLane` runs the JavaScript decoders, which block the UI thread while
+// they work, so only two run at once. `nativeLane` waits on the Rust decoder, which runs on its own threads.
+// Both drop a job whose card has scrolled away or left the folder before the job starts (see AssetGrid).
+const mainLane = new ThumbnailLane(2);
+const nativeLane = new ThumbnailLane(2);
 const NATIVE_THUMBNAIL_EXTENSIONS = ['.hdr', '.exr', '.tga', '.tif', '.tiff', '.png', '.jpg', '.jpeg', '.webp', '.bmp'];
 
-// Convert raw number or half-float to float
-function toFloat(val, isHalfFloat) {
-  if (val === undefined || val === null) return 0;
-  if (isHalfFloat) {
-    return THREE.DataUtils.fromHalfFloat(val);
-  }
-  return typeof val === 'number' && !isNaN(val) && isFinite(val) ? Math.max(0, val) : 0;
-}
-
-// ACES Filmic Tone Mapping formula
-function acesFilmic(x) {
-  if (isNaN(x) || !isFinite(x) || x <= 0) return 0;
-  const a = 2.51;
-  const b = 0.03;
-  const c = 2.43;
-  const d = 0.59;
-  const e = 0.14;
-  const mapped = (x * (a * x + b)) / (x * (c * x + d) + e);
-  const clamped = Math.min(1.0, Math.max(0.0, mapped));
-  // Gamma 2.2 curve
-  return Math.min(255, Math.max(0, Math.round(Math.pow(clamped, 1.0 / 2.2) * 255)));
-}
-
-// Computes thumbnail dimensions preserving aspect ratio (up to maxDim)
-function getThumbnailDimensions(width, height, maxDim = 256) {
-  if (!width || !height) return { w: 256, h: 128 };
-  if (width >= height) {
-    const tw = maxDim;
-    const th = Math.max(1, Math.round((maxDim * height) / width));
-    return { w: tw, h: th };
-  } else {
-    const th = maxDim;
-    const tw = Math.max(1, Math.round((maxDim * width) / height));
-    return { w: tw, h: th };
-  }
-}
-
-// Convert float/half-float HDR/EXR image data to a tone-mapped JPEG dataURL preserving aspect ratio
-function renderToneMappedThumbnail(parsed, targetW, targetH) {
-  const w = parsed.width;
-  const h = parsed.height;
-  if (!targetW || !targetH) {
-    const dims = getThumbnailDimensions(w, h);
-    targetW = dims.w;
-    targetH = dims.h;
-  }
-
+// Thumbnail pixels (RGBA bytes, already tone mapped) to a JPEG dataURL
+function rgbaToDataUrl(rgba, width, height) {
   const canvas = document.createElement('canvas');
-  canvas.width = targetW;
-  canvas.height = targetH;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d');
-  const imgData = ctx.createImageData(targetW, targetH);
-  const out = imgData.data;
-
-  const data = parsed.data;
-  if (!data || w <= 0 || h <= 0) return null;
-
-  const isHalf = data instanceof Uint16Array;
-  const numChannels = data.length >= w * h * 4 ? 4 : (data.length >= w * h * 3 ? 3 : 1);
-
-  // Auto-exposure sampling: sample luminance across pixels to normalize middle gray ~0.18
-  let sampleSum = 0;
-  let sampleCount = 0;
-  const step = Math.max(1, Math.floor((w * h) / 500));
-  for (let i = 0; i < w * h * numChannels; i += step * numChannels) {
-    const r = toFloat(data[i], isHalf);
-    const g = numChannels >= 3 ? toFloat(data[i + 1], isHalf) : r;
-    const b = numChannels >= 3 ? toFloat(data[i + 2], isHalf) : r;
-    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    if (lum > 0.0001 && isFinite(lum)) {
-      sampleSum += lum;
-      sampleCount++;
-    }
-  }
-
-  let exposureMult = 1.0;
-  if (sampleCount > 0) {
-    const avgLum = sampleSum / sampleCount;
-    if (avgLum > 0.00001) {
-      exposureMult = Math.min(32.0, Math.max(0.05, 0.18 / avgLum));
-    }
-  }
-
-  const isExr = !!parsed.isExr;
-
-  // Resample & ACES tone map
-  for (let y = 0; y < targetH; y++) {
-    // In EXRLoader, scanline data was inverted during decode so row 0 in data is the bottom of the EXR.
-    // Invert Y when mapping to canvas (where y=0 is top) so the thumbnail is rendered upright.
-    // For RGBELoader (.hdr), row 0 in data is already the top of the HDR.
-    const normY = y / targetH;
-    const srcY = isExr
-      ? Math.min(h - 1, Math.max(0, Math.floor((1 - normY) * h)))
-      : Math.min(h - 1, Math.max(0, Math.floor(normY * h)));
-
-    for (let x = 0; x < targetW; x++) {
-      const srcX = Math.floor((x / targetW) * w);
-      const pixelIndex = srcY * w + srcX;
-      const srcIdx = pixelIndex * numChannels;
-      const dstIdx = (y * targetW + x) * 4;
-
-      const r = toFloat(data[srcIdx], isHalf) * exposureMult;
-      const g = (numChannels >= 3 ? toFloat(data[srcIdx + 1], isHalf) : r) * exposureMult;
-      const b = (numChannels >= 3 ? toFloat(data[srcIdx + 2], isHalf) : r) * exposureMult;
-
-      out[dstIdx] = acesFilmic(r);
-      out[dstIdx + 1] = acesFilmic(g);
-      out[dstIdx + 2] = acesFilmic(b);
-      out[dstIdx + 3] = 255;
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
+  ctx.putImageData(new ImageData(rgba, width, height), 0, 0);
   return canvas.toDataURL('image/jpeg', 0.85);
+}
+
+// HDR / EXR decoding runs in a Web Worker (src/workers/thumbnail.worker.js), one file at a time.
+let thumbWorker = null;
+let nextThumbJobId = 1;
+const thumbJobs = new Map();
+
+function getThumbWorker() {
+  if (!thumbWorker) {
+    thumbWorker = new Worker(new URL('../workers/thumbnail.worker.js', import.meta.url), { type: 'module' });
+    thumbWorker.onmessage = (event) => {
+      const job = thumbJobs.get(event.data.id);
+      if (!job) return;
+      thumbJobs.delete(event.data.id);
+      if (event.data.ok) job.resolve(event.data);
+      else job.reject(new Error(event.data.error || 'HDR/EXR decode failed'));
+    };
+    thumbWorker.onerror = (event) => {
+      for (const job of thumbJobs.values()) job.reject(new Error(event.message || 'Thumbnail worker failed'));
+      thumbJobs.clear();
+      thumbWorker.terminate();
+      thumbWorker = null;
+    };
+  }
+  return thumbWorker;
+}
+
+function decodeFloatImageInWorker(arrayBuf, ext) {
+  return new Promise((resolve, reject) => {
+    const id = nextThumbJobId++;
+    thumbJobs.set(id, { resolve, reject });
+    getThumbWorker().postMessage({ id, ext, buffer: arrayBuf }, [arrayBuf]);
+  });
 }
 
 function renderRgbaThumbnail(parsed, targetW, targetH) {
@@ -354,10 +249,12 @@ export function getCachedThumbnail(path) {
 }
 
 /**
- * Generate or retrieve thumbnail for any file
+ * Generate or retrieve thumbnail for any file. Pass an AbortSignal to drop the request while it waits in line
+ * (the card scrolled away or the folder changed); the promise then resolves to null.
  */
-export async function getOrGenerateThumbnail(item) {
+export async function getOrGenerateThumbnail(item, { signal } = {}) {
   if (!item || item.isDirectory) return null;
+  if (signal?.aborted) return null;
 
   // 1. Check in-memory cache
   if (memoryCache.has(item.path)) {
@@ -376,7 +273,7 @@ export async function getOrGenerateThumbnail(item) {
   // (or outside the desktop app) fall through to the previous behaviour below: JS decoders for HDR/EXR/TGA/TIFF,
   // the original file itself for standard images.
   if (NATIVE_THUMBNAIL_EXTENSIONS.includes(ext) && window.electronAPI?.generateThumbnail) {
-    const nativeUrl = await nativeQueue.enqueue(() => window.electronAPI.generateThumbnail(item.path));
+    const nativeUrl = await nativeLane.run(signal, () => window.electronAPI.generateThumbnail(item.path));
     if (nativeUrl) {
       memoryCache.set(item.path, nativeUrl);
       return nativeUrl;
@@ -394,7 +291,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // PDF: render the first page with pdf.js (lazy-loaded) and cache it like every other thumbnail
   if (ext === '.pdf') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       let pdf = null;
       try {
         pdf = await openPdfDocument(item.path);
@@ -427,7 +324,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // Arnold .tx / RenderMan .tex: read a small mip level instead of decoding the full-size image
   if (ext === '.tx' || ext === '.tex') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const arrayBuf = await getFileBuffer(item.path);
         const parsed = parseTxTex(arrayBuf, ext);
@@ -450,7 +347,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // Handle TIFF textures (.tif, .tiff)
   if (ext === '.tif' || ext === '.tiff') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         if (typeof window !== 'undefined') window.log = console.log;
         if (typeof globalThis !== 'undefined') globalThis.log = console.log;
@@ -486,7 +383,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // Handle TGA textures (.tga)
   if (ext === '.tga') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const arrayBuf = await getFileBuffer(item.path);
         const loader = new TGALoader();
@@ -506,36 +403,13 @@ export async function getOrGenerateThumbnail(item) {
     });
   }
 
-  // Handle HDR and EXR files (True float decoding + ACES Filmic Tone Mapping)
+  // Handle HDR and EXR files (True float decoding + ACES Filmic Tone Mapping), decoded in a worker
   if (ext === '.hdr' || ext === '.exr') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const arrayBuf = await getFileBuffer(item.path);
-        let parsed = null;
-
-        if (ext === '.hdr') {
-          const loader = new RGBELoader();
-          loader.type = THREE.FloatType;
-          parsed = loader.parse(arrayBuf);
-          if (parsed) {
-            parsed.isHdr = true;
-            parsed.isExr = false;
-          }
-        } else if (ext === '.exr') {
-          const loader = new EXRLoader();
-          loader.setDataType(THREE.FloatType);
-          parsed = loader.parse(arrayBuf);
-          if (parsed) {
-            parsed.isHdr = false;
-            parsed.isExr = true;
-          }
-        }
-
-        if (!parsed || !parsed.data) {
-          throw new Error('Failed to parse HDR/EXR image data');
-        }
-
-        const dataUrl = renderToneMappedThumbnail(parsed);
+        const { width, height, rgba } = await decodeFloatImageInWorker(arrayBuf, ext);
+        const dataUrl = rgbaToDataUrl(rgba, width, height);
         memoryCache.set(item.path, dataUrl);
 
         // Save to disk cache asynchronously
@@ -555,7 +429,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // Handle 3D Models: OBJ, FBX, GLTF, GLB, STL, PLY via offscreen Three.js renderer
   if (['.obj', '.fbx', '.gltf', '.glb', '.stl', '.ply'].includes(ext)) {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const dataUrl = await renderOffscreen3DThumbnail(item);
         if (dataUrl) {
@@ -584,7 +458,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // Handle Video formats: MP4, WEBM, MOV, MKV, AVI
   if (['.mp4', '.webm', '.mov', '.mkv', '.avi'].includes(ext) || item.category === 'video') {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const dataUrl = await renderOffscreenVideoThumbnail(item);
         if (dataUrl) {
@@ -603,7 +477,7 @@ export async function getOrGenerateThumbnail(item) {
 
   // For Alembic / USD files, use Blender thumbnail bridge
   if (['.abc', '.usd', '.usda', '.usdc', '.usdz', '.blend'].includes(ext) && window.electronAPI?.renderThumbnail) {
-    return queue.enqueue(async () => {
+    return mainLane.run(signal, async () => {
       try {
         const res = await window.electronAPI.renderThumbnail(item.path);
         if (res && res.success && res.thumbnailPath) {
