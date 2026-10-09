@@ -10,6 +10,27 @@ import {
 } from 'three';
 import { unzlibSync } from 'three/examples/jsm/libs/fflate.module.js';
 
+// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
+// Every half-float bit pattern converted once, so the scanline loop does an array read per sample
+// instead of a Math.pow per sample. Built at load time: 65536 entries, about 1 ms.
+const HALF_TO_FLOAT = new Float32Array( 65536 );
+for ( let binary = 0; binary < 65536; binary ++ ) {
+
+	const exponent = ( binary & 0x7C00 ) >> 10,
+		fraction = binary & 0x03FF;
+
+	HALF_TO_FLOAT[ binary ] = ( binary >> 15 ? - 1 : 1 ) * (
+		exponent ?
+			(
+				exponent === 0x1F ?
+					fraction ? NaN : Infinity :
+					Math.pow( 2, exponent - 15 ) * ( 1 + fraction / 0x400 )
+			) :
+			6.103515625e-5 * ( fraction / 0x400 )
+	);
+
+}
+
 // Referred to the original Industrial Light & Magic OpenEXR implementation and the TinyEXR / Syoyo Fujita
 // implementation, so I have preserved their copyright notices.
 
@@ -831,31 +852,18 @@ class EXRLoader extends DataTextureLoader {
 
 		}
 
-		function predictor( source ) {
+		// Reverts the ZIP/RLE predictor and interleaves the two halves of the bytes in one pass.
+		// Byte t of the predictor output goes to out[ 2t ] in the first half, out[ 2( t - half ) + 1 ] in the second.
+		function predictorInterleave( source, out ) {
 
-			for ( let t = 1; t < source.length; t ++ ) {
+			const n = source.length;
+			const half = Math.floor( ( n + 1 ) / 2 );
+			let value = 0;
 
-				const d = source[ t - 1 ] + source[ t ] - 128;
-				source[ t ] = d;
+			for ( let t = 0; t < n; t ++ ) {
 
-			}
-
-		}
-
-		function interleaveScalar( source, out ) {
-
-			let t1 = 0;
-			let t2 = Math.floor( ( source.length + 1 ) / 2 );
-			let s = 0;
-			const stop = source.length - 1;
-
-			while ( true ) {
-
-				if ( s > stop ) break;
-				out[ s ++ ] = source[ t1 ++ ];
-
-				if ( s > stop ) break;
-				out[ s ++ ] = source[ t2 ++ ];
+				value = ( t === 0 ) ? source[ 0 ] : ( value + source[ t ] - 128 ) & 0xFF;
+				out[ t < half ? 2 * t : 2 * ( t - half ) + 1 ] = value;
 
 			}
 
@@ -1421,9 +1429,7 @@ class EXRLoader extends DataTextureLoader {
 			const rawBuffer = new Uint8Array( decodeRunLength( compressed ) );
 			const tmpBuffer = new Uint8Array( rawBuffer.length );
 
-			predictor( rawBuffer ); // revert predictor
-
-			interleaveScalar( rawBuffer, tmpBuffer ); // interleave pixels
+			predictorInterleave( rawBuffer, tmpBuffer );
 
 			return new DataView( tmpBuffer.buffer );
 
@@ -1436,9 +1442,7 @@ class EXRLoader extends DataTextureLoader {
 			const rawBuffer = unzlibSync( compressed );
 			const tmpBuffer = new Uint8Array( rawBuffer.length );
 
-			predictor( rawBuffer ); // revert predictor
-
-			interleaveScalar( rawBuffer, tmpBuffer ); // interleave pixels
+			predictorInterleave( rawBuffer, tmpBuffer );
 
 			return new DataView( tmpBuffer.buffer );
 
@@ -2290,21 +2294,10 @@ class EXRLoader extends DataTextureLoader {
 
 		}
 
-		// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
+				// Half-float bits to float, a table lookup per sample (see HALF_TO_FLOAT above)
 		function decodeFloat16( binary ) {
 
-			const exponent = ( binary & 0x7C00 ) >> 10,
-				fraction = binary & 0x03FF;
-
-			return ( binary >> 15 ? - 1 : 1 ) * (
-				exponent ?
-					(
-						exponent === 0x1F ?
-							fraction ? NaN : Infinity :
-							Math.pow( 2, exponent - 15 ) * ( 1 + fraction / 0x400 )
-					) :
-					6.103515625e-5 * ( fraction / 0x400 )
-			);
+			return HALF_TO_FLOAT[ binary & 0xFFFF ];
 
 		}
 
@@ -2601,7 +2594,6 @@ class EXRLoader extends DataTextureLoader {
 
 			const EXRDecoder = this;
 			const offset = EXRDecoder.offset;
-			const tmpOffset = { value: 0 };
 
 			for ( let tile = 0; tile < EXRDecoder.tileCount; tile ++ ) {
 
@@ -2652,17 +2644,53 @@ class EXRLoader extends DataTextureLoader {
 
 						if ( cOff === undefined ) continue;
 
-						tmpOffset.value = lineOffset + lOff;
 						const outLineOffset = ( EXRDecoder.height - ( 1 + startY + line ) ) * EXRDecoder.outLineWidth;
-
-						for ( let x = 0; x < EXRDecoder.columns; x ++ ) {
-
-							const outIndex = outLineOffset + ( x + startX ) * EXRDecoder.outputChannels + cOff;
-							EXRDecoder.byteArray[ outIndex ] = EXRDecoder.getter( viewer, tmpOffset );
-
-						}
+						copySamples( EXRDecoder, viewer, lineOffset + lOff, outLineOffset + startX * EXRDecoder.outputChannels + cOff, EXRDecoder.columns );
 
 					}
+
+				}
+
+			}
+
+		}
+
+		// Copies one channel of one row of a block into the output: `count` samples from byte `p` of `viewer`,
+		// written to every `outputChannels`-th value from `outIndex`. Half and float inputs are read directly,
+		// without a call per sample; any other type goes through the getter.
+		function copySamples( EXRDecoder, viewer, p, outIndex, count ) {
+
+			const byteArray = EXRDecoder.byteArray;
+			const stride = EXRDecoder.outputChannels;
+			const getter = EXRDecoder.getter;
+
+			if ( getter === parseFloat16 ) {
+
+				for ( let x = 0; x < count; x ++ ) {
+
+					byteArray[ outIndex ] = HALF_TO_FLOAT[ viewer.getUint16( p, true ) ];
+					p += 2;
+					outIndex += stride;
+
+				}
+
+			} else if ( getter === parseFloat32 ) {
+
+				for ( let x = 0; x < count; x ++ ) {
+
+					byteArray[ outIndex ] = viewer.getFloat32( p, true );
+					p += 4;
+					outIndex += stride;
+
+				}
+
+			} else {
+
+				const tmpOffset = { value: p };
+				for ( let x = 0; x < count; x ++ ) {
+
+					byteArray[ outIndex ] = getter( viewer, tmpOffset );
+					outIndex += stride;
 
 				}
 
@@ -2674,7 +2702,6 @@ class EXRLoader extends DataTextureLoader {
 
 			const EXRDecoder = this;
 			const offset = EXRDecoder.offset;
-			const tmpOffset = { value: 0 };
 
 			for ( let scanlineBlockIdx = 0; scanlineBlockIdx < EXRDecoder.height / EXRDecoder.blockHeight; scanlineBlockIdx ++ ) {
 
@@ -2722,14 +2749,7 @@ class EXRLoader extends DataTextureLoader {
 
 						if ( cOff === undefined ) continue;
 
-						tmpOffset.value = lineOffset + lOff;
-
-						for ( let x = 0; x < EXRDecoder.columns; x ++ ) {
-
-							const outIndex = outLineOffset + x * EXRDecoder.outputChannels + cOff;
-							EXRDecoder.byteArray[ outIndex ] = EXRDecoder.getter( viewer, tmpOffset );
-
-						}
+						copySamples( EXRDecoder, viewer, lineOffset + lOff, outLineOffset + cOff, EXRDecoder.columns );
 
 					}
 
@@ -2743,7 +2763,6 @@ class EXRLoader extends DataTextureLoader {
 
 			const EXRDecoder = this;
 			const chunkOffsets = EXRDecoder.chunkOffsets;
-			const tmpOffset = { value: 0 };
 
 			for ( let chunkIdx = 0; chunkIdx < chunkOffsets.length; chunkIdx ++ ) {
 
@@ -2797,14 +2816,7 @@ class EXRLoader extends DataTextureLoader {
 
 						if ( cOff === undefined ) continue;
 
-						tmpOffset.value = lineOffset + lOff;
-
-						for ( let x = 0; x < EXRDecoder.columns; x ++ ) {
-
-							const outIndex = outLineOffset + x * EXRDecoder.outputChannels + cOff;
-							EXRDecoder.byteArray[ outIndex ] = EXRDecoder.getter( viewer, tmpOffset );
-
-						}
+						copySamples( EXRDecoder, viewer, lineOffset + lOff, outLineOffset + cOff, EXRDecoder.columns );
 
 					}
 
@@ -2829,8 +2841,7 @@ class EXRLoader extends DataTextureLoader {
 
 					const rawBuffer = new Uint8Array( decodeRunLength( compressed.buffer.slice( compressed.byteOffset, compressed.byteOffset + compressed.byteLength ) ) );
 					const tmpBuffer = new Uint8Array( rawBuffer.length );
-					predictor( rawBuffer );
-					interleaveScalar( rawBuffer, tmpBuffer );
+					predictorInterleave( rawBuffer, tmpBuffer );
 					return new DataView( tmpBuffer.buffer );
 
 				}
@@ -2839,8 +2850,7 @@ class EXRLoader extends DataTextureLoader {
 
 					const rawBuffer = unzlibSync( compressed );
 					const tmpBuffer = new Uint8Array( rawBuffer.length );
-					predictor( rawBuffer );
-					interleaveScalar( rawBuffer, tmpBuffer );
+					predictorInterleave( rawBuffer, tmpBuffer );
 					return new DataView( tmpBuffer.buffer );
 
 				}
