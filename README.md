@@ -61,6 +61,7 @@
 - **"Will it be sharp enough?"**: pick the final render size (1K, 2K, 3K, 4K, 8K), slide how much of the frame the object covers (or type a pixel size, e.g. "10 pixels") and see the texture as it lands on the pixels of that render, magnified so single pixels are visible.
 - **Plain-words verdict**: *Too soft*, *A little soft*, *Sharp enough*, *More than enough* or *Overkill*, plus the texture size you actually need and which mip level the renderer reads.
 - **Where does it hold up?** A colour chart of every shot size and distance for the open texture, and a mip level list where you can click a smaller level to test "is 2K enough?".
+- **Texture size is read from your file**: an 8K `.tx` shows as 8K with its real mip levels. A "Texture size" choice also lets you try a bigger size than the file ("what if this were 8K?") for the verdict and chart; it is labelled as a what-if, and the preview keeps showing the file's real pixels.
 - Files it cannot read (OpenEXR-based or Pixar-compressed textures, or a `.tex` that is really a LaTeX document) show a clear message instead of failing silently.
 
 ### ⚙️ Blender 3D Conversion Engine

@@ -49,6 +49,7 @@ const CELL_WORDS = {
   overkill: 'Overkill'
 };
 
+const WHAT_IF_WIDTHS = [2048, 4096, 8192, 16384];
 const ZOOM_CHOICES = ['auto', 1, 2, 4, 8, 16, 32];
 const FRAME_ASPECT = 9 / 16;
 const MAX_AUTO_ZOOM = 64;
@@ -116,6 +117,7 @@ export default function TxTexViewer({
   const [tab, setTab] = useState('render'); // 'render' (opens here) | 'texture'
   const [viewLevel, setViewLevel] = useState(0); // level shown on the Texture tab
   const [selectedLevel, setSelectedLevel] = useState(0); // top level of the texture being tested for sharpness
+  const [simWidth, setSimWidth] = useState(null); // "what if the texture were this wide" (only bigger than the file); null = the file as it is
   const [pxDraft, setPxDraft] = useState(null);
   const [channel, setChannel] = useState('rgb');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -159,6 +161,7 @@ export default function TxTexViewer({
     setLevelError(null);
     setPaintError(null);
     setSelectedLevel(0);
+    setSimWidth(null);
     setViewLevel(0);
     setView({ x: 0, y: 0 });
     setFitted(true);
@@ -209,6 +212,8 @@ export default function TxTexViewer({
   const level0 = mips[0];
   const safeLevel = Math.min(selectedLevel, Math.max(0, mips.length - 1));
   const testLevel = mips[safeLevel];
+  const simulating = !!simWidth && !!level0 && simWidth > level0.width && safeLevel === 0;
+  const textureWidth = simulating ? simWidth : testLevel?.width;
   const shownIndex = Math.min(viewLevel, Math.max(0, mips.length - 1));
   const shownLevel = mips[shownIndex];
 
@@ -219,25 +224,31 @@ export default function TxTexViewer({
 
   const analysis = useMemo(() => {
     if (!level0 || !testLevel) return null;
-    const verdict = judge({ textureWidth: testLevel.width, frameWidth: frameW, coverage, repeats });
+    const verdict = judge({ textureWidth, frameWidth: frameW, coverage, repeats });
     const copy = verdict.footprint;
     const lambda = Math.log2(level0.width / Math.max(copy, 1e-6));
     const pick = pickMipLevels(lambda, mips.length, safeLevel);
     return { verdict, lambda, pick, objW: frameW * coverage, objH: (frameW * coverage) / (level0.width / level0.height) };
-  }, [level0, testLevel, mips.length, safeLevel, frameW, coverage, repeats]);
+  }, [level0, testLevel, textureWidth, mips.length, safeLevel, frameW, coverage, repeats]);
 
   const chart = useMemo(() => {
     if (!testLevel) return null;
-    return buildChart({ textureWidth: testLevel.width, repeats });
-  }, [testLevel, repeats]);
+    return buildChart({ textureWidth, repeats });
+  }, [testLevel, textureWidth, repeats]);
 
   const recommendedMip = useMemo(() => {
     if (!analysis) return null;
     const want = analysis.verdict.recommendedWidth;
     if (!['more-than-enough', 'overkill'].includes(analysis.verdict.level)) return null;
-    if (want >= testLevel.width) return null;
+    if (want >= textureWidth) return null;
     return mips.find((m) => m.width === want) || null;
-  }, [analysis, mips, testLevel]);
+  }, [analysis, mips, testLevel, textureWidth]);
+
+  // Bigger-than-the-file sizes to try ("what if I exported this at 8K?"), up to 16K
+  const whatIfSizes = useMemo(
+    () => (level0 ? WHAT_IF_WIDTHS.filter((w) => w > level0.width) : []),
+    [level0]
+  );
 
   /* ---------------------------------------------------------------- texture tab: decode the shown level */
   useEffect(() => {
@@ -757,7 +768,7 @@ export default function TxTexViewer({
                     <button
                       type="button"
                       className="txtex-link"
-                      onClick={() => { setSelectedLevel(mips.indexOf(recommendedMip)); setTab('render'); }}
+                      onClick={() => { setSelectedLevel(mips.indexOf(recommendedMip)); setSimWidth(null); setTab('render'); }}
                     >
                       Try it with {sizeLabel(recommendedMip.width)} (Level {recommendedMip.index})
                     </button>
@@ -770,7 +781,45 @@ export default function TxTexViewer({
                       </button>
                     </div>
                   )}
+                  {simulating && (
+                    <div style={{ marginTop: 6, fontSize: 10.5, color: '#f59e0b', lineHeight: 1.4 }}>
+                      What if: pretending the texture is {sizeLabel(simWidth)}. Your file is only {sizeLabel(level0.width)}, so the preview below still shows your real pixels.{' '}
+                      <button type="button" className="txtex-link" style={{ display: 'inline', margin: 0 }} onClick={() => setSimWidth(null)}>
+                        Back to the file’s size
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {whatIfSizes.length > 0 && (
+                  <div className="control-group">
+                    <div className="control-label">
+                      <span>Texture size</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 400 }}>{simulating ? `what if ${sizeLabel(simWidth)}` : `${sizeLabel(textureWidth)} · from your file`}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <Chip
+                        active={!simulating}
+                        onClick={() => setSimWidth(null)}
+                        title={`The size of the file you opened (${level0.width} px wide)`}
+                        style={{ flex: 1 }}
+                      >
+                        File ({sizeLabel(level0.width)})
+                      </Chip>
+                      {whatIfSizes.map((w) => (
+                        <Chip
+                          key={w}
+                          active={simulating && simWidth === w}
+                          onClick={() => { setSelectedLevel(0); setSimWidth(w); }}
+                          title={`Pretend the texture is ${w} px wide. This is a what-if: the preview still shows your file's pixels.`}
+                          style={{ flex: 1 }}
+                        >
+                          {sizeLabel(w)}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="control-group">
                   <div className="control-label"><span>Final render size</span><span style={{ fontFamily: 'var(--font-mono)', fontWeight: 400 }}>{frameW} px wide</span></div>
@@ -865,7 +914,7 @@ export default function TxTexViewer({
 
               <Section
                 title="WHERE DOES IT HOLD UP?"
-                badge={`${sizeLabel(testLevel.width)}${repeats > 1 ? ` ×${repeats}` : ''}`}
+                badge={`${simulating ? 'what if ' : ''}${sizeLabel(textureWidth)}${repeats > 1 ? ` ×${repeats}` : ''}`}
                 open={open.chart}
                 onToggle={() => setOpen((o) => ({ ...o, chart: !o.chart }))}
               >
@@ -934,7 +983,7 @@ export default function TxTexViewer({
                         key={lv.index}
                         type="button"
                         className={`txtex-level ${picked ? 'selected' : ''}`}
-                        onClick={() => (tab === 'texture' ? setViewLevel(i) : setSelectedLevel(i))}
+                        onClick={() => { if (tab === 'texture') setViewLevel(i); else { setSelectedLevel(i); setSimWidth(null); } }}
                         title={lv.unsupported || `Level ${lv.index}: ${lv.width} × ${lv.height}`}
                       >
                         <span className="txtex-level-name">L{lv.index}</span>
