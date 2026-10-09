@@ -19,6 +19,10 @@ import {
   ChevronsRight
 } from 'lucide-react';
 
+// Spare room (px) required beyond the bare minimum before the filter text is shown, so the
+// labelled bar never crowds the search box.
+const LABELS_FIT_MARGIN = 48;
+
 export default function Header({
   searchTerm,
   setSearchTerm,
@@ -70,7 +74,8 @@ export default function Header({
         actionsRef.current.offsetWidth +
         measure.offsetWidth +
         gap * 3 +
-        padding;
+        padding +
+        LABELS_FIT_MARGIN;
       setLabelsFit(needed <= header.clientWidth);
     };
 
