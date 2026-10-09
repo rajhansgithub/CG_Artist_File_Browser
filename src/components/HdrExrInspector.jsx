@@ -79,7 +79,8 @@ const EV_DRAG_LIMIT = 24;
 export default function HdrExrInspector({
   asset,
   onClose,
-  onRevealInExplorer
+  onRevealInExplorer,
+  floating = false
 }) {
   const containerRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -455,11 +456,15 @@ export default function HdrExrInspector({
 
     probeBallsRef.current = { chrome: chromeBall, gray: grayBall, white: whiteBall };
 
+    // Quick Look shows the reference balls a little smaller, to suit the small window
+    const probeScale = floating ? 0.7 : 1;
+    [chromeBall, grayBall, whiteBall].forEach((ball) => ball.scale.setScalar(probeScale));
+
     const updateProbePositions = (w, h) => {
-      const r = 36;
-      const spacing = 86;
-      const marginX = 28;
-      const marginY = 28;
+      const r = 36 * probeScale;
+      const spacing = 86 * probeScale;
+      const marginX = 28 * probeScale;
+      const marginY = 28 * probeScale;
       const baseX = w / 2 - marginX - r;
       const baseY = -h / 2 + marginY + r;
 

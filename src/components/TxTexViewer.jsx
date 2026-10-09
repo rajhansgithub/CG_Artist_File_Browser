@@ -116,7 +116,9 @@ export default function TxTexViewer({
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
   const [model, setModel] = useState(null); // { parsed, reader }
-  const [tab, setTab] = useState('render'); // 'render' (opens here) | 'texture'
+  const [tabChoice, setTab] = useState('render'); // 'render' (opens here) | 'texture'
+  // Quick Look shows the texture only, like an image does
+  const tab = floating ? 'texture' : tabChoice;
   const [viewLevel, setViewLevel] = useState(0); // level shown on the Texture tab
   const [selectedLevel, setSelectedLevel] = useState(0); // top level of the texture being tested for sharpness
   const [simWidth, setSimWidth] = useState(null); // "what if the texture were this wide" (only bigger than the file); null = the file as it is
@@ -573,10 +575,10 @@ export default function TxTexViewer({
       <div
         style={{
           position: 'absolute',
-          left: 12,
-          top: 56,
-          bottom: 16,
-          right: sidebarOpen ? SIDEBAR_SPACE : 12,
+          left: floating ? 0 : 12,
+          top: floating ? 0 : 56,
+          bottom: floating ? 0 : 16,
+          right: floating ? 0 : sidebarOpen ? SIDEBAR_SPACE : 12,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

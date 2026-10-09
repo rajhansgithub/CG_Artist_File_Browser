@@ -3036,13 +3036,18 @@ select option {
   height: 100%;
 }
 
-/* Light layout: the viewers' top bars, side panels and overlays are left out, the window's own header stands in for them */
+/* Light layout: the viewers' top bars, side panels, overlays and arrows are left out, the window's own header stands in for them.
+   Quick Look for 360 / HDR and TX / TEX shows just the picture, and the balls and skybox stay. */
 .quick-look-body .viewport-hud,
 .quick-look-body .media-viewer-header,
 .quick-look-body .hdr-controls-panel,
 .quick-look-body .hdr-sidebar-open-tab,
 .quick-look-body .viewport-stats-overlay,
-.quick-look-body .video-guides-overlay {
+.quick-look-body .video-guides-overlay,
+.quick-look-body .hdr-inspector-sidebar,
+.quick-look-body .lighting-probe-legend,
+.quick-look-body .txtex-floating,
+.quick-look-body .txtex-arrow {
   display: none !important;
 }
 
