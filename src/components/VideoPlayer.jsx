@@ -92,7 +92,7 @@ export default function VideoPlayer({
   const [isZActive, setIsZActive] = useState(false);
   const [isDraggingZoom, setIsDraggingZoom] = useState(false);
 
-  // Mouse Seeking via Hold Shift + Left-Click Drag Left/Right
+  // Mouse Seeking via holding Left-Click and dragging Left/Right on the video
   const [isScrubbingMouse, setIsScrubbingMouse] = useState(false);
   const [isShiftActive, setIsShiftActive] = useState(false);
 
@@ -164,11 +164,17 @@ export default function VideoPlayer({
         return;
       }
 
-      // 3. Video Scrubbing drag (Hold Shift + Left-Click Drag Left/Right on stage)
+      // 3. Video Scrubbing drag (hold Left-Click and drag Left/Right on the stage)
       if (isSeekingMouseRef.current) {
         e.preventDefault();
         const deltaX = e.clientX - seekStartXRef.current;
         if (Math.abs(deltaX) > 4) {
+          // Pause once when the drag starts, so a plain click still plays / pauses as before
+          if (!wasDraggingSeekRef.current && videoRef.current && !videoRef.current.paused) {
+            wasPlayingBeforeSeekRef.current = true;
+            videoRef.current.pause();
+            setIsPlaying(false);
+          }
           wasDraggingSeekRef.current = true;
           setIsScrubbingMouse(true);
         }
@@ -617,22 +623,12 @@ export default function VideoPlayer({
       return;
     }
 
-    // 3. Timeline Seeking with mouse drag (Hold Shift + Left-click & drag left/right)
-    if (e.shiftKey) {
-      e.preventDefault();
-      isSeekingMouseRef.current = true;
-      wasDraggingSeekRef.current = false;
-      seekStartXRef.current = e.clientX;
-      seekStartTimeRef.current = videoRef.current ? videoRef.current.currentTime : 0;
-      if (isPlaying && videoRef.current) {
-        wasPlayingBeforeSeekRef.current = true;
-        videoRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        wasPlayingBeforeSeekRef.current = false;
-      }
-      return;
-    }
+    // 3. Timeline Seeking with mouse drag (hold Left-Click and drag left/right; a plain click still plays / pauses)
+    e.preventDefault();
+    isSeekingMouseRef.current = true;
+    wasDraggingSeekRef.current = false;
+    seekStartXRef.current = e.clientX;
+    seekStartTimeRef.current = videoRef.current ? videoRef.current.currentTime : 0;
   };
 
   const handleStageClick = () => {
@@ -1149,7 +1145,7 @@ export default function VideoPlayer({
               </span>
             </div>
             <div style={{ fontSize: 10, color: '#888888', letterSpacing: '0.02em' }}>
-              ↔ Scrubbing Timeline (Hold Shift + Drag Left/Right)
+              ↔ Scrubbing Timeline (Hold Left-Click + Drag Left/Right)
             </div>
           </div>
         )}
