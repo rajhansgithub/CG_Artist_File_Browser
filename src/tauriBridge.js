@@ -130,6 +130,19 @@ export function setupTauriBridge() {
       return bytes;
     },
 
+    // Header bytes of a file, so an EXR can be planned without reading all of it
+    readFileRange: async (filePath, start, length) => {
+      const bytes = await invoke('read_file_range', { filePath, start, length });
+      return bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes).buffer;
+    },
+
+    // Native EXR decode (all cores): RGBA float32 bytes, bottom row first. Rejects when the JS loader should be used.
+    // With preferHalf, an all-half-float image comes back as half float (8 bytes per pixel instead of 16).
+    decodeExrRgba: async (filePath, r, g, b, a, preferHalf) => {
+      const bytes = await invoke('decode_exr_rgba', { filePath, r, g, b, a: a || null, preferHalf: !!preferHalf });
+      return bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes).buffer;
+    },
+
     getItemDetails: async (filePath) => {
       return await invoke('get_item_details', { targetPath: filePath });
     },

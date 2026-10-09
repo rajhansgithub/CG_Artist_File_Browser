@@ -406,6 +406,188 @@ export function getCachedLayerCount(filePath) {
   return count;
 }
 
+// Decoded layers are float32 RGBA (about 140 MB each at 4K). Keep the cache inside a memory budget so a file
+// with dozens of passes cannot grow without limit, and stop pre-decoding well before the budget is used.
+const LAYER_CACHE_BYTES = 1.5 * 1024 * 1024 * 1024;
+const LAYER_PRELOAD_BYTES = 1 * 1024 * 1024 * 1024;
+
+function layerResultBytes(res) {
+  return res.rawData?.byteLength || 0;
+}
+
+function cachedLayerBytes() {
+  let total = 0;
+  for (const res of new Set(layerTextureCache.values())) total += layerResultBytes(res);
+  return total;
+}
+
+// Drops the oldest cached layers (and their GPU textures) until the cache fits the budget. `keep` stays.
+function enforceLayerBudget(keep) {
+  let total = cachedLayerBytes();
+  if (total <= LAYER_CACHE_BYTES) return;
+  for (const res of [...layerTextureCache.values()]) {
+    if (total <= LAYER_CACHE_BYTES) break;
+    if (res === keep) continue;
+    total -= layerResultBytes(res);
+    for (const [k, v] of [...layerTextureCache.entries()]) {
+      if (v === res) layerTextureCache.delete(k);
+    }
+    res.texture?.dispose?.();
+  }
+}
+
+// A header plus its offset table is well inside the first megabyte of any EXR we plan natively
+const EXR_PLAN_BYTES = 1024 * 1024;
+
+// Natively decoded layers still in flight, so a click on a layer the pre-decoder is already working on shares that decode
+const inflightNativeDecodes = new Map();
+
+function buildExrResult(texData, layerName) {
+  const texture = new THREE.DataTexture(
+    texData.data,
+    texData.width,
+    texData.height,
+    texData.format || THREE.RGBAFormat,
+    texData.type || THREE.FloatType
+  );
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.needsUpdate = true;
+  const parsedChannels = texData.header?.channels
+    ? texData.header.channels.map((c) => c.name)
+    : ['R', 'G', 'B', 'A'];
+  return {
+    texture,
+    rawData: texData.data,
+    width: texData.width,
+    height: texData.height,
+    header: texData.header,
+    channels: parsedChannels,
+    availableLayers: texData.availableLayers || [],
+    selectedLayer: layerName ?? texData.selectedLayer ?? null,
+    compression: texData.header?.compression || 'ZIP / PIZ',
+    format: 'OpenEXR (.exr)',
+    // Labelled as the JavaScript loader always has: it handed the viewer float32 whatever the file held
+    pixelType: '32-bit Float',
+    // Half-float pixel data is kept as half-float bits (see rawSample in halfFloat.js)
+    rawIsHalf: texData.type === THREE.HalfFloatType,
+    isHdr: false,
+    isExr: true
+  };
+}
+
+// Reads just the EXR header, works out which channels make up the layer, and has the native (multi-core)
+// decoder produce the pixels off the UI thread. Resolves to null whenever the JavaScript loader should take
+// over instead: unsupported compression, multi-part or deep files, YCbCr images, or any error.
+function loadExrNative(fileItem, layerName) {
+  const key = `${fileItem.path}:${layerName || '__default__'}`;
+  if (inflightNativeDecodes.has(key)) return inflightNativeDecodes.get(key);
+  const work = decodeExrNative(fileItem.path, layerName)
+    .catch((err) => {
+      console.warn('Native EXR decode unavailable, using the JavaScript loader:', err);
+      return null;
+    })
+    .finally(() => inflightNativeDecodes.delete(key));
+  inflightNativeDecodes.set(key, work);
+  return work;
+}
+
+async function decodeExrNative(filePath, layerName) {
+  const api = window.electronAPI;
+  const head = await api.readFileRange(filePath, 0, EXR_PLAN_BYTES);
+
+  const planner = new EXRLoader();
+  planner.setDataType(THREE.FloatType);
+  if (layerName) planner.setLayer(layerName);
+  const plan = planner.plan(head);
+
+  if (plan.deep || plan.multiPart || plan.partCount !== 1 || plan.yCbCr) return null;
+  if (/^DWA[AB]_COMPRESSION$/.test(plan.compression)) return null;
+
+  const names = [];
+  for (const [name, slot] of Object.entries(plan.decodeChannels || {})) names[slot] = name;
+  const [r, g, b, a] = names;
+  if (!r) return null;
+  if (plan.shouldExpand ? names.length !== 1 : !(g && b)) return null;
+
+  // An all-half-float image stays half float: half the bytes over IPC, in memory and to the GPU, and the very
+  // same values on screen. Anything else comes back as float32.
+  const used = plan.shouldExpand ? [r] : [r, g, b, a].filter(Boolean);
+  const preferHalf = used.every((n) => plan.header.channels.find((c) => c.name === n)?.pixelType === 1);
+
+  const bytes = await api.decodeExrRgba(
+    filePath,
+    r,
+    plan.shouldExpand ? r : g,
+    plan.shouldExpand ? r : b,
+    plan.shouldExpand ? null : a || null,
+    preferHalf
+  );
+
+  const pixels = plan.width * plan.height;
+  let data;
+  let type;
+  if (bytes.byteLength === pixels * 8) {
+    data = new Uint16Array(bytes);
+    type = THREE.HalfFloatType;
+  } else if (bytes.byteLength === pixels * 16) {
+    data = new Float32Array(bytes);
+    type = THREE.FloatType;
+  } else {
+    return null;
+  }
+
+  return buildExrResult(
+    {
+      data,
+      width: plan.width,
+      height: plan.height,
+      header: plan.header,
+      availableLayers: plan.availableLayers,
+      selectedLayer: plan.selectedLayer,
+      format: THREE.RGBAFormat,
+      type
+    },
+    plan.selectedLayer
+  );
+}
+
+// Decodes the file's other layers one after another in the background, natively, so the UI thread only
+// ever builds a texture object. Stops once the cache has used its pre-decode share of the memory budget.
+async function startNativeLayerPreload(fileItem, availableLayers) {
+  cancelBackgroundLayerPreload();
+  const controller = { aborted: false };
+  preloadAbortController = controller;
+  const filePath = fileItem.path;
+
+  await new Promise((r) => setTimeout(r, 160));
+
+  for (const layerName of availableLayers) {
+    if (controller.aborted) break;
+    if (layerTextureCache.has(`${filePath}:${layerName}`)) continue;
+    if (cachedLayerBytes() >= LAYER_PRELOAD_BYTES) break;
+
+    const res = await loadExrNative(fileItem, layerName);
+    if (controller.aborted || currentCachedPath !== filePath) break;
+    if (!res) break;
+
+    layerTextureCache.set(`${filePath}:${layerName}`, res);
+    window.dispatchEvent(
+      new CustomEvent('exr-layer-cached', {
+        detail: {
+          filePath,
+          layerName,
+          cachedCount: getCachedLayerCount(filePath),
+          total: availableLayers.length
+        }
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 60));
+  }
+}
+
 function cancelBackgroundLayerPreload() {
   if (preloadAbortController) {
     preloadAbortController.aborted = true;
@@ -426,6 +608,7 @@ async function startBackgroundLayerPreload(filePath, buffer, loader, availableLa
     if (controller.aborted) break;
     const cacheKey = `${filePath}:${layerName}`;
     if (layerTextureCache.has(cacheKey)) continue;
+    if (cachedLayerBytes() >= LAYER_PRELOAD_BYTES) break;
 
     try {
       loader.setLayer(layerName);
@@ -465,6 +648,7 @@ async function startBackgroundLayerPreload(filePath, buffer, loader, availableLa
       };
 
       layerTextureCache.set(cacheKey, res);
+      enforceLayerBudget(res);
 
       // Notify UI of background progress
       window.dispatchEvent(
@@ -492,6 +676,7 @@ export async function loadHdrTexture(fileItem, onProgress = () => {}, selectedLa
 
   // Reset cache if user switched to a completely different file
   if (currentCachedPath !== fileItem.path) {
+    for (const res of new Set(layerTextureCache.values())) res.texture?.dispose?.();
     layerTextureCache.clear();
     cancelBackgroundLayerPreload();
     if (activeExrLoader) {
@@ -504,6 +689,20 @@ export async function loadHdrTexture(fileItem, onProgress = () => {}, selectedLa
   const cacheKey = `${fileItem.path}:${selectedLayer || '__default__'}`;
   if (layerTextureCache.has(cacheKey)) {
     return layerTextureCache.get(cacheKey);
+  }
+
+  // EXR in the desktop app: header read plus a multi-core native decode, with no pixel work on the UI thread
+  if (ext === '.exr' && window.electronAPI?.decodeExrRgba && window.electronAPI?.readFileRange) {
+    const native = await loadExrNative(fileItem, selectedLayer);
+    if (native) {
+      if (currentCachedPath === fileItem.path) {
+        layerTextureCache.set(cacheKey, native);
+        if (native.selectedLayer) layerTextureCache.set(`${fileItem.path}:${native.selectedLayer}`, native);
+        enforceLayerBudget(native);
+        if (native.availableLayers.length > 1) startNativeLayerPreload(fileItem, native.availableLayers);
+      }
+      return native;
+    }
   }
 
   // Try direct binary buffer loading first via Electron IPC (fastest, most reliable)
@@ -595,6 +794,7 @@ export async function loadHdrTexture(fileItem, onProgress = () => {}, selectedLa
         if (texData.selectedLayer) {
           layerTextureCache.set(`${fileItem.path}:${texData.selectedLayer}`, res);
         }
+        enforceLayerBudget(res);
 
         // Trigger non-blocking background pre-decode for remaining layers
         if (texData.availableLayers && texData.availableLayers.length > 1) {

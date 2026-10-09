@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 mod drag_out;
+mod exr_view;
 mod folder_icons;
 mod network;
 mod network_login;
@@ -856,6 +857,52 @@ async fn read_file_buffer(file_path: String) -> Result<tauri::ipc::Response, Str
         .map_err(|e| e.to_string())
 }
 
+// IPC: Read a byte range of a file (the header of an EXR, so the viewer can plan a native decode
+// without pulling the whole file across IPC).
+#[tauri::command]
+async fn read_file_range(file_path: String, start: u64, length: u64) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut file = fs::File::open(&file_path).map_err(|e| e.to_string())?;
+        file.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
+        let mut buf = Vec::new();
+        file.take(length).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        Ok(buf)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map(tauri::ipc::Response::new)
+}
+
+// IPC: Decode the named channels of an EXR natively (all cores) into interleaved RGBA bytes, bottom row first.
+// With prefer_half, a file whose channels are all half float comes back as half float (8 bytes per pixel),
+// otherwise as float32 (16 bytes per pixel); the byte length tells the viewer which.
+// An error means the viewer should decode the file with its JavaScript loader instead.
+#[tauri::command]
+async fn decode_exr_rgba(
+    file_path: String,
+    r: String,
+    g: String,
+    b: String,
+    a: Option<String>,
+    prefer_half: Option<bool>,
+) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        exr_view::decode_rgba(
+            Path::new(&file_path),
+            &r,
+            &g,
+            &b,
+            a.as_deref(),
+            prefer_half.unwrap_or(false),
+        )
+        .map(|(_, _, bytes, _)| bytes)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map(tauri::ipc::Response::new)
+}
+
 // IPC: Show in folder / explorer
 #[tauri::command]
 fn show_in_folder(file_path: String) -> bool {
@@ -1453,6 +1500,8 @@ pub fn run() {
             remove_network_location,
             get_item_details,
             read_file_buffer,
+            read_file_range,
+            decode_exr_rgba,
             show_in_folder,
             open_external,
             get_blender_status,

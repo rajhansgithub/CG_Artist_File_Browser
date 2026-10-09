@@ -9,27 +9,7 @@ import {
 	RGBAFormat
 } from 'three';
 import { unzlibSync } from 'three/examples/jsm/libs/fflate.module.js';
-
-// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
-// Every half-float bit pattern converted once, so the scanline loop does an array read per sample
-// instead of a Math.pow per sample. Built at load time: 65536 entries, about 1 ms.
-const HALF_TO_FLOAT = new Float32Array( 65536 );
-for ( let binary = 0; binary < 65536; binary ++ ) {
-
-	const exponent = ( binary & 0x7C00 ) >> 10,
-		fraction = binary & 0x03FF;
-
-	HALF_TO_FLOAT[ binary ] = ( binary >> 15 ? - 1 : 1 ) * (
-		exponent ?
-			(
-				exponent === 0x1F ?
-					fraction ? NaN : Infinity :
-					Math.pow( 2, exponent - 15 ) * ( 1 + fraction / 0x400 )
-			) :
-			6.103515625e-5 * ( fraction / 0x400 )
-	);
-
-}
+import { HALF_TO_FLOAT } from './halfFloat.js';
 
 // Referred to the original Industrial Light & Magic OpenEXR implementation and the TinyEXR / Syoyo Fujita
 // implementation, so I have preserved their copyright notices.
@@ -2663,12 +2643,13 @@ class EXRLoader extends DataTextureLoader {
 			const byteArray = EXRDecoder.byteArray;
 			const stride = EXRDecoder.outputChannels;
 			const getter = EXRDecoder.getter;
+			const halfToFloat = HALF_TO_FLOAT; // a local, so the loop below does not go through the import binding
 
 			if ( getter === parseFloat16 ) {
 
 				for ( let x = 0; x < count; x ++ ) {
 
-					byteArray[ outIndex ] = HALF_TO_FLOAT[ viewer.getUint16( p, true ) ];
+					byteArray[ outIndex ] = halfToFloat[ viewer.getUint16( p, true ) ];
 					p += 2;
 					outIndex += stride;
 
@@ -3371,7 +3352,8 @@ class EXRLoader extends DataTextureLoader {
 			}
 
 			EXRDecoder.columns = EXRDecoder.width;
-			const size = EXRDecoder.width * EXRDecoder.height * EXRDecoder.outputChannels;
+			// A plan() call only wants the channel layout, so it skips the pixel buffer
+			const size = this.planOnly ? 0 : EXRDecoder.width * EXRDecoder.height * EXRDecoder.outputChannels;
 
 			switch ( outputType ) {
 
@@ -3409,6 +3391,8 @@ class EXRLoader extends DataTextureLoader {
 			EXRDecoder.totalBytes = byteOffset;
 			EXRDecoder.outLineWidth = EXRDecoder.width * EXRDecoder.outputChannels;
 			EXRDecoder.blockCache = this.blockCache;
+
+			if ( this.planOnly ) return EXRDecoder;
 
 			if ( EXRHeader.spec.deepFormat ) {
 
@@ -3522,6 +3506,27 @@ class EXRLoader extends DataTextureLoader {
 		if ( ! this.blockCache ) this.blockCache = new Map();
 		const EXRDecoder = setupDecoder.call( this, EXRHeader, bufferDataView, uInt8Array, offset, this.type, this.outputFormat );
 
+		if ( this.planOnly ) {
+
+			return {
+				header: EXRHeader,
+				availableLayers: EXRDecoder.availableLayers,
+				selectedLayer: EXRDecoder.selectedLayer,
+				width: EXRDecoder.width,
+				height: EXRDecoder.height,
+				compression: EXRHeader.compression,
+				pixelType: EXRDecoder.type,
+				outputChannels: EXRDecoder.outputChannels,
+				decodeChannels: EXRDecoder.decodeChannels,
+				shouldExpand: EXRDecoder.shouldExpand,
+				yCbCr: EXRDecoder.yCbCr,
+				deep: !! EXRHeader.spec.deepFormat,
+				multiPart: !! EXRHeader.spec.multiPart,
+				partCount: EXRHeaders.length
+			};
+
+		}
+
 		// parse input data
 		EXRDecoder.decode();
 
@@ -3604,6 +3609,29 @@ class EXRLoader extends DataTextureLoader {
 			generateMipmaps: false,
 			flipY: false,
 		};
+
+	}
+
+	/**
+	 * Reads only the header of an EXR (the first bytes of the file are enough) and reports which layer
+	 * would be decoded and which channels feed R, G, B and A, without decoding any pixels.
+	 *
+	 * @param {ArrayBuffer} buffer - The start of the file, long enough to hold the header and offset table.
+	 * @return {Object} The layer and channel plan. Throws when the buffer is too short.
+	 */
+	plan( buffer ) {
+
+		this.planOnly = true;
+
+		try {
+
+			return this.parse( buffer );
+
+		} finally {
+
+			this.planOnly = false;
+
+		}
 
 	}
 

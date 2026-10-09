@@ -92,6 +92,8 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `read_directory` | `dir_path`, `options` | `DirectoryResult` | Reads folders off the main thread; resolves cached thumbnails immediately. |
 | `get_item_details` | `target_path` | `FileItem` | Resolves single item size, modified timestamp, category, and extension. |
 | `read_file_buffer` | `file_path` | `Vec<u8>` | Streams raw binary files into JavaScript as `ArrayBuffer` without JSON/Base64 overhead. |
+| `read_file_range` | `file_path`, `start`, `length` | `Vec<u8>` | Reads a byte range as an `ArrayBuffer`; the EXR viewer reads just the header with it. |
+| `decode_exr_rgba` | `file_path`, `r`, `g`, `b`, `a?`, `prefer_half?` | `Vec<u8>` | Decodes the named EXR channels on all cores (`exr` crate) into interleaved RGBA, bottom row first: half float when the channels are all half and `prefer_half` is set, otherwise float32. An error sends the viewer to the JavaScript loader. |
 | `generate_thumbnail` | `file_path` | `Option<String>` | High-speed Rust-native thumbnail decoding and disk caching. |
 | `save_thumbnail` | `file_path`, `data_url` | `String` | Saves a client-side rendered thumbnail to disk cache. |
 | `save_image_file` | `file_path`, `data_url` | `bool` | Exports a viewport snapshot to PNG. |
@@ -156,6 +158,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 - **Tone-Mapping Operators**: ACES Filmic, AgX, Reinhard, Cineon, Linear.
 - **Precision Color Eyedropper**: Inspects raw 32-bit linear floating-point RGB, normalized hex, and luminance per pixel.
 - **RGB Channel Soloing**: Isolate Red, Green, Blue, Alpha, or Luminance channels on the fly.
+- **How an EXR is loaded**: `loadHdrTexture` in [`assetLoader.js`](../src/utils/assetLoader.js) reads only the first megabyte (`read_file_range`), lets `EXRLoader.plan()` work out the layer and which channels feed R, G, B and A, then has Rust decode them (`decode_exr_rgba`, [`exr_view.rs`](../src-tauri/src/exr_view.rs)) on every core, off the UI thread. All-half-float images stay half float end to end (IPC, memory, GPU), and the eyedropper and histogram read them through `rawSample` ([`halfFloat.js`](../src/utils/halfFloat.js)). Multi-part, deep, DWAA/DWAB, YCbCr and any native error fall back to the JavaScript loader (`exrLoaderExtended.js`), which reads half-float samples through a lookup table. Decoded layers are cached up to 1.5 GB (oldest dropped first) and other layers are pre-decoded natively in the background while under 1 GB. The render loop slows to about 5 fps after 2 s without pointer or key activity.
 
 ### ⚖️ NVIDIA iCAT-Style Image Comparison ([`src/components/CompareView.jsx`](../src/components/CompareView.jsx))
 - Side-by-side dual viewport (Slot A vs Slot B).
@@ -252,6 +255,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── utils/
 │   │   ├── assetLoader.js         # Three.js loaders (OBJ, FBX, GLTF, STL, PLY, USDZ, HDR)
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
+│   │   ├── halfFloat.js           # Half-float lookup table and rawSample() for decoded EXR pixels
 │   │   ├── folderIconLibrary.js   # Built-in folder icon set (ids are saved in user settings)
 │   │   ├── folderIconStore.js     # Folder icon state hook, context and Windows-icon lookup
 │   │   ├── formatHelpers.js       # File category resolution & formatting utilities
@@ -271,6 +275,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── src/
 │   │   ├── drag_out.rs            # Native drag-out: OLE file drag from the grid into other apps (Windows)
 │   │   ├── folder_icons.rs        # Folder icon store (portable-aware) and Windows desktop.ini icon export
+│   │   ├── exr_view.rs            # Native multi-core EXR decode for the viewer
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
 │   │   ├── network_login.rs       # Share sign-in (WNetAddConnection2) and Credential Manager password storage
