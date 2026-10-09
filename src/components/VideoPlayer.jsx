@@ -115,7 +115,6 @@ export default function VideoPlayer({
   const wasDraggingSeekRef = useRef(false);
   const seekStartXRef = useRef(0);
   const seekStartTimeRef = useRef(0);
-  const wasPlayingBeforeSeekRef = useRef(false);
 
   // Filter video assets in current folder for playlist stepping
   const videoAssets = allFolderItems.filter(
@@ -169,12 +168,6 @@ export default function VideoPlayer({
         e.preventDefault();
         const deltaX = e.clientX - seekStartXRef.current;
         if (Math.abs(deltaX) > 4) {
-          // Pause once when the drag starts, so a plain click still plays / pauses as before
-          if (!wasDraggingSeekRef.current && videoRef.current && !videoRef.current.paused) {
-            wasPlayingBeforeSeekRef.current = true;
-            videoRef.current.pause();
-            setIsPlaying(false);
-          }
           wasDraggingSeekRef.current = true;
           setIsScrubbingMouse(true);
         }
