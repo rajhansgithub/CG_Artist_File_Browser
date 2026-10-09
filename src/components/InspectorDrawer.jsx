@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { formatBytes, formatDate, formatDuration, getTypeLabel, toStreamUrl } from '../utils/formatHelpers';
 import '../styles/inspector-drawer.css';
@@ -40,11 +40,76 @@ function Row({ label, children }) {
   );
 }
 
+// The drawer's width is set by dragging its left edge. The width is kept in this browser, so it is the same next time.
+const WIDTH_KEY = 'inspectorDrawerWidth';
+const DEFAULT_WIDTH = 280;
+const MIN_WIDTH = 220;
+const MAX_WIDTH = 640;
+
+// Never wider than 60% of the window, so the grid keeps room
+function maxWidth() {
+  return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.floor(window.innerWidth * 0.6)));
+}
+
+function clampWidth(width) {
+  return Math.round(Math.min(maxWidth(), Math.max(MIN_WIDTH, width)));
+}
+
+function loadWidth() {
+  try {
+    const saved = Number(window.localStorage.getItem(WIDTH_KEY));
+    return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_WIDTH;
+  } catch (_) {
+    return DEFAULT_WIDTH;
+  }
+}
+
+function saveWidth(width) {
+  try {
+    window.localStorage.setItem(WIDTH_KEY, String(width));
+  } catch (_) {
+    // Storage can be unavailable (private windows, blocked site data): the width then lasts for this session only
+  }
+}
+
 export default function InspectorDrawer({ item, onClose }) {
   const path = item?.path || '';
   const modified = item?.modified;
   const [info, setInfo] = useState(null); // null while the header is being read
   const [media, setMedia] = useState(null); // { path, width, height, duration } or { path, failed }
+  const [width, setWidth] = useState(loadWidth);
+  const [resizing, setResizing] = useState(false);
+  const drag = useRef(null); // { startX, startWidth, latest } while the edge is being dragged
+
+  // The cursor stays a resize cursor while dragging, even when it leaves the edge
+  useEffect(() => {
+    document.body.classList.toggle('inspector-resizing', resizing);
+    return () => document.body.classList.remove('inspector-resizing');
+  }, [resizing]);
+
+  const startResize = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { startX: e.clientX, startWidth: width, latest: width };
+    setResizing(true);
+  };
+
+  // The edge is on the left, so dragging left widens the drawer
+  const moveResize = (e) => {
+    if (!drag.current) return;
+    drag.current.latest = clampWidth(drag.current.startWidth - (e.clientX - drag.current.startX));
+    setWidth(drag.current.latest);
+  };
+
+  const endResize = () => {
+    if (!drag.current) return;
+    saveWidth(drag.current.latest);
+    drag.current = null;
+    setResizing(false);
+  };
+
+  const shownWidth = clampWidth(width);
 
   useEffect(() => {
     let stale = false;
@@ -63,7 +128,21 @@ export default function InspectorDrawer({ item, onClose }) {
   const isMedia = item?.category === 'video' || item?.category === 'audio';
 
   return (
-    <aside className="inspector-drawer" aria-label="Inspector">
+    <aside className="inspector-drawer" aria-label="Inspector" style={{ width: shownWidth }}>
+      <div
+        className={`inspector-resize-handle ${resizing ? 'resizing' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the Inspector"
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={maxWidth()}
+        aria-valuenow={shownWidth}
+        title="Drag to resize"
+        onPointerDown={startResize}
+        onPointerMove={moveResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+      />
       <div className="inspector-header">
         <span>Inspector</span>
         <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={onClose} title="Hide the Inspector (I)" aria-label="Hide the Inspector">
