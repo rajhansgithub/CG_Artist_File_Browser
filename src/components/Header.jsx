@@ -1,5 +1,6 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { APP_VERSION } from '../version.js';
+import { LabelFilterMenu } from './LabelPanels';
 import {
   Layers,
   Search,
@@ -32,6 +33,9 @@ export default function Header({
   setViewMode,
   showFavoritesOnly,
   setShowFavoritesOnly,
+  labelFilter,
+  setLabelFilter,
+  labelTags,
   onOpenSettings,
   onOpenFolderPicker,
   sidebarCollapsed,
@@ -239,6 +243,7 @@ export default function Header({
 
       {/* Utility Actions */}
       <div className="header-actions" ref={actionsRef}>
+        <LabelFilterMenu filter={labelFilter} setFilter={setLabelFilter} tags={labelTags} />
         <button
           className="icon-btn"
           onClick={onOpenSettings}

@@ -154,8 +154,11 @@ We follow an iterative release cadence with standalone testable builds for each 
 | Action | Control |
 | :--- | :--- |
 | **Open Asset** | `Double Click` or `Space` on selected asset card |
+| **Quick Look** | `Space` on the selected file opens it in its viewer, `Space` or `Esc` goes back, `Left` / `Right` move to the next file in the 3D and HDR / EXR viewers |
 | **Grid Resize** | `Ctrl + Mouse Wheel` (Large icons view only) |
 | **Move the selection** | `Arrow keys` in the folder view, `Home` / `End` for first / last, `Page Up` / `Page Down` a screen at a time |
+| **Select several items** | `Ctrl + Click` to add or remove one, `Shift + Click` for a range, `Shift + Arrow keys` to extend, `Ctrl + A` for all |
+| **Box select** | Drag on empty space in the grid or the Details list; clicking empty space clears the selection |
 | **Open the selected item** | `Enter` (folders open, files open in their viewer) |
 | **Parent folder** | `Backspace` or the up arrow in the address bar |
 | **Folder history** | `Alt + Left` / `Alt + Right` or the back / forward buttons (the mouse's back / forward buttons work too) |
