@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>HDR and EXR maps · CG Artist File Browser guide</title>
+<meta name="description" content="The 360° inspector for HDR and EXR environment maps: exposure, tone mapping, channels, the eyedropper and probes.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html" aria-current="page">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>HDR and EXR maps</h1>
+      <p class="summary">The 360° inspector for HDR and EXR environment maps: exposure, tone mapping, channels, the eyedropper and probes.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="opening-a-map">Opening a map</h2>
+<p><code>.hdr</code> and <code>.exr</code> files open in the HDR and EXR inspector. The map appears as a 360° sky that you can look around in. Use the flat view button in the toolbar to see the whole equirectangular image at once. The app reads 32-bit float values, so bright sun pixels keep their real brightness until you tone-map them.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The HDR inspector showing a sky map with the controls on the right" src="../assets/media/hdr-inspector.webp"><figcaption>The sky on the left is the map as a dome. Controls sit in the panel on the right.</figcaption></figure>
+<h2 id="exposure-and-tone-mapping">Exposure and tone mapping</h2>
+<ul><li><strong>Exposure</strong> runs from −10 to +10 EV. Hold <code>E</code> and drag left or right, or use the slider. <code>0</code> resets it, and while <code>E</code> is held <code>+</code> and <code>-</code> step by half a stop.</li><li><strong>Tone mapping</strong> decides how the bright values are squeezed onto the screen. The list includes ACES, AgX, Cineon, Linear and Reinhard. Linear shows the raw values, which is the honest choice for checking light levels.</li></ul>
+<h2 id="channels">Channels</h2>
+<p>Press <code>1</code> to <code>6</code> to solo a channel, such as red, green, blue, alpha or luminance, and <code>C</code> to cycle. A channel that is all black or all white tells you a lot about a pass before you look at the image.</p>
+<h2 id="eyedropper-and-probes">Eyedropper and probes</h2>
+<p>Hover over the map to read the linear RGB value of a pixel, the hex colour and the luminance. Click to pin the reading. Press <code>P</code> to show or hide the probes, the small markers that show where you sampled.</p>
+<h2 id="other-controls">Other controls</h2>
+<ul><li><code>Z</code> and drag zooms the view. <code>0</code> resets the zoom and <code>F</code> fits the view.</li><li><code>V</code> flips the image vertically, which helps when a map comes from a tool with the other convention.</li><li><code>W</code> turns the wipe on and off, to compare the map with another one.</li><li>The panel lists the metadata of the file, the render passes (AOVs) inside an EXR, and the highlight roll-off setting.</li></ul>
+<aside class="callout callout-tip"><strong>Tip:</strong> Large multi-layer EXR files take longer the first time because every layer is decoded. The result is cached, so the next visit is quick. See <a href="../deep/troubleshooting.html#thumbnails-are-slow">Troubleshooting</a>.</aside>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/hdr-exr.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/images.html"><span>Previous</span>Images and textures</a><a class="next" href="../deep/3d-models.html"><span>Next</span>3D models</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#opening-a-map">Opening a map</a></li><li class="l2"><a href="#exposure-and-tone-mapping">Exposure and tone mapping</a></li><li class="l2"><a href="#channels">Channels</a></li><li class="l2"><a href="#eyedropper-and-probes">Eyedropper and probes</a></li><li class="l2"><a href="#other-controls">Other controls</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

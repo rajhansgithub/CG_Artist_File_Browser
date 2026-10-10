@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Video and audio · CG Artist File Browser guide</title>
+<meta name="description" content="The video player with frame stepping, in and out loop points, safe-area guides and speed. The audio player with a waveform, seamless loop and pitch.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html" aria-current="page">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Video and audio</h1>
+      <p class="summary">The video player with frame stepping, in and out loop points, safe-area guides and speed. The audio player with a waveform, seamless loop and pitch.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="video">Video</h2>
+<p>MP4, MOV, WebM, MKV and AVI files open in the video player. The bar under the picture has a scrubber, a frame counter (click it to switch between frames and timecode), play and pause, and a speed control.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The video player with its control bar" src="../assets/media/video-player.webp"><figcaption>The frame counter switches between frame numbers and timecode when you click it.</figcaption></figure>
+<ul><li><strong>Step frames</strong>: the arrow keys or <code>,</code> and <code>.</code> step one frame at a time.</li><li><strong>Loop</strong>: set an in point with <code>[</code> or <code>I</code> and an out point with <code>]</code> or <code>O</code>. The clip then loops between them. <code>\</code> clears the loop.</li><li><strong>Safe areas</strong>: turn on the action-safe (90%) and title-safe (80%) guides, and the aspect-ratio guides, for checking framing.</li><li><strong>Fit</strong>: choose how the video fits the window, and reveal the file in Explorer from the same bar.</li><li><strong>Next and previous</strong>: move to the next or previous video in the folder.</li></ul>
+<p>You can also drag the scrubber in Quick Look, and the video keeps playing while you scrub. See <a href="../deep/quick-look.html">Quick Look</a>.</p>
+<h2 id="audio">Audio</h2>
+<p>WAV, MP3, OGG, FLAC, AAC, AIFF and M4A open in the audio player, with a waveform and the file properties.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The audio player with its waveform" src="../assets/media/audio-player.webp"><figcaption>The waveform shows the level over the whole file.</figcaption></figure>
+<ul><li><strong>Seamless loop</strong> (<code>L</code>) repeats the file without a gap, which is useful for checking game loops.</li><li><strong>Pitch</strong> changes the pitch in semitones without changing the speed. Click the value to reset it to 0.</li><li>Previous and next move through the folder; stop returns to the start.</li></ul>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/video-and-audio.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/usd-outliner.html"><span>Previous</span>USD, Alembic and Blender</a><a class="next" href="../deep/quick-look.html"><span>Next</span>Quick Look</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#video">Video</a></li><li class="l2"><a href="#audio">Audio</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

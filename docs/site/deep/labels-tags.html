@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Labels and tags · CG Artist File Browser guide</title>
+<meta name="description" content="Colour labels and tags for files and folders, the label panel, filtering by label, and where the labels are saved.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/how-do-i.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html" aria-current="page">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Labels and tags</h1>
+      <p class="summary">Colour labels and tags for files and folders, the label panel, filtering by label, and where the labels are saved.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/how-do-i.html">How do I…? &rarr;</a></aside>
+<h2 id="colour-labels">Colour labels</h2>
+<p>There are seven colours: red, orange, yellow, green, blue, purple and gray. Each card has a small tag button. Click it to open the label panel and choose a colour. A label shows as a stripe on the card's edge and as a small mark on the card, so you can spot it while scrolling.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The label panel open over a card" src="../assets/media/label-popover.webp"><figcaption>The panel holds the colour swatches and the tags for one file</figcaption></figure>
+<p>Folders take labels and tags in the same way.</p>
+<h2 id="tags">Tags</h2>
+<p>In the <strong>Tags</strong> part of the panel, type a word and press <code>Enter</code>. Tags are lower case, inner spaces are collapsed, and a tag can be up to 24 characters long. A file can have up to 12 tags. Tags on a card show as small chips, with a count when there are more than fit.</p>
+<h2 id="filtering">Filtering</h2>
+<p>The label filter in the top bar lists the colours and the tags used in the folder. Choose one or more and only the matching files stay in view. Clear the filter to see everything again.</p>
+<h2 id="where-labels-are-saved">Where labels are saved</h2>
+<p>Labels and tags are saved in <code>file_labels.json</code>, in the app's data folder next to the folder-icon store. Nothing is written inside your folders, so labels do not travel with the files. A file with no colour and no tags loses its entry.</p>
+<aside class="callout callout-note"><strong>Note:</strong> Labels are local to this PC. They are not shared with other people or other computers.</aside>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/labels-tags.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/compare.html"><span>Previous</span>Compare</a><a class="next" href="../deep/inspector.html"><span>Next</span>Inspector</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#colour-labels">Colour labels</a></li><li class="l2"><a href="#tags">Tags</a></li><li class="l2"><a href="#filtering">Filtering</a></li><li class="l2"><a href="#where-labels-are-saved">Where labels are saved</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

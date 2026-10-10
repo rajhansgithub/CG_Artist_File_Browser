@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>3D models · CG Artist File Browser guide</title>
+<meta name="description" content="The 3D viewer for OBJ, FBX, glTF, GLB, STL and PLY: shading, lights, cameras, turntable, animation and statistics.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html" aria-current="page">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>3D models</h1>
+      <p class="summary">The 3D viewer for OBJ, FBX, glTF, GLB, STL and PLY: shading, lights, cameras, turntable, animation and statistics.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="opening-a-model">Opening a model</h2>
+<p>Models open in the 3D studio viewer: <code>.glb</code>, <code>.gltf</code>, <code>.obj</code>, <code>.fbx</code>, <code>.stl</code> and <code>.ply</code> directly, and <code>.usd</code>, <code>.usda</code>, <code>.usdc</code>, <code>.usdz</code>, <code>.abc</code> and <code>.blend</code> after a background conversion. See <a href="../deep/usd-outliner.html">USD and Alembic</a> for the conversion.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The 3D viewer with the toolbar across the top and the model in the middle" src="../assets/media/viewer-3d.webp"><figcaption>A gem model in the studio viewer. The panel in the bottom left shows the mesh statistics.</figcaption></figure>
+<h2 id="moving-the-camera">Moving the camera</h2>
+<ul><li>Drag with the left button to orbit, the right button to pan and the wheel to zoom.</li><li><code>F</code> frames the model.</li><li>The numpad keys snap to views: <code>1</code> front, <code>3</code> right, <code>7</code> top, and <code>Ctrl</code> with <code>1</code> or <code>3</code> for the back or left side. <code>5</code> switches between perspective and orthographic.</li><li>The camera menu sets the focal length (18, 35, 50, 85 and 200 mm) and the free or fixed view.</li></ul>
+<figure class="shot animation"><img loading="lazy" alt="Orbiting a model" src="../assets/media/orbit-3d.gif"><figcaption>Left-drag to orbit. The model stays framed.</figcaption></figure>
+<h2 id="shading">Shading</h2>
+<p>The shading list has the full PBR material, clay, wireframe, normal-map and matcap looks. Wireframe and grid buttons sit beside it. Clay and matcap modes show form and surface flow without colour, which is useful for checking dents and smooth curves.</p>
+<h2 id="lights-and-the-turntable">Lights and the turntable</h2>
+<p>The lighting list sets the studio rig: the softbox, sunset, neutral and cyber presets. The <strong>Light</strong> slider turns the light rig around the model. <strong>Turntable</strong> spins the model at an adjustable speed for a quick look from every side.</p>
+<h2 id="animation">Animation</h2>
+<p>Rigged models with animation clips show playback controls, so you can play, pause and scrub through a clip.</p>
+<h2 id="statistics-and-snapshot">Statistics and snapshot</h2>
+<p>The statistics panel shows the number of vertices, triangles, meshes and materials and the model's size. <strong>Snapshot</strong> saves what you see as a PNG. You choose where the file goes.</p>
+<h2 id="the-outliner">The outliner</h2>
+<p>Press <code>O</code> to open the outliner, which lists the parts of the scene. Click a part to select it and frame it. The <a href="../deep/usd-outliner.html">USD and Alembic</a> page has an example.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/3d-models.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/hdr-exr.html"><span>Previous</span>HDR and EXR maps</a><a class="next" href="../deep/usd-outliner.html"><span>Next</span>USD, Alembic and Blender</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#opening-a-model">Opening a model</a></li><li class="l2"><a href="#moving-the-camera">Moving the camera</a></li><li class="l2"><a href="#shading">Shading</a></li><li class="l2"><a href="#lights-and-the-turntable">Lights and the turntable</a></li><li class="l2"><a href="#animation">Animation</a></li><li class="l2"><a href="#statistics-and-snapshot">Statistics and snapshot</a></li><li class="l2"><a href="#the-outliner">The outliner</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

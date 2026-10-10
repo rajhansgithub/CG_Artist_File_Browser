@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>FAQ · CG Artist File Browser guide</title>
+<meta name="description" content="Short answers to the questions people ask first.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-shared">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html" aria-current="page">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Both layers</p>
+      <h1>FAQ</h1>
+      <p class="summary">Short answers to the questions people ask first.</p>
+      
+<h2 id="does-the-app-upload-my-files-anywhere">Does the app upload my files anywhere?</h2>
+<p>No. Everything is read and shown on your PC. The only network traffic is what Windows itself does when you open a network share, and the Blender conversion runs locally.</p>
+<h2 id="does-it-change-my-files">Does it change my files?</h2>
+<p>It only changes what you ask it to. Renaming, deleting (to the Recycle Bin), converting images and sending files to apps all happen when you do them. Labels, tags, favourites and folder icons are stored by the app in its own settings and label files, not inside your folders.</p>
+<h2 id="which-windows-versions-and-processors">Which Windows versions and processors?</h2>
+<p>Windows 10 or 11, 64-bit. WebView2 is needed; it is already installed on most Windows 10 and 11 PCs. Linux and macOS are not supported at the moment.</p>
+<h2 id="why-do-the-thumbnails-take-a-moment-the-first-time">Why do the thumbnails take a moment the first time?</h2>
+<p>The first time a folder is opened, each image and EXR is decoded. The result is saved in the thumbnail cache, so the next visit is instant. Very large multi-layer EXR files take the longest. See <a href="../deep/troubleshooting.html#thumbnails-are-slow">Troubleshooting</a>.</p>
+<h2 id="where-are-the-settings-and-the-cache">Where are the settings and the cache?</h2>
+<p>Settings (the Blender path, send-to apps, favourites, recent folders and network sign-ins) are kept in the app's settings file, <code>studio_config.json</code>. Labels are kept in <code>file_labels.json</code>. Thumbnails and converted models are kept in the <code>AssetStudioCache</code> folder under <code>%APPDATA%</code>. Settings has a button to clear the cache.</p>
+<h2 id="can-i-change-the-shortcuts">Can I change the shortcuts?</h2>
+<p>The keys are fixed in this version. The <a href="../quick/shortcuts.html">shortcut card</a> lists them all.</p>
+<h2 id="is-it-free">Is it free?</h2>
+<p>The app is released under the MIT licence. The source and the releases are on the project's GitHub page.</p>
+<h2 id="why-are-some-screenshots-not-from-my-pc">Why are some screenshots not from my PC?</h2>
+<p>The pictures in this guide were captured from a browser build with sample files so that the guide could be made before the Windows build was run. They show the same controls. Real screenshots can replace them by copying files over the old ones.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/shared/faq.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><span></span><a class="next" href="../shared/release-notes.html"><span>Next</span>Release notes</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#does-the-app-upload-my-files-anywhere">Does the app upload my files anywhere?</a></li><li class="l2"><a href="#does-it-change-my-files">Does it change my files?</a></li><li class="l2"><a href="#which-windows-versions-and-processors">Which Windows versions and processors?</a></li><li class="l2"><a href="#why-do-the-thumbnails-take-a-moment-the-first-time">Why do the thumbnails take a moment the first time?</a></li><li class="l2"><a href="#where-are-the-settings-and-the-cache">Where are the settings and the cache?</a></li><li class="l2"><a href="#can-i-change-the-shortcuts">Can I change the shortcuts?</a></li><li class="l2"><a href="#is-it-free">Is it free?</a></li><li class="l2"><a href="#why-are-some-screenshots-not-from-my-pc">Why are some screenshots not from my PC?</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

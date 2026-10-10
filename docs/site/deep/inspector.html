@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Inspector · CG Artist File Browser guide</title>
+<meta name="description" content="The details panel beside the grid: what it shows for each file type, how to open it and how to resize it.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html" aria-current="page">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Inspector</h1>
+      <p class="summary">The details panel beside the grid: what it shows for each file type, how to open it and how to resize it.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="opening-it">Opening it</h2>
+<p>Press <code>I</code>, or click the info button in the top bar. The Inspector opens on the right of the folder. It shows the details of the selected file and updates as you move the selection. Close it with <code>I</code> again or the cross at the top.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The Inspector beside a folder of models" src="../assets/media/inspector-drawer.webp"><figcaption>The Inspector shows the selected file's details below its name</figcaption></figure>
+<h2 id="what-it-shows">What it shows</h2>
+<p>The fields depend on the type of file:</p>
+<ul><li><strong>All files</strong>: type, size, date modified and the full path.</li><li><strong>Images and textures</strong>: resolution, colour, channels, sample type and compression.</li><li><strong>EXR</strong>: parts and channels, with the file's layers.</li><li><strong>Video and audio</strong>: duration and media information.</li><li><strong>Folders</strong>: the folder's created and modified dates.</li></ul>
+<h2 id="resizing">Resizing</h2>
+<p>Drag the left edge of the Inspector to make it wider or narrower.</p>
+<figure class="shot animation"><img loading="lazy" alt="Dragging the edge of the Inspector" src="../assets/media/inspector-resize.gif"><figcaption>Drag the left edge to make the Inspector wider or narrower</figcaption></figure>
+<aside class="callout callout-tip"><strong>Tip:</strong> The Inspector and the viewers' own side panels are different. The HDR and EXR viewer, for example, has its own panel with the exposure and tone-mapping controls. See <a href="../deep/hdr-exr.html">HDR and EXR maps</a>.</aside>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/inspector.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/labels-tags.html"><span>Previous</span>Labels and tags</a><a class="next" href="../deep/send-to-apps.html"><span>Next</span>Send to apps</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#opening-it">Opening it</a></li><li class="l2"><a href="#what-it-shows">What it shows</a></li><li class="l2"><a href="#resizing">Resizing</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

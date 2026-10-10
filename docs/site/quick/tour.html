@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>A quick tour · CG Artist File Browser guide</title>
+<meta name="description" content="The main screen, the four things you do most, and where each one lives. Pictures and clips are included.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-quick">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="on">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html" aria-current="page">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Quick start</p>
+      <h1>A quick tour</h1>
+      <p class="summary">The main screen, the four things you do most, and where each one lives. Pictures and clips are included.</p>
+      <aside class="cross"><span>Want the details?</span><a href="../deep/folders-and-network.html">Folders and network drives &rarr;</a></aside>
+<h2 id="the-main-screen">The main screen</h2>
+<figure class="shot screenshot"><img loading="lazy" alt="The folder view with thumbnails, the sidebar on the left and the path bar on top" src="../assets/media/grid-models.webp"><figcaption>A folder of models. The sidebar lists drives, network locations, recent and pinned folders.</figcaption></figure>
+<ul><li><strong>Sidebar, left.</strong> Drives and network shares, recent folders, pinned folders, and the assets you starred. The box at the bottom counts the files in the current folder.</li><li><strong>Path bar, top.</strong> Where you are, with back, forward and up buttons. Click the empty part of the path, or press <code>Ctrl</code> + <code>L</code>, to type a path.</li><li><strong>Filter box, top right.</strong> Type to narrow the folder to matching names. The type buttons next to it show only 3D, HDR, images, video, audio or PDF files.</li><li><strong>Views.</strong> Thumbnails by default. The list icon switches to a details list with name, date, type and size. Your choice is remembered.</li></ul>
+<figure class="shot screenshot"><img loading="lazy" alt="The same folder in the details list" src="../assets/media/details-view.webp"><figcaption>Details view: click a column header to sort</figcaption></figure>
+<h2 id="preview-without-opening-quick-look">Preview without opening: Quick Look</h2>
+<p>Select a file and press <code>Space</code>. A small window opens over the folder and shows the file in its own viewer. Press the arrow keys to move through the folder; the window follows. <code>Space</code> or <code>Esc</code> closes it, <code>Enter</code> opens the full viewer.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="Quick Look over a folder of textures" src="../assets/media/quick-look.webp"><figcaption>Quick Look shows a texture without leaving the folder</figcaption></figure>
+<figure class="shot animation"><img loading="lazy" alt="Moving through a folder with the arrow keys while Quick Look stays open" src="../assets/media/quick-look.gif"><figcaption>Arrow keys move the selection, and the preview follows</figcaption></figure>
+<h2 id="select-several-files">Select several files</h2>
+<p><code>Click</code> picks one file. <code>Ctrl</code> + <code>Click</code> adds or removes one, <code>Shift</code> + <code>Click</code> selects a range, and dragging on empty space draws a box. <code>Ctrl</code> + <code>A</code> selects everything. The status bar at the bottom says how many are selected and their total size.</p>
+<figure class="shot animation"><img loading="lazy" alt="Ctrl and Shift clicks building a selection" src="../assets/media/multi-select.gif"><figcaption>Ctrl + Click and Shift + Click build up a selection</figcaption></figure>
+<h2 id="right-click-for-actions">Right-click for actions</h2>
+<p>Right-click a file or folder for its menu: open, reveal in Explorer, copy the path, rename, delete, send to an app, add it to favourites, label it, or convert images.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The right-click menu on a texture" src="../assets/media/context-menu.webp"><figcaption>The menu changes with the file type. Send to shows the apps you added in Settings.</figcaption></figure>
+<h2 id="compare-two-files">Compare two files</h2>
+<p>Each card has an <strong>A</strong> and a <strong>B</strong> button. Pick two files, then press <strong>Compare</strong> in the bar at the bottom. Drag the divider to wipe between them, or use the modes in the top bar.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="Two renders in the compare bar, with the Compare button" src="../assets/media/compare-dock.webp"><figcaption>Pick slot A and slot B, then press Compare</figcaption></figure>
+<figure class="shot animation"><img loading="lazy" alt="Dragging the divider in a comparison" src="../assets/media/compare-wipe.gif"><figcaption>The wipe divider shows how the two versions differ</figcaption></figure>
+<h2 id="next-steps">Next steps</h2>
+<ul><li><a href="../quick/how-do-i.html">How do I…?</a> answers the common tasks in one line each.</li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a> lists every key, with a search box.</li><li>When you want the detail behind a screen, the <a href="../deep/folders-and-network.html">deep dive</a> has a page for each feature.</li></ul>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/quick/tour.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><span></span><a class="next" href="../quick/how-do-i.html"><span>Next</span>How do I…?</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#the-main-screen">The main screen</a></li><li class="l2"><a href="#preview-without-opening-quick-look">Preview without opening: Quick Look</a></li><li class="l2"><a href="#select-several-files">Select several files</a></li><li class="l2"><a href="#right-click-for-actions">Right-click for actions</a></li><li class="l2"><a href="#compare-two-files">Compare two files</a></li><li class="l2"><a href="#next-steps">Next steps</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>
