@@ -986,6 +986,30 @@ async fn delete_item(file_path: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+// IPC: Delete a file or folder for good, skipping the Recycle Bin. Only called after the user confirms a permanent delete
+// (Shift + Delete). A symbolic link is removed as a link, never followed into its target.
+#[tauri::command]
+async fn delete_item_permanently(file_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&file_path);
+        if !p.exists() {
+            return Err("This item no longer exists".to_string());
+        }
+        if p.parent().is_none() {
+            return Err("Drives and network shares can't be deleted here".to_string());
+        }
+        let meta = std::fs::symlink_metadata(p).map_err(|e| e.to_string())?;
+        let result = if meta.is_dir() {
+            std::fs::remove_dir_all(p)
+        } else {
+            std::fs::remove_file(p)
+        };
+        result.map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // IPC: Show in folder / explorer
 #[tauri::command]
 fn show_in_folder(file_path: String) -> bool {
@@ -1621,6 +1645,7 @@ pub fn run() {
             open_external,
             rename_item,
             delete_item,
+            delete_item_permanently,
             get_blender_status,
             set_blender_path,
             convert_asset,

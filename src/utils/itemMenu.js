@@ -1,4 +1,4 @@
-import { Copy, Eye, ExternalLink, FileOutput, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { Copy, Eye, ExternalLink, FileOutput, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RefreshCw, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem, isConvertibleItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -133,6 +133,12 @@ export function buildItemMenu(items, actions) {
 
   while (entries.length && entries[entries.length - 1].separator) entries.pop();
   return entries;
+}
+
+// Entries for the right-click menu on the empty space of the folder view (not on a card or a row).
+// `actions` holds onRefresh, the same in-place reload that F5 and Ctrl + R run.
+export function buildFolderMenu(actions) {
+  return [{ id: 'refresh', label: 'Refresh', icon: RefreshCw, onSelect: () => actions.onRefresh() }];
 }
 
 // Copies text to the clipboard; falls back to a hidden textarea when the async clipboard API is not available

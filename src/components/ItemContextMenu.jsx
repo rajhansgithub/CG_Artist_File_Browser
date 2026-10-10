@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { buildItemMenu } from '../utils/itemMenu';
+import { buildFolderMenu, buildItemMenu } from '../utils/itemMenu';
 
-// Right-click menu for files and folders (grid card, details row or sidebar entry). The entries come from buildItemMenu.
-export default function ItemContextMenu({ x, y, items, actions, onClose }) {
+// Right-click menu for files and folders (grid card, details row or sidebar entry), or for the empty space of the
+// folder view (background). The entries come from buildItemMenu or buildFolderMenu.
+export default function ItemContextMenu({ x, y, items, actions, background = false, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -34,7 +35,7 @@ export default function ItemContextMenu({ x, y, items, actions, onClose }) {
     };
   }, [onClose]);
 
-  const entries = buildItemMenu(items, actions);
+  const entries = background ? buildFolderMenu(actions) : buildItemMenu(items, actions);
 
   return (
     <div

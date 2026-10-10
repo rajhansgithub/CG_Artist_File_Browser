@@ -23,7 +23,7 @@ import ItemContextMenu from './components/ItemContextMenu';
 import TextureSetModal from './components/TextureSetModal';
 import { RenameItemModal, DeleteItemModal } from './components/ItemActionModals';
 import BatchConvertModal from './components/BatchConvertModal';
-import { copyText } from './utils/itemMenu';
+import { copyText, isRootLocation } from './utils/itemMenu';
 import FolderIconPicker from './components/FolderIconPicker';
 import SortMenu from './components/SortMenu';
 import StatusBar from './components/StatusBar';
@@ -124,6 +124,7 @@ export default function App() {
 
   // Filter & Search. The box shows every keystroke at once, but the folder is only searched again once typing pauses
   const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef(null); // the filter box in the header, focused by Ctrl + F
   const debouncedSearchTerm = useDebouncedValue(searchTerm, SEARCH_DEBOUNCE_MS);
   const [filterType, setFilterType] = useState('all'); // 'all', '3d', 'hdr'
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -669,10 +670,12 @@ export default function App() {
     return null;
   };
 
-  // Delete (to the Recycle Bin): stops at the first failure and reports it to the dialog
-  const handleDeleteItems = async (items) => {
+  // Delete (to the Recycle Bin, or for good with Shift + Delete): stops at the first failure and reports it to the dialog
+  const handleDeleteItems = async (items, permanent = false) => {
     for (const item of items) {
-      const res = await window.electronAPI.deleteItem(item.path);
+      const res = permanent
+        ? await window.electronAPI.deleteItemPermanently(item.path)
+        : await window.electronAPI.deleteItem(item.path);
       if (!res.ok) {
         await refreshCurrentFolder();
         return res.error;
@@ -1072,6 +1075,11 @@ export default function App() {
     e.preventDefault();
     setItemMenu({ x: e.clientX, y: e.clientY, item, useSelection });
   }, []);
+  // Right-click on the empty space of the grid: the folder menu (Refresh) instead of an item's menu
+  const openFolderMenu = useCallback((e) => {
+    e.preventDefault();
+    setItemMenu({ x: e.clientX, y: e.clientY, item: null, useSelection: false, background: true });
+  }, []);
   const folderIconsValue = useMemo(
     () => ({
       assignments: folderIconStore.assignments,
@@ -1102,7 +1110,7 @@ export default function App() {
 
   // What the open right-click menu acts on: the whole selection when its item is part of a multi-selection
   const itemMenuItems = (() => {
-    if (!itemMenu) return [];
+    if (!itemMenu || itemMenu.background) return [];
     const { item, useSelection } = itemMenu;
     if (!useSelection || !selectedPaths.has(item.path)) return [item];
     const picked = displayedItems.filter((d) => selectedPaths.has(d.path));
@@ -1155,6 +1163,67 @@ export default function App() {
       .catch(() => {});
   }, [currentPath]);
 
+  // Folder shortcuts the grid does not handle itself. They act on the grid only, with no window or menu open and no
+  // text box focused. The handlers are read through a ref, so the listener is attached once and sees the latest state.
+  const selectedForKeys = () => (selectedPaths.size > 0 ? displayedItems.filter((item) => selectedPaths.has(item.path)) : []);
+  const folderKeysRef = useRef(null);
+  folderKeysRef.current = {
+    deleteSelection: (permanent) => {
+      const items = selectedForKeys();
+      if (!items.length || items.some((item) => item.isSequence || isRootLocation(item.path))) return;
+      setItemAction({ type: 'delete', items, permanent });
+    },
+    renameSelection: () => {
+      const items = selectedForKeys();
+      const item = items[0];
+      if (items.length !== 1 || item.isSequence || isRootLocation(item.path)) return;
+      setItemAction({ type: 'rename', items: [item] });
+    },
+    copySelectionPaths: () => {
+      const items = selectedForKeys();
+      if (items.length) handleCopyPaths(items);
+    },
+    focusFilter: () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    },
+    goUp,
+    toggleInspector: () => setInspectorOpen((open) => !open)
+  };
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.defaultPrevented || e.repeat || viewModeRef.current !== 'grid' || windowOpenRef.current) return;
+      if (isTextEntryTarget(e.target)) return;
+      const keys = folderKeysRef.current;
+      const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+      const ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+      const lower = e.key?.toLowerCase();
+
+      // Delete moves to the Recycle Bin after a confirm; Shift + Delete deletes for good after a stronger one
+      if (e.key === 'Delete' && plain) {
+        e.preventDefault();
+        keys.deleteSelection(e.shiftKey);
+      } else if (e.key === 'F2' && plain && !e.shiftKey) {
+        e.preventDefault();
+        keys.renameSelection();
+      } else if (e.key === 'Enter' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        keys.toggleInspector();
+      } else if (e.key === 'ArrowUp' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        keys.goUp();
+      } else if (ctrl && !e.shiftKey && lower === 'f') {
+        e.preventDefault();
+        keys.focusFilter();
+      } else if (ctrl && e.shiftKey && lower === 'c') {
+        e.preventDefault();
+        keys.copySelectionPaths();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const breadcrumbs = buildBreadcrumbs(currentPath);
 
   return (
@@ -1181,6 +1250,7 @@ export default function App() {
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         onRefreshFolder={refreshFolder}
         isRefreshing={isRefreshing}
+        searchInputRef={searchInputRef}
       />
 
       {/* Main Workspace */}
@@ -1404,6 +1474,7 @@ export default function App() {
               onSortColumn={(key) => handleSortChange(sortByColumn(sort, key))}
               keyboardEnabled={!isWindowOpen && !isEditingPath}
               onGoUp={goUp}
+              onOpenFolderMenu={openFolderMenu}
             />
           )}
 
@@ -1669,7 +1740,9 @@ export default function App() {
           x={itemMenu.x}
           y={itemMenu.y}
           items={itemMenuItems}
+          background={!!itemMenu.background}
           actions={{
+            onRefresh: refreshFolder,
             isFavorite: (item) => favorites.some((f) => f.path === item.path),
             hasIconChoice: (item) => !!folderIconStore.assignments[normalizeFolderKey(item.path)],
             sequenceFor,
@@ -1729,7 +1802,8 @@ export default function App() {
       {itemAction?.type === 'delete' && (
         <DeleteItemModal
           items={itemAction.items}
-          onConfirm={() => handleDeleteItems(itemAction.items)}
+          permanent={!!itemAction.permanent}
+          onConfirm={() => handleDeleteItems(itemAction.items, !!itemAction.permanent)}
           onClose={() => setItemAction(null)}
         />
       )}

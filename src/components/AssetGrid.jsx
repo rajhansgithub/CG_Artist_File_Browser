@@ -516,7 +516,8 @@ export default function AssetGrid({
   sort,
   onSortColumn,
   keyboardEnabled = true,
-  onGoUp
+  onGoUp,
+  onOpenFolderMenu
 }) {
   const wrapRef = useRef(null);
   const folderViewRef = useRef(folderView);
@@ -862,12 +863,19 @@ export default function AssetGrid({
 
   // The background handlers only act on the empty area: a press or click on a card or row never reaches them
   // as the target, and the list itself is the target when the press lands between items
+  // Right-click on the empty space (not on a card, a row or the details header) opens the folder menu (Refresh)
+  const handleBackgroundContextMenu = (event) => {
+    if (event.target.closest?.('.asset-card, .details-row, .details-header')) return;
+    onOpenFolderMenu?.(event);
+  };
+
   return (
     <div
       ref={wrapRef}
       className="asset-view"
       onPointerDown={handleBackgroundPointerDown}
       onClick={handleBackgroundClick}
+      onContextMenu={handleBackgroundContextMenu}
     >
       {content}
     </div>

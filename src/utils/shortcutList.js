@@ -5,7 +5,8 @@
 // Each group names the handler it mirrors in its comment. When a handler's keys change, change them here too.
 export const SHORTCUT_GROUPS = [
   {
-    // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, F5 / Ctrl + R, Alt + arrows, mouse side buttons)
+    // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, F5 / Ctrl + R, Alt + arrows, mouse side buttons, Delete,
+    // F2, Alt + Up, Ctrl + F, Ctrl + Shift + C, right-click on empty space)
     title: 'Folders and selection',
     items: [
       { keys: [['Arrow keys']], action: 'Move the selection (up and down move a row)' },
@@ -13,12 +14,18 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Home'], ['End']], action: 'First / last item' },
       { keys: [['Page Up'], ['Page Down']], action: 'Move a screen at a time' },
       { keys: [['Enter']], action: 'Open the selected folder or file' },
-      { keys: [['Backspace']], action: 'Go up to the parent folder' },
+      { keys: [['Backspace'], ['Alt', 'Up']], action: 'Go up to the parent folder' },
       { keys: [['Alt', 'Left'], ['Alt', 'Right']], action: 'Back / forward through folder history' },
       { keys: [['Mouse back'], ['Mouse forward']], action: 'Side buttons on the mouse: back / forward' },
       { keys: [['Ctrl', 'L'], ['Alt', 'D']], action: 'Type a folder path or network address' },
+      { keys: [['Ctrl', 'F']], action: 'Type in the filter box (top right)' },
+      { keys: [['Delete']], action: 'Delete the selected files and folders: moved to the Recycle Bin after a confirm' },
+      { keys: [['Shift', 'Delete']], action: 'Delete the selection for good, skipping the Recycle Bin (type DELETE to confirm)' },
+      { keys: [['F2']], action: 'Rename the selected item (one item at a time)' },
+      { keys: [['Ctrl', 'Shift', 'C']], action: 'Copy the path of the selected item (one path per line for a selection)' },
       { keys: [['F5'], ['Ctrl', 'R']], action: 'Refresh this folder in place (same folder, selection and view)' },
       { keys: [['Ctrl', 'A']], action: 'Select all' },
+      { keys: [['Right-click']], action: 'Menu for the item, or on empty space: Refresh the folder in place' },
       { keys: [['Click']], action: 'Select one item' },
       { keys: [['Ctrl', 'Click']], action: 'Add or remove one item' },
       { keys: [['Shift', 'Click']], action: 'Select a range' },
@@ -28,10 +35,10 @@ export const SHORTCUT_GROUPS = [
     ]
   },
   {
-    // App.jsx (I key and the Inspector button in the breadcrumb bar), InspectorDrawer.jsx
+    // App.jsx (I and Alt + Enter, and the Inspector button in the breadcrumb bar), InspectorDrawer.jsx
     title: 'Inspector drawer',
     items: [
-      { keys: [['I']], action: 'Show or hide the Inspector: details of the selected file, beside the grid' }
+      { keys: [['I'], ['Alt', 'Enter']], action: 'Show or hide the Inspector: details of the selected file, beside the grid' }
     ]
   },
   {
