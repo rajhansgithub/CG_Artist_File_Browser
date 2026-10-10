@@ -22,6 +22,10 @@ Windows 10 or 11, 64-bit. WebView2 is needed; it is already installed on most Wi
 
 The first time a folder is opened, each image and EXR is decoded. The result is saved in the thumbnail cache, so the next visit is instant. Very large multi-layer EXR files take the longest. See [Troubleshooting](@deep/troubleshooting#thumbnails-are-slow).
 
+## Where is this guide, and does it need the internet?
+
+The guide is built into the app, so it works offline and is the same in the installed app and the portable exe. Click the question-mark **Help** button in the top bar, or **Open the user guide** under Documentation in Settings or at the bottom of the shortcut card (`?` or `F1`). It opens in your default browser. If the browser cannot be started, the app shows the folder where the guide is saved so you can open `index.html` yourself.
+
 ## Where are the settings and the cache?
 
 Settings (the Blender path, send-to apps, favourites, recent folders and network sign-ins) are kept in the app's settings file, `studio_config.json`. Labels are kept in `file_labels.json`. Thumbnails and converted models are kept in the `AssetStudioCache` folder under `%APPDATA%`. Settings has a button to clear the cache.

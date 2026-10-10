@@ -10,6 +10,7 @@ mod network;
 mod network_login;
 mod recent_folders;
 mod thumbnails;
+mod user_guide;
 
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -1672,7 +1673,8 @@ pub fn run() {
             external_apps::scan_external_apps,
             external_apps::send_to_external_app,
             batch_convert::start_batch_convert,
-            batch_convert::cancel_batch_convert
+            batch_convert::cancel_batch_convert,
+            user_guide::open_user_guide
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

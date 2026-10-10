@@ -18,7 +18,8 @@ import {
   FileText,
   ChevronsLeft,
   ChevronsRight,
-  RefreshCw
+  RefreshCw,
+  CircleHelp
 } from 'lucide-react';
 
 // Spare room (px) required beyond the bare minimum before the filter text is shown, so the
@@ -43,6 +44,7 @@ export default function Header({
   onToggleSidebar,
   onRefreshFolder,
   isRefreshing,
+  onOpenGuide,
   searchInputRef
 }) {
   // Filter labels: 'auto' shows the text next to each icon whenever the header has room
@@ -257,6 +259,14 @@ export default function Header({
           aria-label="Refresh this folder"
         >
           <RefreshCw size={14} />
+        </button>
+        <button
+          className="icon-btn"
+          onClick={onOpenGuide}
+          title="Help: open the user guide in your browser"
+          aria-label="Help: open the user guide"
+        >
+          <CircleHelp size={14} />
         </button>
         <button
           className="icon-btn"

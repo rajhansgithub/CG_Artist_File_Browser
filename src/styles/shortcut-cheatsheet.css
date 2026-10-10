@@ -90,3 +90,14 @@
     column-count: 1;
   }
 }
+
+/* Footer: a hint on the left, the button that opens the user guide on the right */
+.shortcut-cheatsheet-footer {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shortcut-cheatsheet-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}

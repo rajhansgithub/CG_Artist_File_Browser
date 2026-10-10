@@ -2,14 +2,14 @@
 title: Settings and themes
 layer: deep
 nav: Settings and themes
-summary: The settings window: the four colour themes, the Blender path, the send-to apps and the asset cache.
+summary: The settings window: the four colour themes, the user guide link, the Blender path, the send-to apps and the asset cache.
 order: 16
 counterpart: quick/how-do-i
 ---
 
 ## Opening Settings
 
-Click the gear at the top right, or **Studio Preferences & Configuration**. The window has four parts.
+Click the gear at the top right, or **Studio Preferences & Configuration**. The window has five parts.
 
 ![The settings window with the appearance and Blender options](media:settings-themes.webp "Appearance at the top, then Blender, External apps and the asset cache")
 
@@ -23,6 +23,10 @@ Four themes are available. The choice is remembered and applies at once.
 | Dark Gray | A softer, lighter grey |
 | True Black | Pure black, best on OLED screens |
 | Light | A bright studio look |
+
+## Documentation
+
+**Open the user guide** opens this guide in your default browser. It is the same as the question-mark **Help** button in the top bar. The guide is built into the app and works without the internet; the first time you open it, the app saves a copy in its data folder and opens that copy.
 
 ## Blender
 

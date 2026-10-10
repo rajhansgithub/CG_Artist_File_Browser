@@ -233,7 +233,9 @@ Local_WebFileBrowser_Tauri/
 │       └── ci.yml                 # Light checks only: build, Cargo check, version consistency
 ├── docs/
 │   ├── ARCHITECTURE.md            # This document
-│   └── ROADMAP.md                 # Feature ideas and prioritized roadmap
+│   ├── ROADMAP.md                 # Feature ideas and prioritized roadmap
+│   ├── site/                      # Built user guide (plain HTML), embedded in the app and opened by the Help button
+│   └── site-src/                  # Guide sources (Markdown) and build.mjs: `node docs/site-src/build.mjs`
 ├── release/                       # Output folder for compiled .exe and installers
 ├── scripts/
 │   ├── blender_convert.py         # Headless Blender 3D conversion & render script
@@ -302,7 +304,8 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── network_login.rs       # Share sign-in (WNetAddConnection2) and Credential Manager password storage
 │   │   ├── recent_folders.rs      # Recent folders for the sidebar: read back (existing ones only) and clear
 │   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, extra/network drives, Explorer network shortcuts
-│   │   └── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
+│   │   ├── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
+│   │   └── user_guide.rs          # Help: docs/site is embedded (build.rs lists it), saved to the app data folder, opened in the browser
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)
 │   └── tauri.conf.json            # Window dimensions, bundle targets, asset protocol
 ├── package.json                   # Pure Tauri scripts and dependencies
@@ -377,7 +380,7 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
 
-**Current release version:** `1.14.0`
+**Current release version:** `1.15.0`
 
 `npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 

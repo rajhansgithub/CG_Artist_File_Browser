@@ -62,3 +62,7 @@ Open Settings (the gear, top right) and choose a theme under Appearance. [Settin
 ## Find a shortcut
 
 Press `?`, or open the [keyboard shortcut card](@quick/shortcuts) and type what you want to do.
+
+## Open this guide from the app
+
+Click the question-mark **Help** button in the top bar. The guide opens in your default browser and works offline. It is also under Documentation in Settings and at the bottom of the shortcut card. [Settings and themes](@deep/settings-themes#documentation) has the details.

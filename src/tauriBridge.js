@@ -181,6 +181,16 @@ export function setupTauriBridge() {
       return await invoke('open_external', { filePath });
     },
 
+    // Opens the built-in user guide in the default browser. Resolves { ok } or { ok: false, error } with a sentence to show
+    openUserGuide: async () => {
+      try {
+        await invoke('open_user_guide');
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
     // Renames inside the same folder. Resolves { ok, path } or { ok: false, error }
     renameItem: async (filePath, newName) => {
       try {
