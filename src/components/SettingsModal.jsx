@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, CheckCircle2, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
+import { Settings, CheckCircle2, AlertCircle, Trash2, RefreshCw, CircleHelp } from 'lucide-react';
 import { APP_VERSION } from '../version.js';
 import { THEMES } from '../utils/themes.js';
 import { useExternalApps, addExternalApp, removeExternalApp, scanExternalApps } from '../utils/externalAppStore.js';
 
-export default function SettingsModal({ isOpen, onClose, theme, onThemeChange }) {
+export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, onOpenGuide }) {
   const [blenderPath, setBlenderPath] = useState('');
   const [blenderStatus, setBlenderStatus] = useState(null);
   const [cacheStats, setCacheStats] = useState(null);
@@ -165,6 +165,24 @@ export default function SettingsModal({ isOpen, onClose, theme, onThemeChange })
                   {t.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+          {/* Documentation: the user guide that ships inside the app */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>
+              Documentation
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              The user guide is built into the app and works offline. It opens in your default browser.
+            </div>
+            <div>
+              <button className="btn-secondary" onClick={onOpenGuide}>
+                <CircleHelp size={13} style={{ marginRight: 6, verticalAlign: -2 }} />
+                Open the user guide
+              </button>
             </div>
           </div>
 

@@ -7,7 +7,7 @@ import '../styles/shortcut-cheatsheet.css';
 // other key stops here so the viewers and the grid underneath do not react to it.
 const OPEN_KEYS = ['?', 'F1'];
 
-export default function ShortcutCheatsheet() {
+export default function ShortcutCheatsheet({ onOpenGuide }) {
   const [isOpen, setIsOpen] = useState(false);
   const isOpenRef = useRef(false);
   isOpenRef.current = isOpen;
@@ -77,6 +77,19 @@ export default function ShortcutCheatsheet() {
               ))}
             </section>
           ))}
+        </div>
+
+        <div className="modal-footer shortcut-cheatsheet-footer">
+          <span className="shortcut-cheatsheet-hint">The Help button in the top bar opens the full user guide.</span>
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              setIsOpen(false);
+              onOpenGuide?.();
+            }}
+          >
+            Open the user guide
+          </button>
         </div>
       </div>
     </div>

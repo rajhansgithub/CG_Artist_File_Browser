@@ -18,6 +18,7 @@ import SettingsModal from './components/SettingsModal';
 import ShortcutCheatsheet from './components/ShortcutCheatsheet';
 import ConnectNetworkModal from './components/ConnectNetworkModal';
 import DropErrorModal from './components/DropErrorModal';
+import GuideErrorModal from './components/GuideErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
 import ItemContextMenu from './components/ItemContextMenu';
 import TextureSetModal from './components/TextureSetModal';
@@ -140,6 +141,7 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false); // the file details drawer beside the grid, toggled with I
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [guideError, setGuideError] = useState(null);
   const [blenderStatus, setBlenderStatus] = useState(null);
   // Apps the right-click "Send to" menu lists, set up in Settings > External apps
   const externalApps = useExternalApps();
@@ -600,6 +602,12 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // Help: opens the built-in user guide in the default browser; the error window explains if the browser cannot be started
+  const handleOpenGuide = async () => {
+    const res = await window.electronAPI?.openUserGuide?.();
+    if (res && !res.ok) setGuideError(res.error || 'The user guide could not be opened.');
+  };
 
   const handleOpenFolderPicker = async () => {
     if (!window.electronAPI) return;
@@ -1090,7 +1098,7 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet || !!guideError;
   windowOpenRef.current = isWindowOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
@@ -1245,6 +1253,7 @@ export default function App() {
         setLabelFilter={setLabelFilter}
         labelTags={labelTags}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenGuide={handleOpenGuide}
         onOpenFolderPicker={handleOpenFolderPicker}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -1702,10 +1711,14 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         theme={theme}
         onThemeChange={changeTheme}
+        onOpenGuide={handleOpenGuide}
       />
 
       {/* Keyboard shortcut list, opened with ? or F1 */}
-      <ShortcutCheatsheet />
+      <ShortcutCheatsheet onOpenGuide={handleOpenGuide} />
+
+      {/* Shown when the user guide could not be opened in the browser */}
+      <GuideErrorModal message={guideError} onClose={() => setGuideError(null)} />
 
       {/* Sign in to a network share with a username and password */}
       {connectDialog && (

@@ -11,6 +11,7 @@ order: 18
 - **React 19 screens** in `src/` (Vite builds them). `src/App.jsx` holds the folder state and the routing between the grid and the viewers. Components live in `src/components/`, helpers in `src/utils/`.
 - **Bridge** in `src/tauriBridge.js`. It gives the screens a `window.electronAPI` object and turns each call into a Tauri `invoke`. Screens never call Tauri directly.
 - **Rust backend** in `src-tauri/src/`. It reads folders, decodes thumbnails and EXR, manages network shares and file labels, and starts Blender. Each command is listed in the IPC table in [`docs/ARCHITECTURE.md`](https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/ARCHITECTURE.md).
+- **User guide** in `docs/site/`. `src-tauri/build.rs` lists its files and `src-tauri/src/user_guide.rs` embeds them in the program, so the installed app and the portable exe both carry the guide. The Help button saves a copy to `docs/<version>/` in the app data folder (a new app version saves a fresh copy and removes the old one) and opens its `index.html` in the default browser.
 - **Blender** runs headless from `scripts/blender_convert.py` for USD, Alembic and Blender files and for the optional studio thumbnails.
 
 ## Speed choices

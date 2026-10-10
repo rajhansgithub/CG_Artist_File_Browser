@@ -7,7 +7,7 @@ order: 3
 counterpart: deep/folders-and-network
 ---
 
-Press `?` or `F1` in the app to see the same list. The list below is generated from the source, so it matches what the app does.
+Press `?` or `F1` in the app to see the same list. The question-mark **Help** button in the top bar opens this whole guide in your browser (no key is needed for it). The list below is generated from the source, so it matches what the app does.
 
 ![The shortcut card as it appears in the app](media:shortcut-cheatsheet.webp "The card in the app. Press Esc to close it.")
 
