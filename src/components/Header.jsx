@@ -17,7 +17,8 @@ import {
   Volume2,
   FileText,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  RefreshCw
 } from 'lucide-react';
 
 // Spare room (px) required beyond the bare minimum before the filter text is shown, so the
@@ -39,7 +40,9 @@ export default function Header({
   onOpenSettings,
   onOpenFolderPicker,
   sidebarCollapsed,
-  onToggleSidebar
+  onToggleSidebar,
+  onRefreshFolder,
+  isRefreshing
 }) {
   // Filter labels: 'auto' shows the text next to each icon whenever the header has room
   // for it and icons only otherwise. The chevron button overrides that ('labels' or 'icons')
@@ -244,6 +247,15 @@ export default function Header({
       {/* Utility Actions */}
       <div className="header-actions" ref={actionsRef}>
         <LabelFilterMenu filter={labelFilter} setFilter={setLabelFilter} tags={labelTags} />
+        <button
+          className="icon-btn"
+          onClick={onRefreshFolder}
+          style={isRefreshing ? { animation: 'spin 0.8s linear infinite' } : undefined}
+          title="Refresh this folder (F5 or Ctrl+R)"
+          aria-label="Refresh this folder"
+        >
+          <RefreshCw size={14} />
+        </button>
         <button
           className="icon-btn"
           onClick={onOpenSettings}

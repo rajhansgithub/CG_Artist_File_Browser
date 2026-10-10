@@ -143,6 +143,7 @@ export default function App() {
   // Apps the right-click "Send to" menu lists, set up in Settings > External apps
   const externalApps = useExternalApps();
   const [isLoadingDir, setIsLoadingDir] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Interactive Grid Sizing (Ctrl + Mouse Scroll Wheel). Each folder keeps its own size; see utils/folderGridSize.js
@@ -478,6 +479,72 @@ export default function App() {
   const goUp = () => {
     if (parentPathRef.current) navigateTo(parentPathRef.current);
   };
+
+  // Reloads the open folder where it is (F5, Ctrl+R and the header button). The folder, the selection, the scroll
+  // position, the sort, the thumbnail size and the filters all stay as they are. When the folder has gone, the
+  // nearest parent that still exists is shown instead, and the bar says so.
+  const refreshFolder = async () => {
+    if (!window.electronAPI || !currentPathRef.current) return;
+    const seq = navSeqRef.current;
+    const startPath = currentPathRef.current;
+    setIsRefreshing(true);
+    try {
+      let target = startPath;
+      let res = null;
+      let firstError = '';
+      while (target) {
+        try {
+          res = await fetchListing(target);
+        } catch (err) {
+          res = { error: String(err?.message || err) };
+        }
+        if (seq !== navSeqRef.current) return; // a folder was opened while this was reading: that listing wins
+        if (res && !res.error) break;
+        firstError = firstError || res?.error || 'The folder could not be read';
+        res = null;
+        // A share that does not answer or needs a sign-in is still there, so its parent folders would not help
+        if (parseNetworkError(firstError).needsSignIn || /did not answer within/.test(firstError)) break;
+        target = getParentDir(target);
+      }
+
+      if (!res) {
+        // Nothing from the folder up to the drive or share can be read: keep the listing on screen and say why
+        setNavError(firstError);
+        setNavErrorPath(startPath);
+      } else if (target === startPath) {
+        setParentPath(res.parentPath);
+        setFolderItems(res.items || []);
+        if (navErrorPath === startPath) {
+          setNavError('');
+          setNavErrorPath('');
+        }
+      } else {
+        // The folder is gone: show the nearest parent that still exists, as if the user had gone up to it
+        updateHistory(pushEntry(historyRef.current, res.currentPath));
+        showListing(res, { record: false });
+        selectAfterNavigation(res.items || [], startPath, res.currentPath);
+        setNavError(`${startPath} is no longer there, so ${res.currentPath} is shown`);
+        setNavErrorPath('');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // F5 and Ctrl+R reload the folder in place. Left alone, the webview reloads the whole app, which starts again at the
+  // default drive and loses the folder that was open.
+  const refreshFolderRef = useRef(refreshFolder);
+  refreshFolderRef.current = refreshFolder;
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const isRefreshKey = e.key === 'F5' || ((e.ctrlKey || e.metaKey) && !e.altKey && e.key?.toLowerCase() === 'r');
+      if (!isRefreshKey) return;
+      e.preventDefault();
+      refreshFolderRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Re-fetch when the (debounced) search or filter changes
   useEffect(() => {
@@ -1112,6 +1179,8 @@ export default function App() {
         onOpenFolderPicker={handleOpenFolderPicker}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onRefreshFolder={refreshFolder}
+        isRefreshing={isRefreshing}
       />
 
       {/* Main Workspace */}

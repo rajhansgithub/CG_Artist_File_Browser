@@ -5,7 +5,7 @@
 // Each group names the handler it mirrors in its comment. When a handler's keys change, change them here too.
 export const SHORTCUT_GROUPS = [
   {
-    // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, Alt + arrows, mouse side buttons)
+    // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, F5 / Ctrl + R, Alt + arrows, mouse side buttons)
     title: 'Folders and selection',
     items: [
       { keys: [['Arrow keys']], action: 'Move the selection (up and down move a row)' },
@@ -17,6 +17,7 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Alt', 'Left'], ['Alt', 'Right']], action: 'Back / forward through folder history' },
       { keys: [['Mouse back'], ['Mouse forward']], action: 'Side buttons on the mouse: back / forward' },
       { keys: [['Ctrl', 'L'], ['Alt', 'D']], action: 'Type a folder path or network address' },
+      { keys: [['F5'], ['Ctrl', 'R']], action: 'Refresh this folder in place (same folder, selection and view)' },
       { keys: [['Ctrl', 'A']], action: 'Select all' },
       { keys: [['Click']], action: 'Select one item' },
       { keys: [['Ctrl', 'Click']], action: 'Add or remove one item' },
