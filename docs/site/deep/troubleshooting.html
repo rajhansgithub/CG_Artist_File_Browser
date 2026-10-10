@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Troubleshooting · CG Artist File Browser guide</title>
+<meta name="description" content="What to do when a file will not open, a share will not connect, or something is slow.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/how-do-i.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html" aria-current="page">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Troubleshooting</h1>
+      <p class="summary">What to do when a file will not open, a share will not connect, or something is slow.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/how-do-i.html">How do I…? &rarr;</a></aside>
+<h2 id="a-usd-alembic-or-blender-file-does-not-open">A USD, Alembic or Blender file does not open</h2>
+<p>Check the sidebar footer. If it says Blender was not found, open <a href="../deep/settings-themes.html">Settings</a> and set the Blender path. If Blender is found but the conversion fails, the message names the file. Open the same file in Blender to see whether the file itself is the problem.</p>
+<h2 id="a-network-share-will-not-open">A network share will not open</h2>
+<p>If you see an error that starts with a sign-in message, or Windows error 1272, the share needs a sign-in that File Explorer does not share with this app. Click <strong>+</strong> next to Network locations, enter the user name and password, and tick <strong>Remember</strong>. See <a href="../deep/folders-and-network.html#network-shares">Network shares</a>.</p>
+<p>If the share is offline, it stays in the sidebar and comes back when the share does.</p>
+<h2 id="thumbnails-are-slow">Thumbnails are slow</h2>
+<p>The first visit to a folder decodes every image and EXR. Large multi-layer EXR files take the longest. The result is saved in the cache, so later visits are fast.</p>
+<h2 id="a-render-texture-shows-a-message">A render texture shows a message</h2>
+<p><code>.tx</code> and <code>.tex</code> files that are based on OpenEXR, or that use Pixar compression, cannot be read here. The message says so. See <a href="../deep/render-textures.html">Render textures</a>.</p>
+<h2 id="quick-look-does-not-open">Quick Look does not open</h2>
+<p>Quick Look needs the folder view, a file selected and a focus outside text boxes. Press <code>Esc</code> to leave the address box first. Files with no viewer, such as text, are skipped.</p>
+<h2 id="keys-do-nothing">Keys do nothing</h2>
+<p>The address box and any open dialog take the keys first. Press <code>Esc</code> to close the box or the dialog, then try again.</p>
+<h2 id="i-deleted-something-by-accident">I deleted something by accident</h2>
+<p><code>Delete</code> moves files to the Recycle Bin, so restore them from there. Only <code>Shift</code> + <code>Delete</code> removes files for good, and it asks you to type DELETE to confirm.</p>
+<h2 id="something-else">Something else</h2>
+<p>Open an issue on the project's GitHub page with the file type, what you clicked and the message on screen.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/troubleshooting.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/settings-themes.html"><span>Previous</span>Settings and themes</a><a class="next" href="../deep/architecture.html"><span>Next</span>Architecture (contributors)</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#a-usd-alembic-or-blender-file-does-not-open">A USD, Alembic or Blender file does not open</a></li><li class="l2"><a href="#a-network-share-will-not-open">A network share will not open</a></li><li class="l2"><a href="#thumbnails-are-slow">Thumbnails are slow</a></li><li class="l2"><a href="#a-render-texture-shows-a-message">A render texture shows a message</a></li><li class="l2"><a href="#quick-look-does-not-open">Quick Look does not open</a></li><li class="l2"><a href="#keys-do-nothing">Keys do nothing</a></li><li class="l2"><a href="#i-deleted-something-by-accident">I deleted something by accident</a></li><li class="l2"><a href="#something-else">Something else</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

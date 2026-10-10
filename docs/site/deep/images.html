@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Images and textures · CG Artist File Browser guide</title>
+<meta name="description" content="The image viewer for PNG, JPG, WebP, TIFF, TGA and other 2D files: zoom, pan, channel solo and metadata.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html" aria-current="page">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Images and textures</h1>
+      <p class="summary">The image viewer for PNG, JPG, WebP, TIFF, TGA and other 2D files: zoom, pan, channel solo and metadata.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="what-opens-here">What opens here</h2>
+<p>PNG, JPG, JPEG, WebP, BMP, TIFF, TGA and DDS files open in the image viewer. Each card shows the format in its corner and a thumbnail. TIFF files with a planar layout are decoded as well as the common uncompressed and LZW kinds.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The image viewer with a bar of controls at the top" src="../assets/media/image-viewer.webp"><figcaption>Open a picture with Enter or a double-click. Esc closes it.</figcaption></figure>
+<h2 id="moving-around">Moving around</h2>
+<ul><li><strong>Zoom</strong>: mouse wheel, or the zoom buttons. <code>Z</code> and drag zooms too, <code>0</code> resets the zoom, and <code>Ctrl</code> + <code>0</code> fits the picture to the window.</li><li><strong>Pan</strong>: hold the right mouse button and drag. The left button is reserved for selection.</li><li><strong>Next and previous</strong>: the arrow buttons, or the <code>Left</code> and <code>Right</code> arrow keys, step through the other pictures in the folder. <code>Esc</code> closes the viewer.</li></ul>
+<h2 id="file-information">File information</h2>
+<p>The inspector (press <code>I</code>, see <a href="../deep/inspector.html">the inspector</a>) shows the file type, size, resolution, colour, channels and sample type of the picture you have selected.</p>
+<h2 id="texture-sets">Texture sets</h2>
+<p>A material is often saved as several maps that share a base name, such as <code>wood_basecolor.png</code>, <code>wood_normal.png</code> and <code>wood_roughness.png</code>. The grid always shows every file. Choose <strong>View as texture set</strong> to group the maps of a material into one card. The app recognises the usual names for base colour, normal, roughness, metallic, height and ambient occlusion. If two files could be the same map (for example <code>wood_normal.png</code> and <code>wood_normal.jpg</code>), no set is offered, so nothing is grouped by mistake.</p>
+<aside class="callout callout-note"><strong>Note:</strong> The viewer keeps the file's own pixels. Nothing is resampled or compressed when you look at it.</aside>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/images.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/folders-and-network.html"><span>Previous</span>Folders and network drives</a><a class="next" href="../deep/hdr-exr.html"><span>Next</span>HDR and EXR maps</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#what-opens-here">What opens here</a></li><li class="l2"><a href="#moving-around">Moving around</a></li><li class="l2"><a href="#file-information">File information</a></li><li class="l2"><a href="#texture-sets">Texture sets</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

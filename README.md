@@ -184,6 +184,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 
 - [Architecture & Setup](docs/ARCHITECTURE.md): how the React UI, the Tauri bridge and the Rust backend fit together, the IPC command map, build and release steps.
 - [Roadmap & Feature Ideas](docs/ROADMAP.md): proposed features and the prioritized plan.
+- [User guide](docs/site/index.html): a quick start with pictures, animated clips, a shortcut card and "How do I…?" answers, plus a deep dive page for each feature. It works offline: open `docs/site/index.html` in a browser, and search with `/`.
 
 ---
 

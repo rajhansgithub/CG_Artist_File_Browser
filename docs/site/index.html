@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>CG Artist File Browser guide · CG Artist File Browser guide</title>
+<meta name="description" content="Browse, preview and compare CG and VFX files. Pick the level you want: a quick tour, or the details of every feature.">
+<link rel="stylesheet" href="./assets/site.css">
+<script>window.SITE_ROOT="./";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-home is-home">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="./index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="./quick/tour.html" class="">Quick start</a>
+    <a href="./deep/folders-and-network.html" class="">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="./index.html" aria-current="page">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="./quick/tour.html">A quick tour</a></li><li><a href="./quick/how-do-i.html">How do I…?</a></li><li><a href="./quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="./deep/folders-and-network.html">Folders and network drives</a></li><li><a href="./deep/images.html">Images and textures</a></li><li><a href="./deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="./deep/3d-models.html">3D models</a></li><li><a href="./deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="./deep/video-and-audio.html">Video and audio</a></li><li><a href="./deep/quick-look.html">Quick Look</a></li><li><a href="./deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="./deep/pdf.html">PDF documents</a></li><li><a href="./deep/image-sequences.html">Image sequences</a></li><li><a href="./deep/compare.html">Compare</a></li><li><a href="./deep/labels-tags.html">Labels and tags</a></li><li><a href="./deep/inspector.html">Inspector</a></li><li><a href="./deep/send-to-apps.html">Send to apps</a></li><li><a href="./deep/batch-converter.html">Batch converter</a></li><li><a href="./deep/settings-themes.html">Settings and themes</a></li><li><a href="./deep/troubleshooting.html">Troubleshooting</a></li><li><a href="./deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="./shared/faq.html">FAQ</a></li><li><a href="./shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.14.0. Pictures are previews, see <a href="./shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Start here</p>
+      <h1>CG Artist File Browser guide</h1>
+      <p class="summary">Browse, preview and compare CG and VFX files. Pick the level you want: a quick tour, or the details of every feature.</p>
+      
+<div class="hero-cards">
+<a class="hero-card" href="quick/tour.html"><span class="kicker">Quick start</span><h2>Show me the surface</h2><p>A short tour with pictures and animated clips, a keyboard card, and "How do I…" answers.</p></a>
+<a class="hero-card" href="deep/folders-and-network.html"><span class="kicker">Deep dive</span><h2>I want the details</h2><p>One page per feature: image and HDR viewers, 3D and USD, video and audio, compare, labels, settings and troubleshooting.</p></a>
+</div>
+<h2 id="what-the-app-does">What the app does</h2>
+<p>CG Artist File Browser is a Windows file browser for the files a 3D or VFX artist opens all day. You point it at a folder and it shows the files as pictures: 3D models turn in a viewer, HDR and EXR maps open as a 360° sky with exposure controls, textures can be compared side by side, and video, audio, PDF and render textures (<code>.tx</code>, <code>.tex</code>) open right where you are. Nothing is uploaded anywhere.</p>
+<h2 id="start-in-a-minute">Start in a minute</h2>
+<ol><li>Open a folder from the sidebar, or press <code>Ctrl</code> + <code>L</code> and type a path such as <code>D:\Projects\Shot_010</code>.</li><li>Click a file once to select it, press <code>Space</code> to preview it in a floating window, or double-click to open it fully.</li><li>Press <code>?</code> at any time to see every keyboard shortcut.</li><li>Press <code>/</code> anywhere in this guide to search it.</li></ol>
+<h2 id="which-level-should-i-read">Which level should I read?</h2>
+<ul><li><strong>Quick start</strong> is for everyday use: what a screen does, how to do a common task, and the keys you need most.</li><li><strong>Deep dive</strong> has one page per feature, with every option, the file formats it understands and what to do when something looks wrong.</li><li>Each page has a link to the other level when there is one, and the <strong>Quick start / Deep dive</strong> switch at the top moves between them.</li></ul>
+<h2 id="about-the-pictures">About the pictures</h2>
+<p>The screenshots and animated clips in this guide were captured from a browser build of the app with sample files, not from the installed Windows app. They show the same screens and controls. Their file names are stable, so a real screenshot can replace one by copying a file over it. See the <a href="./shared/faq.html">FAQ</a> for more.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/index.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#what-the-app-does">What the app does</a></li><li class="l2"><a href="#start-in-a-minute">Start in a minute</a></li><li class="l2"><a href="#which-level-should-i-read">Which level should I read?</a></li><li class="l2"><a href="#about-the-pictures">About the pictures</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="./assets/search-index.js"></script>
+<script src="./assets/site.js" defer></script>
+</body>
+</html>
