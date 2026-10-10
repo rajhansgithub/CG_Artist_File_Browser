@@ -97,6 +97,7 @@ function CardTags({ tags }) {
 function AssetCard({
   item,
   isSelected,
+  isCut,
   isFavorite,
   label,
   labelActions,
@@ -187,7 +188,7 @@ function AssetCard({
     return (
       <div
         ref={cardRef}
-        className={`asset-card ${isSelected ? 'selected' : ''}`}
+        className={`asset-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
         onClick={(e) => onSelect(item, e)}
         onDoubleClick={() => onOpen(item)}
         onContextMenu={(e) => {
@@ -241,7 +242,7 @@ function AssetCard({
   return (
     <div
       ref={cardRef}
-      className={`asset-card ${isSelected ? 'selected' : ''}`}
+      className={`asset-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
         if (startNativeDragOut(e, item, getDragPaths?.(item))) return;
@@ -497,6 +498,7 @@ export default function AssetGrid({
   items,
   selectedItem,
   selectedPaths,
+  cutPaths,
   onSelect,
   onSelectionChange,
   onOpen,
@@ -812,6 +814,7 @@ export default function AssetGrid({
       <DetailsView
         items={items}
         selectedPaths={selected}
+        cutPaths={cutPaths}
         onSelect={pickItem}
         getDragPaths={getDragPaths}
         onOpen={onOpen}
@@ -841,6 +844,7 @@ export default function AssetGrid({
             key={item.path}
             item={item}
             isSelected={selected.has(item.path)}
+            isCut={!!cutPaths?.has(item.path)}
             isFavorite={isFav(item)}
             label={labelFor(labels, item.path)}
             labelActions={labelActions}

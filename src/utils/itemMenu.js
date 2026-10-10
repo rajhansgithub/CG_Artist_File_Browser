@@ -1,4 +1,4 @@
-import { Copy, Eye, ExternalLink, FileOutput, FolderOpen, FolderSearch, ImagePlus, Layers, Pencil, Play, RefreshCw, RotateCcw, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { ClipboardPaste, Copy, Eye, ExternalLink, Files, FileOutput, FolderOpen, FolderPlus, FolderSearch, ImagePlus, Layers, Pencil, Play, RefreshCw, RotateCcw, Scissors, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem, isConvertibleItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -22,7 +22,7 @@ export function registerItemMenuProvider(provider) {
 // `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
 // onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
 // onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet, externalApps (the apps from Settings), onSendTo,
-// onConvert (the images that can be converted, as one list).
+// onConvert (the images that can be converted, as one list), onCut and onCopy (the items, for the file clipboard).
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -104,6 +104,12 @@ export function buildItemMenu(items, actions) {
   // Image sequences are one grouped entry; renaming or deleting one frame would split the sequence, so they stay off here
   if (!hasSequence) {
     separator();
+    // Cut and Copy put the files on the clipboard; Paste is in the menu of the empty space of a folder
+    if (actions.onCut && actions.onCopy) {
+      const rooted = items.some((item) => isRootLocation(item.path));
+      add({ id: 'cut', label: 'Cut', icon: Scissors, disabled: rooted, onSelect: () => actions.onCut(items) });
+      add({ id: 'copy', label: 'Copy', icon: Files, disabled: rooted, onSelect: () => actions.onCopy(items) });
+    }
     if (single) {
       add({
         id: 'rename',
@@ -136,9 +142,16 @@ export function buildItemMenu(items, actions) {
 }
 
 // Entries for the right-click menu on the empty space of the folder view (not on a card or a row).
-// `actions` holds onRefresh, the same in-place reload that F5 and Ctrl + R run.
+// `actions` holds onRefresh, the same in-place reload that F5 and Ctrl + R run, onPaste and onNewFolder (both act on the
+// open folder), and canWrite (false where no folder is open, such as the list of drives).
 export function buildFolderMenu(actions) {
-  return [{ id: 'refresh', label: 'Refresh', icon: RefreshCw, onSelect: () => actions.onRefresh() }];
+  const entries = [{ id: 'refresh', label: 'Refresh', icon: RefreshCw, onSelect: () => actions.onRefresh() }];
+  if (actions.onPaste && actions.onNewFolder) {
+    entries.push({ separator: true });
+    entries.push({ id: 'paste', label: 'Paste', icon: ClipboardPaste, disabled: !actions.canWrite, onSelect: () => actions.onPaste() });
+    entries.push({ id: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !actions.canWrite, onSelect: () => actions.onNewFolder() });
+  }
+  return entries;
 }
 
 // Copies text to the clipboard; falls back to a hidden textarea when the async clipboard API is not available

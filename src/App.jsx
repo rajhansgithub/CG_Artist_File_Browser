@@ -1,34 +1,22 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AssetGrid from './components/AssetGrid';
-import Viewport3D from './components/Viewport3D';
-import HdrExrInspector from './components/HdrExrInspector';
-import ImageViewer from './components/ImageViewer';
-import VideoPlayer from './components/VideoPlayer';
-import ImageSequencePlayer from './components/ImageSequencePlayer';
-import AudioPlayer from './components/AudioPlayer';
-import PdfViewer from './components/PdfViewer';
-import TxTexViewer from './components/TxTexViewer';
 import { isDragOutActive, dockSlotAt } from './utils/dragOut';
 import { loadSavedTheme, rememberTheme, applyTheme } from './utils/themes';
-import CompareView from './components/CompareView';
 import PathInput from './components/PathInput';
-import SettingsModal from './components/SettingsModal';
 import ShortcutCheatsheet from './components/ShortcutCheatsheet';
 import ConnectNetworkModal from './components/ConnectNetworkModal';
 import DropErrorModal from './components/DropErrorModal';
 import GuideErrorModal from './components/GuideErrorModal';
 import DragDropOverlay from './components/DragDropOverlay';
 import ItemContextMenu from './components/ItemContextMenu';
-import TextureSetModal from './components/TextureSetModal';
 import { RenameItemModal, DeleteItemModal } from './components/ItemActionModals';
-import BatchConvertModal from './components/BatchConvertModal';
+import FileTransferPanel from './components/FileTransferPanel';
+import { useFileTransfers } from './hooks/useFileTransfers';
 import { copyText, isRootLocation } from './utils/itemMenu';
-import FolderIconPicker from './components/FolderIconPicker';
 import SortMenu from './components/SortMenu';
 import StatusBar from './components/StatusBar';
-import InspectorDrawer from './components/InspectorDrawer';
 import { isTextEntryTarget } from './utils/quickLook';
 import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
 import {
@@ -71,7 +59,24 @@ import { useExternalApps, refreshExternalApps, sendToExternalApp } from './utils
 import { useQuickLook } from './hooks/useQuickLook';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { clampGridSize, loadFolderGridSize, loadGlobalGridSize, saveFolderGridSize } from './utils/folderGridSize';
-import QuickLookWindow from './components/QuickLookWindow';
+import {
+  ImageViewer,
+  TxTexViewer,
+  ImageSequencePlayer,
+  VideoPlayer,
+  PdfViewer,
+  AudioPlayer,
+  Viewport3D,
+  HdrExrInspector,
+  CompareView,
+  QuickLookWindow,
+  InspectorDrawer,
+  SettingsModal,
+  BatchConvertModal,
+  TextureSetModal,
+  FolderIconPicker,
+  PasteConflictModal
+} from './components/lazyViewers';
 import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List, Info } from 'lucide-react';
 
 // How long the search box waits after the last keystroke before the folder is searched again
@@ -141,6 +146,9 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false); // the file details drawer beside the grid, toggled with I
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // The settings screen is only loaded once it has been opened, and stays mounted after that
+  const settingsSeenRef = useRef(false);
+  if (isSettingsOpen) settingsSeenRef.current = true;
   const [guideError, setGuideError] = useState(null);
   const [blenderStatus, setBlenderStatus] = useState(null);
   // Apps the right-click "Send to" menu lists, set up in Settings > External apps
@@ -648,9 +656,13 @@ export default function App() {
   };
 
   // Lists the open folder again after a rename or delete
+  // Resolves the new items, or null when the folder could not be read or another folder was opened meanwhile
   const refreshCurrentFolder = async () => {
-    const res = await fetchListing(currentPath);
-    if (res && !res.error) setFolderItems(res.items || []);
+    const path = currentPath;
+    const res = await fetchListing(path);
+    if (currentPathRef.current !== path || !res || res.error) return null;
+    setFolderItems(res.items || []);
+    return res.items || [];
   };
 
   // Rename: resolves to an error message for the dialog, or to null when it worked.
@@ -699,6 +711,126 @@ export default function App() {
     setItemAction(null);
     await refreshCurrentFolder();
     return null;
+  };
+
+  // ---- Copy, cut, paste and New folder ----
+  // Cut and Copy put the files on the clipboard (shared with File Explorer on Windows); Paste copies or moves them into the
+  // open folder in the background, with progress in the corner (src-tauri/src/file_ops.rs does the work).
+  const [cutPaths, setCutPaths] = useState(() => new Set()); // the items cut here, shown dimmed until they are pasted
+  const [pasteConflict, setPasteConflict] = useState(null); // { items, destDir, mode, names } while the user chooses
+  const samePlace = (a, b) => {
+    const norm = (p) => String(p || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+    return norm(a) === norm(b);
+  };
+  const baseName = (path) => String(path || '').split(/[\\/]/).filter(Boolean).pop() || String(path || '');
+
+  // A moved item keeps its favorite star and its custom folder icon, and leaves the compare slots, as when it is renamed
+  const followMovedItems = async (rows) => {
+    for (const row of rows) {
+      const isMoved = (other) => other && other.path === row.path;
+      setCompareAssetA((prev) => (isMoved(prev) ? null : prev));
+      setCompareAssetB((prev) => (isMoved(prev) ? null : prev));
+      const favorite = favorites.find((f) => f.path === row.path);
+      if (favorite) {
+        await handleToggleFavorite(favorite);
+        await handleToggleFavorite({ ...favorite, path: row.outPath, name: baseName(row.outPath) });
+      }
+      const iconId = folderIconStore.assignments[normalizeFolderKey(row.path)];
+      if (iconId) {
+        await folderIconStore.setIcon(row.outPath, iconId);
+        await folderIconStore.resetIcon(row.path);
+      }
+    }
+  };
+
+  // A paste has ended: the open folder is read again when it was the source or the target, and the pasted items are selected
+  const handleTransferFinished = async (job) => {
+    const done = job.rows.filter((row) => row.status === 'done' && row.outPath);
+    if (job.mode === 'move') await followMovedItems(done.filter((row) => !samePlace(row.path, row.outPath)));
+    const here = currentPathRef.current;
+    const touchesHere = samePlace(job.destDir, here) || job.rows.some((row) => samePlace(getParentDir(row.path), here));
+    if (!touchesHere) return;
+    const items = await refreshCurrentFolder();
+    if (!items || !samePlace(job.destDir, currentPathRef.current)) return;
+    const picked = items.filter((item) => done.some((row) => samePlace(row.outPath, item.path)));
+    if (picked.length) setSelection(new Set(picked.map((item) => item.path)), picked[0]);
+  };
+  const transfers = useFileTransfers({ onFinished: handleTransferFinished });
+
+  const putOnClipboard = async (items, cut) => {
+    const usable = items.filter((item) => !item.isSequence && !isRootLocation(item.path));
+    if (!usable.length || !window.electronAPI) return;
+    const res = await window.electronAPI.setClipboardFiles(usable.map((item) => item.path), cut);
+    if (!res.ok) {
+      window.electronAPI.showError(res.error, cut ? 'Cut' : 'Copy');
+      return;
+    }
+    setCutPaths(cut ? new Set(usable.map((item) => item.path)) : new Set());
+  };
+
+  const beginTransfer = async (items, destDir, mode, replace) => {
+    const error = await transfers.start(items, destDir, mode, replace);
+    if (error) {
+      window.electronAPI.showError(error, 'Paste');
+      return;
+    }
+    // A cut is pasted once, as in File Explorer
+    if (mode === 'move') {
+      setCutPaths(new Set());
+      window.electronAPI.clearClipboardFiles();
+    }
+  };
+
+  // `explicit` is a click on Paste in the menu: it says so when there is nothing to paste, where Ctrl + V stays quiet
+  const pasteIntoOpenFolder = async (explicit = false) => {
+    const destDir = currentPathRef.current;
+    if (!destDir || !window.electronAPI) return;
+    const got = await window.electronAPI.getClipboardFiles();
+    if (!got.ok) {
+      window.electronAPI.showError(got.error, 'Paste');
+      return;
+    }
+    const paths = got.files?.paths || [];
+    if (!paths.length) {
+      if (explicit) transfers.notify('There are no copied files to paste.');
+      return;
+    }
+    const mode = got.files.cut ? 'move' : 'copy';
+    const check = await window.electronAPI.checkFileTransfer(paths, destDir, mode);
+    if (!check.ok) {
+      window.electronAPI.showError(check.error, 'Paste');
+      return;
+    }
+    if (!check.actionable) {
+      // Cutting items into the folder they are already in changes nothing
+      if (mode === 'move') {
+        setCutPaths(new Set());
+        window.electronAPI.clearClipboardFiles();
+      }
+      return;
+    }
+    const items = paths.map((path) => ({ path, name: baseName(path) }));
+    if (check.conflicts.length) {
+      setPasteConflict({ items, destDir, mode, names: check.conflicts });
+    } else {
+      beginTransfer(items, destDir, mode, false);
+    }
+  };
+
+  // New folder: made in the open folder, selected, and opened for naming
+  const createFolderHere = async () => {
+    const parent = currentPathRef.current;
+    if (!parent || !window.electronAPI) return;
+    const res = await window.electronAPI.createFolder(parent);
+    if (!res.ok) {
+      window.electronAPI.showError(res.error, 'New folder');
+      return;
+    }
+    const items = await refreshCurrentFolder();
+    const made = items?.find((item) => samePlace(item.path, res.path));
+    if (!made) return;
+    setSelection(new Set([made.path]), made);
+    setItemAction({ type: 'rename', items: [made] });
   };
 
   const openAsset = (item) => {
@@ -1098,7 +1230,7 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet || !!guideError;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet || !!guideError || !!pasteConflict;
   windowOpenRef.current = isWindowOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
@@ -1191,6 +1323,10 @@ export default function App() {
       const items = selectedForKeys();
       if (items.length) handleCopyPaths(items);
     },
+    copySelection: () => putOnClipboard(selectedForKeys(), false),
+    cutSelection: () => putOnClipboard(selectedForKeys(), true),
+    paste: () => pasteIntoOpenFolder(false),
+    newFolder: createFolderHere,
     focusFilter: () => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
@@ -1226,6 +1362,18 @@ export default function App() {
       } else if (ctrl && e.shiftKey && lower === 'c') {
         e.preventDefault();
         keys.copySelectionPaths();
+      } else if (ctrl && e.shiftKey && lower === 'n') {
+        e.preventDefault();
+        keys.newFolder();
+      } else if (ctrl && !e.shiftKey && (lower === 'c' || lower === 'x')) {
+        // Selected text (in the Inspector, say) keeps its own copy
+        if (lower === 'c' && window.getSelection?.()?.toString()) return;
+        e.preventDefault();
+        if (lower === 'c') keys.copySelection();
+        else keys.cutSelection();
+      } else if (ctrl && !e.shiftKey && lower === 'v') {
+        e.preventDefault();
+        keys.paste();
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -1457,6 +1605,7 @@ export default function App() {
               items={displayedItems}
               selectedItem={selectedAsset}
               selectedPaths={selectedPaths}
+              cutPaths={cutPaths}
               onSelect={(item) => setSelectedAsset(item)}
               onSelectionChange={setSelection}
               onOpen={(item) => {
@@ -1596,6 +1745,7 @@ export default function App() {
             </div>
           )}
 
+          <Suspense fallback={null}>
           {viewMode === 'image' && (
             <ImageViewer
               asset={selectedAsset}
@@ -1697,22 +1847,29 @@ export default function App() {
               onRevealInExplorer={handleRevealInExplorer}
             />
           )}
+          </Suspense>
         </div>
 
         {/* File details beside the grid: the selected file or folder, read without opening it */}
         {viewMode === 'grid' && inspectorOpen && (
-          <InspectorDrawer item={selectionInFolder} onClose={() => setInspectorOpen(false)} />
+          <Suspense fallback={null}>
+            <InspectorDrawer item={selectionInFolder} onClose={() => setInspectorOpen(false)} />
+          </Suspense>
         )}
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        theme={theme}
-        onThemeChange={changeTheme}
-        onOpenGuide={handleOpenGuide}
-      />
+      {settingsSeenRef.current && (
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            theme={theme}
+            onThemeChange={changeTheme}
+            onOpenGuide={handleOpenGuide}
+          />
+        </Suspense>
+      )}
 
       {/* Keyboard shortcut list, opened with ? or F1 */}
       <ShortcutCheatsheet onOpenGuide={handleOpenGuide} />
@@ -1756,6 +1913,11 @@ export default function App() {
           background={!!itemMenu.background}
           actions={{
             onRefresh: refreshFolder,
+            onPaste: () => pasteIntoOpenFolder(true),
+            onNewFolder: createFolderHere,
+            canWrite: !!currentPath,
+            onCut: (items) => putOnClipboard(items, true),
+            onCopy: (items) => putOnClipboard(items, false),
             isFavorite: (item) => favorites.some((f) => f.path === item.path),
             hasIconChoice: (item) => !!folderIconStore.assignments[normalizeFolderKey(item.path)],
             sequenceFor,
@@ -1784,14 +1946,16 @@ export default function App() {
 
       {/* A texture set's maps side by side, opened from the right-click menu of one of its maps */}
       {textureSet && (
-        <TextureSetModal
-          set={textureSet}
-          onOpenMap={(item) => {
-            setTextureSet(null);
-            openAsset(item);
-          }}
-          onClose={() => setTextureSet(null)}
-        />
+        <Suspense fallback={null}>
+          <TextureSetModal
+            set={textureSet}
+            onOpenMap={(item) => {
+              setTextureSet(null);
+              openAsset(item);
+            }}
+            onClose={() => setTextureSet(null)}
+          />
+        </Suspense>
       )}
 
       {/* Colour and tags of the item or selection a menu was opened on */}
@@ -1820,13 +1984,35 @@ export default function App() {
           onClose={() => setItemAction(null)}
         />
       )}
-      {convertItems && <BatchConvertModal items={convertItems} onClose={() => setConvertItems(null)} />}
+      {pasteConflict && (
+        <Suspense fallback={null}>
+          <PasteConflictModal
+            names={pasteConflict.names}
+            total={pasteConflict.items.length}
+            mode={pasteConflict.mode}
+            onChoose={(replace) => {
+              const { items, destDir, mode } = pasteConflict;
+              setPasteConflict(null);
+              beginTransfer(items, destDir, mode, replace);
+            }}
+            onClose={() => setPasteConflict(null)}
+          />
+        </Suspense>
+      )}
+      <FileTransferPanel jobs={transfers.jobs} onCancel={transfers.cancel} onDismiss={transfers.dismiss} />
+      {convertItems && (
+        <Suspense fallback={null}>
+          <BatchConvertModal items={convertItems} onClose={() => setConvertItems(null)} />
+        </Suspense>
+      )}
       {iconPickerItem && (
-        <FolderIconPicker
-          item={iconPickerItem}
-          store={folderIconStore}
-          onClose={() => setIconPickerItem(null)}
-        />
+        <Suspense fallback={null}>
+          <FolderIconPicker
+            item={iconPickerItem}
+            store={folderIconStore}
+            onClose={() => setIconPickerItem(null)}
+          />
+        </Suspense>
       )}
     </div>
     </FolderIconsContext.Provider>

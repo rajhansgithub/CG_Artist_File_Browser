@@ -6,7 +6,7 @@
 export const SHORTCUT_GROUPS = [
   {
     // AssetGrid.jsx (keyboard listener), App.jsx (Ctrl + L, F5 / Ctrl + R, Alt + arrows, mouse side buttons, Delete,
-    // F2, Alt + Up, Ctrl + F, Ctrl + Shift + C, right-click on empty space)
+    // F2, Alt + Up, Ctrl + F, Ctrl + Shift + C, Ctrl + C / X / V, Ctrl + Shift + N, right-click on empty space)
     title: 'Folders and selection',
     items: [
       { keys: [['Arrow keys']], action: 'Move the selection (up and down move a row)' },
@@ -22,10 +22,14 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Delete']], action: 'Delete the selected files and folders: moved to the Recycle Bin after a confirm' },
       { keys: [['Shift', 'Delete']], action: 'Delete the selection for good, skipping the Recycle Bin (type DELETE to confirm)' },
       { keys: [['F2']], action: 'Rename the selected item (one item at a time)' },
+      { keys: [['Ctrl', 'C']], action: 'Copy the selected files and folders (File Explorer can paste them too)' },
+      { keys: [['Ctrl', 'X']], action: 'Cut the selected files and folders (they move when you paste)' },
+      { keys: [['Ctrl', 'V']], action: 'Paste into this folder: names already taken get a number, or you can choose Replace' },
+      { keys: [['Ctrl', 'Shift', 'N']], action: 'Make a new folder here and name it' },
       { keys: [['Ctrl', 'Shift', 'C']], action: 'Copy the path of the selected item (one path per line for a selection)' },
       { keys: [['F5'], ['Ctrl', 'R']], action: 'Refresh this folder in place (same folder, selection and view)' },
       { keys: [['Ctrl', 'A']], action: 'Select all' },
-      { keys: [['Right-click']], action: 'Menu for the item, or on empty space: Refresh the folder in place' },
+      { keys: [['Right-click']], action: 'Menu for the item, or on empty space: Refresh, Paste, New folder' },
       { keys: [['Click']], action: 'Select one item' },
       { keys: [['Ctrl', 'Click']], action: 'Add or remove one item' },
       { keys: [['Shift', 'Click']], action: 'Select a range' },

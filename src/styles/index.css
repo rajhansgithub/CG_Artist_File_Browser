@@ -1907,6 +1907,120 @@ select option {
   cursor: default;
 }
 
+/* Copy / move progress, in the corner over the folder view. It never blocks the window. */
+.transfer-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 44px; /* clear of the status bar */
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 250;
+}
+
+.transfer-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  animation: fadeInDock 0.2s ease-out;
+}
+
+.transfer-notice {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.transfer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.transfer-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.transfer-cancel {
+  padding: 3px 10px;
+  flex-shrink: 0;
+}
+
+.transfer-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.transfer-bar-fill {
+  height: 100%;
+  background: var(--accent-mid);
+  transition: width 0.15s;
+}
+
+.transfer-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.transfer-rows {
+  max-height: 132px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.transfer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transfer-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-row-status {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.transfer-row-status.failed {
+  color: #ff6666;
+}
+
+/* Cut items wait dimmed until they are pasted, like File Explorer */
+.asset-card.cut,
+.details-row.cut {
+  opacity: 0.5;
+}
+
 /* Spinner */
 .spinner {
   width: 28px;

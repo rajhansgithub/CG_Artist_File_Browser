@@ -1,15 +1,18 @@
-import * as THREE from 'three';
-import { TIFFLoader } from 'three/addons/loaders/TIFFLoader.js';
-import { TGALoader } from 'three/addons/loaders/TGALoader.js';
-import { load3DModel } from './assetLoader.js';
 import { openPdfDocument } from './pdfLoader.js';
-import { decodeTiffToRGBA } from './tiffDecoder.js';
-import { parseTxTex, TxTexReader, pickPreviewLevel } from './txTexDecoder.js';
 import { ThumbnailLane } from './thumbnailScheduler.js';
 import { getThumbnailDimensions } from './thumbnailToneMap.js';
 
 // In-memory cache for ultra-fast UI rendering
 const memoryCache = new Map();
+// A very long browsing session would otherwise keep every thumbnail ever shown. The oldest ones are dropped past this
+// many and simply load again if their card comes back.
+const MEMORY_CACHE_LIMIT = 4000;
+
+function rememberThumbnail(path, url) {
+  memoryCache.delete(path); // re-insert so the newest sits at the end
+  memoryCache.set(path, url);
+  if (memoryCache.size > MEMORY_CACHE_LIMIT) memoryCache.delete(memoryCache.keys().next().value);
+}
 
 // Two lanes keep scrolling smooth. `mainLane` runs the JavaScript decoders, which block the UI thread while
 // they work, so only two run at once. `nativeLane` waits on the Rust decoder, which runs on its own threads.
@@ -114,111 +117,6 @@ function renderRgbaThumbnail(parsed, targetW, targetH) {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
-// Reusable offscreen 3D renderer for high-quality, focused model previews on dark background
-let offscreen3DRenderer = null;
-let offscreen3DScene = null;
-let offscreen3DCamera = null;
-
-function getOffscreen3DRenderer() {
-  if (!offscreen3DRenderer) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 160;
-    offscreen3DRenderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: false,
-      preserveDrawingBuffer: true,
-      powerPreference: 'high-performance'
-    });
-    offscreen3DRenderer.setSize(320, 160, false);
-    offscreen3DRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    offscreen3DRenderer.toneMappingExposure = 1.3;
-
-    offscreen3DScene = new THREE.Scene();
-    offscreen3DScene.background = new THREE.Color(0x0a0a0a); // Pure dark background
-
-    offscreen3DCamera = new THREE.PerspectiveCamera(45, 320 / 160, 0.01, 1000);
-
-    // Studio Lighting
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x181818, 0.9);
-    offscreen3DScene.add(hemi);
-
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
-    key.position.set(5, 8, 5);
-    offscreen3DScene.add(key);
-
-    const fill = new THREE.DirectionalLight(0x888888, 1.0);
-    fill.position.set(-5, 4, -4);
-    offscreen3DScene.add(fill);
-
-    const rim = new THREE.DirectionalLight(0xffffff, 1.6);
-    rim.position.set(0, 5, -6);
-    offscreen3DScene.add(rim);
-  }
-  return { renderer: offscreen3DRenderer, scene: offscreen3DScene, camera: offscreen3DCamera };
-}
-
-// Render offscreen 3D thumbnail with auto-framing on dark background
-async function renderOffscreen3DThumbnail(item) {
-  const { renderer, scene, camera } = getOffscreen3DRenderer();
-
-  const { root } = await load3DModel(item);
-  if (!root) throw new Error('No root object returned from load3DModel');
-
-  root.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(root);
-  const center = new THREE.Vector3();
-  const size = new THREE.Vector3();
-  box.getCenter(center);
-  box.getSize(size);
-
-  const maxDim = Math.max(size.x, size.y, size.z);
-  if (maxDim <= 0) throw new Error('Invalid model dimensions');
-
-  // Center model at origin
-  root.position.sub(center);
-  root.updateMatrixWorld(true);
-
-  // If model has no materials or pure black, apply neutral studio clay material
-  let hasValidMaterial = false;
-  root.traverse((child) => {
-    if (child.isMesh && child.material) {
-      hasValidMaterial = true;
-    }
-  });
-
-  if (!hasValidMaterial) {
-    const defaultMat = new THREE.MeshStandardMaterial({
-      color: 0x909090,
-      roughness: 0.35,
-      metalness: 0.15
-    });
-    root.traverse((child) => {
-      if (child.isMesh) child.material = defaultMat;
-    });
-  }
-
-  scene.add(root);
-
-  // Position camera so model fills the frame comfortably
-  const fovRad = camera.fov * (Math.PI / 180);
-  let dist = (maxDim / 2) / Math.tan(fovRad / 2);
-  dist *= 1.35; // optimal 35% margin
-
-  camera.position.set(dist * 0.75, dist * 0.45, dist * 0.85);
-  camera.lookAt(0, 0, 0);
-  camera.near = Math.max(0.001, dist * 0.01);
-  camera.far = Math.max(1000, dist * 100);
-  camera.updateProjectionMatrix();
-
-  renderer.render(scene, camera);
-  const dataUrl = renderer.domElement.toDataURL('image/jpeg', 0.88);
-
-  scene.remove(root);
-  return dataUrl;
-}
-
 // Load binary buffer safely via Electron IPC or Fetch
 export async function getFileBuffer(filePath) {
   if (typeof window !== 'undefined' && !window.log) {
@@ -263,7 +161,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
 
   // 2. Check disk cache if already loaded by readDirectory
   if (item.thumbnail) {
-    memoryCache.set(item.path, item.thumbnail);
+    rememberThumbnail(item.path, item.thumbnail);
     return item.thumbnail;
   }
 
@@ -275,7 +173,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
   if (NATIVE_THUMBNAIL_EXTENSIONS.includes(ext) && window.electronAPI?.generateThumbnail) {
     const nativeUrl = await nativeLane.run(signal, () => window.electronAPI.generateThumbnail(item.path));
     if (nativeUrl) {
-      memoryCache.set(item.path, nativeUrl);
+      rememberThumbnail(item.path, nativeUrl);
       return nativeUrl;
     }
   }
@@ -285,7 +183,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
     const directUrl = window.electronAPI?.toAssetUrl
       ? window.electronAPI.toAssetUrl(item.path)
       : item.path;
-    memoryCache.set(item.path, directUrl);
+    rememberThumbnail(item.path, directUrl);
     return directUrl;
   }
 
@@ -308,7 +206,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport }).promise;
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        memoryCache.set(item.path, dataUrl);
+        rememberThumbnail(item.path, dataUrl);
         if (window.electronAPI?.saveThumbnail) {
           window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
         }
@@ -327,12 +225,13 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
     return mainLane.run(signal, async () => {
       try {
         const arrayBuf = await getFileBuffer(item.path);
+        const { parseTxTex, TxTexReader, pickPreviewLevel } = await import('./txTexDecoder.js');
         const parsed = parseTxTex(arrayBuf, ext);
         const level = pickPreviewLevel(parsed, 256);
         if (!level) return null;
         const img = await new TxTexReader(arrayBuf, parsed).decodeLevelReduced(level.index, 512);
         const dataUrl = renderRgbaThumbnail({ width: img.width, height: img.height, data: img.rgba });
-        memoryCache.set(item.path, dataUrl);
+        rememberThumbnail(item.path, dataUrl);
         if (window.electronAPI?.saveThumbnail) {
           window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
         }
@@ -356,19 +255,21 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
         let parsed = null;
 
         try {
+          const { decodeTiffToRGBA } = await import('./tiffDecoder.js');
           parsed = await decodeTiffToRGBA(arrayBuf);
         } catch (utifErr) {
           console.warn('Direct UTIF decode failed in thumbnail, trying TIFFLoader:', utifErr);
         }
 
         if (!parsed || !parsed.data) {
+          const { TIFFLoader } = await import('three/addons/loaders/TIFFLoader.js');
           const loader = new TIFFLoader();
           parsed = loader.parse(arrayBuf);
         }
 
         if (parsed && parsed.data) {
           const dataUrl = renderRgbaThumbnail(parsed);
-          memoryCache.set(item.path, dataUrl);
+          rememberThumbnail(item.path, dataUrl);
           if (window.electronAPI?.saveThumbnail) {
             window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
           }
@@ -386,11 +287,12 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
     return mainLane.run(signal, async () => {
       try {
         const arrayBuf = await getFileBuffer(item.path);
+        const { TGALoader } = await import('three/addons/loaders/TGALoader.js');
         const loader = new TGALoader();
         const parsed = loader.parse(arrayBuf);
         if (parsed && parsed.data) {
           const dataUrl = renderRgbaThumbnail(parsed);
-          memoryCache.set(item.path, dataUrl);
+          rememberThumbnail(item.path, dataUrl);
           if (window.electronAPI?.saveThumbnail) {
             window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
           }
@@ -410,7 +312,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
         const arrayBuf = await getFileBuffer(item.path);
         const { width, height, rgba } = await decodeFloatImageInWorker(arrayBuf, ext);
         const dataUrl = rgbaToDataUrl(rgba, width, height);
-        memoryCache.set(item.path, dataUrl);
+        rememberThumbnail(item.path, dataUrl);
 
         // Save to disk cache asynchronously
         if (window.electronAPI?.saveThumbnail) {
@@ -431,9 +333,10 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
   if (['.obj', '.fbx', '.gltf', '.glb', '.stl', '.ply'].includes(ext)) {
     return mainLane.run(signal, async () => {
       try {
+        const { renderOffscreen3DThumbnail } = await import('./thumbnail3D.js');
         const dataUrl = await renderOffscreen3DThumbnail(item);
         if (dataUrl) {
-          memoryCache.set(item.path, dataUrl);
+          rememberThumbnail(item.path, dataUrl);
           if (window.electronAPI?.saveThumbnail) {
             window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
           }
@@ -446,7 +349,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
             const res = await window.electronAPI.renderThumbnail(item.path);
             if (res && res.success && res.thumbnailPath) {
               const thumbUrl = window.electronAPI.toAssetUrl(res.thumbnailPath);
-              memoryCache.set(item.path, thumbUrl);
+              rememberThumbnail(item.path, thumbUrl);
               return thumbUrl;
             }
           } catch (blenderErr) {}
@@ -462,7 +365,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
       try {
         const dataUrl = await renderOffscreenVideoThumbnail(item);
         if (dataUrl) {
-          memoryCache.set(item.path, dataUrl);
+          rememberThumbnail(item.path, dataUrl);
           if (window.electronAPI?.saveThumbnail) {
             window.electronAPI.saveThumbnail(item.path, dataUrl).catch(() => {});
           }
@@ -482,7 +385,7 @@ export async function getOrGenerateThumbnail(item, { signal } = {}) {
         const res = await window.electronAPI.renderThumbnail(item.path);
         if (res && res.success && res.thumbnailPath) {
           const thumbUrl = window.electronAPI.toAssetUrl(res.thumbnailPath);
-          memoryCache.set(item.path, thumbUrl);
+          rememberThumbnail(item.path, thumbUrl);
           return thumbUrl;
         }
       } catch (e) {
