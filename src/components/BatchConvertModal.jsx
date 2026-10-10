@@ -7,8 +7,23 @@ const FORMATS = [
   { id: 'tif', label: 'TIFF' },
   { id: 'bmp', label: 'BMP' },
   { id: 'tga', label: 'TGA' },
-  { id: 'webp', label: 'WebP (lossless)' }
+  { id: 'webp', label: 'WebP (lossless)' },
+  { id: 'exr', label: 'EXR (float)' }
 ];
+
+const EXR_PRECISIONS = [
+  { id: 'half', label: 'Half float (16-bit)' },
+  { id: 'float', label: 'Full float (32-bit)' }
+];
+
+const EXR_COMPRESSIONS = [
+  { id: 'zip', label: 'ZIP (lossless)' },
+  { id: 'piz', label: 'PIZ (lossless, grainy renders)' },
+  { id: 'rle', label: 'RLE (lossless, fast)' },
+  { id: 'none', label: 'None' }
+];
+
+const KIND_TEXT = { rgba: 'RGBA', rgb: 'RGB', xyz: 'XYZ', single: 'single channel' };
 
 const fieldStyle = {
   width: '100%',
@@ -35,6 +50,11 @@ const lastPart = (path) => String(path || '').split(/[\\/]/).pop();
 export default function BatchConvertModal({ items, onClose }) {
   const [format, setFormat] = useState('png');
   const [outDir, setOutDir] = useState('');
+  const [exrPrecision, setExrPrecision] = useState('half');
+  const [exrCompression, setExrCompression] = useState('zip');
+  const [exrAlpha, setExrAlpha] = useState(true);
+  const [layer, setLayer] = useState(''); // '' picks the beauty layer of each EXR
+  const [layerList, setLayerList] = useState(null); // layers of the EXR files among the items, once read
   const [rows, setRows] = useState(null); // null until the batch starts, then one row per file
   const [summary, setSummary] = useState(null); // { converted, failed, cancelled } once the batch ends
   const [error, setError] = useState('');
@@ -45,6 +65,21 @@ export default function BatchConvertModal({ items, onClose }) {
 
   // Stops listening if the dialog goes away mid-batch
   useEffect(() => () => unlistenRef.current?.(), []);
+
+  // A multi-layer EXR lets the user pick which layer to convert; only the headers are read
+  const hasExr = items.some((item) => (item.extension || '').toLowerCase() === '.exr');
+  useEffect(() => {
+    if (!hasExr) return undefined;
+    let cancelled = false;
+    window.electronAPI?.listExrLayers?.(items.map((item) => item.path)).then((listing) => {
+      if (!cancelled) setLayerList(listing);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, hasExr]);
+  const layers = layerList?.layers || [];
+  const showLayerPicker = hasExr && layers.length > 1;
 
   const single = items.length === 1 ? items[0] : null;
   const title = single ? `Convert "${single.name}"` : `Convert ${items.length} files`;
@@ -84,7 +119,8 @@ export default function BatchConvertModal({ items, onClose }) {
       }
     });
 
-    const res = await window.electronAPI.startBatchConvert(jobId, items.map((item) => item.path), format, outDir);
+    const options = { exrLayer: showLayerPicker && layer ? layer : null, exrPrecision, exrCompression, exrAlpha };
+    const res = await window.electronAPI.startBatchConvert(jobId, items.map((item) => item.path), format, outDir, options);
     if (!res.ok) {
       stopListening();
       setRows(null);
@@ -131,6 +167,62 @@ export default function BatchConvertModal({ items, onClose }) {
                   ))}
                 </select>
               </label>
+
+              {format === 'exr' && (
+                <>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
+                      Precision
+                      <select style={{ ...fieldStyle, marginTop: 4 }} value={exrPrecision} onChange={(e) => setExrPrecision(e.target.value)}>
+                        {EXR_PRECISIONS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
+                      Compression
+                      <select style={{ ...fieldStyle, marginTop: 4 }} value={exrCompression} onChange={(e) => setExrCompression(e.target.value)}>
+                        {EXR_COMPRESSIONS.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={exrAlpha} onChange={(e) => setExrAlpha(e.target.checked)} />
+                    <span>Keep alpha when the picture has it</span>
+                  </label>
+                </>
+              )}
+
+              {showLayerPicker && (
+                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  EXR layer
+                  <select style={{ ...fieldStyle, marginTop: 4 }} value={layer} onChange={(e) => setLayer(e.target.value)}>
+                    <option value="">Automatic (the beauty layer)</option>
+                    {layers.map((l) => (
+                      <option key={l.name} value={l.name}>
+                        {l.name} · {KIND_TEXT[l.kind] || l.kind}
+                        {layerList.read > 1 && l.files < layerList.read ? ` · in ${l.files} of ${layerList.read} files` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {hasExr && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {format === 'exr'
+                    ? 'EXR and HDR values are kept as they are. Pictures from other formats are converted to linear light.'
+                    : 'EXR and HDR images are tone mapped to 8-bit with the same curve as the thumbnails.'}
+                  {showLayerPicker && layer && layerList.read > 1
+                    ? ' A file without the picked layer fails on its own; the others still convert.'
+                    : ''}
+                </div>
+              )}
 
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Output folder</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

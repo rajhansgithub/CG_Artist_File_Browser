@@ -41,6 +41,7 @@ const CATEGORY_ICONS = {
 function DetailsRow({
   item,
   isSelected,
+  isCut,
   isFavorite,
   onSelect,
   onOpen,
@@ -58,7 +59,7 @@ function DetailsRow({
 
   return (
     <div
-      className={`details-row ${isSelected ? 'selected' : ''}`}
+      className={`details-row ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
         if (startNativeDragOut(e, item, getDragPaths?.(item))) return;
@@ -160,6 +161,7 @@ function DetailsRow({
 export default function DetailsView({
   items,
   selectedPaths,
+  cutPaths,
   onSelect,
   getDragPaths,
   onOpen,
@@ -197,6 +199,7 @@ export default function DetailsView({
             key={item.path}
             item={item}
             isSelected={selectedPaths.has(item.path)}
+            isCut={!!cutPaths?.has(item.path)}
             isFavorite={favoritePaths.has(item.path)}
             onSelect={onSelect}
             getDragPaths={getDragPaths}

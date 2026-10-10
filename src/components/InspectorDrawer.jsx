@@ -4,8 +4,9 @@ import { formatBytes, formatDate, formatDuration, getTypeLabel, toStreamUrl } fr
 import '../styles/inspector-drawer.css';
 
 // Details of the selected file, shown beside the folder grid without opening the file. The size in pixels, the colour
-// layout and the EXR channels come from the backend's header read. The duration (and a video's frame size) come from
-// the browser's own metadata, which loads only the start of the media file.
+// layout, the EXR channels and a video or audio file's codecs, frame rate, sample rate, channels and bit depth come from
+// the backend's header read. The duration (and a video's frame size) come from the browser's own metadata, which loads
+// only the start of the media file; the backend's reading stands in when the browser cannot play the format.
 const INFO_CACHE_LIMIT = 300;
 const infoCache = new Map();
 
@@ -27,6 +28,30 @@ function describeColour(colorType) {
   if (!match) return colorType || '';
   const [, model, bits, float] = match;
   return `${COLOUR_NAMES[model]}, ${bits}-bit${float ? ' float' : ''}`;
+}
+
+// 24 → "24 fps", 23.976023976 → "23.976 fps"
+function describeFrameRate(fps) {
+  return Number.isFinite(fps) && fps > 0 ? `${Number(fps.toFixed(3))} fps` : '';
+}
+
+// 48000 → "48 kHz", 44100 → "44.1 kHz"
+function describeSampleRate(hz) {
+  return hz > 0 ? `${Number((hz / 1000).toFixed(3))} kHz` : '';
+}
+
+const CHANNEL_NAMES = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
+function describeChannels(count) {
+  if (!(count > 0)) return '';
+  return CHANNEL_NAMES[count] ? `${CHANNEL_NAMES[count]} (${count})` : `${count} channels`;
+}
+
+// The file's average rate: its size over its length, which is what a player's properties show too
+function describeBitrate(bytes, seconds) {
+  if (!(bytes > 0) || !(seconds > 0)) return '';
+  const bitsPerSecond = (bytes * 8) / seconds;
+  if (bitsPerSecond >= 1e6) return `${Number((bitsPerSecond / 1e6).toFixed(2))} Mbps`;
+  return `${Math.round(bitsPerSecond / 1e3)} kbps`;
 }
 
 // A row with no value is left out, so a folder has no Resolution and a plain file has no Channels
@@ -126,6 +151,8 @@ export default function InspectorDrawer({ item, onClose }) {
   // Media metadata belongs to one file, so a new selection starts over
   const mediaForItem = media && media.path === path ? media : null;
   const isMedia = item?.category === 'video' || item?.category === 'audio';
+  const duration = Number.isFinite(mediaForItem?.duration) ? mediaForItem.duration : info?.duration;
+  const hasHeaderDetails = Boolean(info?.duration || info?.videoCodec || info?.audioCodec);
 
   return (
     <aside className="inspector-drawer" aria-label="Inspector" style={{ width: shownWidth }}>
@@ -184,15 +211,26 @@ export default function InspectorDrawer({ item, onClose }) {
             <Row label="Type">{getTypeLabel(item)}</Row>
             <Row label="Size">{item.isDirectory ? '' : formatBytes(item.size)}</Row>
             <Row label="Resolution">
-              {info?.width && info?.height ? `${info.width} × ${info.height} px` : mediaForItem?.width ? `${mediaForItem.width} × ${mediaForItem.height} px` : ''}
+              {isMedia && mediaForItem?.width
+                ? `${mediaForItem.width} × ${mediaForItem.height} px`
+                : info?.width && info?.height
+                  ? `${info.width} × ${info.height} px`
+                  : ''}
             </Row>
             <Row label="Colour">{describeColour(info?.colorType)}</Row>
             {info?.channels?.length > 0 && <Row label="Channels">{info.channels.join(', ')}</Row>}
             {info?.sampleType && <Row label="Sample type">{info.sampleType}</Row>}
             {info?.compression && <Row label="Compression">{info.compression}</Row>}
             {info?.parts > 1 && <Row label="Parts">{info.parts}</Row>}
-            {Number.isFinite(mediaForItem?.duration) && <Row label="Duration">{formatDuration(mediaForItem.duration)}</Row>}
-            {mediaForItem?.failed && <Row label="Media">Could not read the media details</Row>}
+            {Number.isFinite(duration) && <Row label="Duration">{formatDuration(duration)}</Row>}
+            <Row label="Video codec">{info?.videoCodec}</Row>
+            <Row label="Frame rate">{describeFrameRate(info?.frameRate)}</Row>
+            <Row label="Audio codec">{info?.audioCodec}</Row>
+            <Row label="Sample rate">{describeSampleRate(info?.sampleRate)}</Row>
+            <Row label="Channels">{describeChannels(info?.audioChannels)}</Row>
+            <Row label="Bit depth">{info?.bitDepth > 0 ? `${info.bitDepth}-bit` : ''}</Row>
+            {isMedia && <Row label="Bitrate">{describeBitrate(item.size, duration)}</Row>}
+            {mediaForItem?.failed && !hasHeaderDetails && <Row label="Media">Could not read the media details</Row>}
             <Row label="Created">{info?.created ? formatDate(info.created) : info === null ? 'Reading…' : ''}</Row>
             <Row label="Modified">{formatDate(item.modified)}</Row>
           </dl>

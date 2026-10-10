@@ -103,12 +103,23 @@ export function setupTauriBridge() {
 
     // Batch convert runs in the background in Rust and reports through events. The caller makes the job id and
     // listens before starting, so no event can be missed. Resolves { ok } or { ok: false, error }
-    startBatchConvert: async (jobId, filePaths, format, outDir) => {
+    // options: { exrLayer, exrPrecision: 'half' | 'float', exrCompression: 'zip' | 'piz' | 'rle' | 'none', exrAlpha }
+    startBatchConvert: async (jobId, filePaths, format, outDir, options) => {
       try {
-        await invoke('start_batch_convert', { jobId, filePaths, format, outDir: outDir || null });
+        await invoke('start_batch_convert', { jobId, filePaths, format, outDir: outDir || null, options: options || null });
         return { ok: true };
       } catch (err) {
         return { ok: false, error: String(err) };
+      }
+    },
+
+    // The layers of the EXR files among filePaths, for the converter's layer picker:
+    // { layers: [{ name, kind, files }], exrFiles, read, unreadable }. Resolves null when they cannot be listed.
+    listExrLayers: async (filePaths) => {
+      try {
+        return await invoke('list_exr_layers', { filePaths });
+      } catch {
+        return null;
       }
     },
 
@@ -124,6 +135,76 @@ export function setupTauriBridge() {
         unlistenProgress();
         unlistenFinished();
       };
+    },
+
+    // File operations (copy, cut, paste, new folder). Pasting runs in the background in Rust and reports through events,
+    // like the batch convert: the caller makes the job id and listens before starting.
+    // checkFileTransfer resolves { ok, conflicts: [names already in the folder], actionable } or { ok: false, error }
+    checkFileTransfer: async (paths, destDir, mode) => {
+      try {
+        return { ok: true, ...(await invoke('check_file_transfer', { paths, destDir, mode })) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    // mode is 'copy' or 'move'; replace picks Replace over "keep both" for names that are taken
+    startFileTransfer: async (jobId, paths, destDir, mode, replace) => {
+      try {
+        await invoke('start_file_transfer', { jobId, paths, destDir, mode, replace: !!replace });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    cancelFileTransfer: async (jobId) => {
+      return await invoke('cancel_file_transfer', { jobId });
+    },
+
+    // Calls handler('progress' | 'finished', payload) for each paste event. Resolves a function that stops listening
+    onFileTransferEvent: async (handler) => {
+      const unlistenProgress = await listen('file-transfer-progress', (event) => handler('progress', event.payload));
+      const unlistenFinished = await listen('file-transfer-finished', (event) => handler('finished', event.payload));
+      return () => {
+        unlistenProgress();
+        unlistenFinished();
+      };
+    },
+
+    // Makes "New folder" (numbered when taken) in a folder. Resolves { ok, path } or { ok: false, error }
+    createFolder: async (parent) => {
+      try {
+        return { ok: true, path: await invoke('create_folder', { parent, name: null }) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    // The file clipboard, shared with File Explorer on Windows. getClipboardFiles resolves { ok, files: { paths, cut } | null }
+    setClipboardFiles: async (paths, cut) => {
+      try {
+        await invoke('set_clipboard_files', { paths, cut: !!cut });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    getClipboardFiles: async () => {
+      try {
+        return { ok: true, files: await invoke('get_clipboard_files') };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    clearClipboardFiles: async () => {
+      try {
+        await invoke('clear_clipboard_files');
+      } catch {
+        // an emptied clipboard is a nicety; the paste has already happened
+      }
     },
 
     openFolderDialog: async (defaultPath) => {

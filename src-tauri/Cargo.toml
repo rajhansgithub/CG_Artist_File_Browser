@@ -1,6 +1,6 @@
 [package]
 name = "cg-artist-file-browser"
-version = "1.15.0"
+version = "1.16.0"
 description = "High-Performance 3D & HDR/EXR File Browser for CG Artists"
 authors = ["Antigravity"]
 license = "MIT"
@@ -23,13 +23,22 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 rayon = "1.10"
 walkdir = "2.5"
-sysinfo = "0.33"
+sysinfo = { version = "0.33", default-features = false, features = ["disk"] }
 md5 = "0.7"
 base64 = "0.22"
 exr = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "hdr", "tga", "tiff"] }
 trash = "5"
 
-# Native drag of real files out of the window (OLE drag source), Windows only
+# Native drag of real files out of the window (OLE drag source) and the Explorer-compatible file clipboard, Windows only
 [target.'cfg(windows)'.dependencies]
+clipboard-win = { version = "5", features = ["std"] }
 drag = "2.1"
+
+# Release builds: whole-program optimisation, one code-generation unit and no debug symbols make the program
+# smaller and a little faster. Speed-first (opt-level 3) is kept for the image and EXR decoders, and panics still
+# unwind so a bad file can be reported as an error instead of closing the app.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

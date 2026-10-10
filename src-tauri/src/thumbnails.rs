@@ -417,11 +417,19 @@ pub(crate) fn write_atomic<F>(out: &Path, encode: F) -> Result<(), String>
 where
     F: FnOnce(BufWriter<fs::File>) -> image::ImageResult<()>,
 {
+    write_atomic_with(out, |file| encode(file).map_err(|e| e.to_string()))
+}
+
+/// Like `write_atomic` for writers whose errors are not `image` errors (the EXR writer).
+pub(crate) fn write_atomic_with<F>(out: &Path, encode: F) -> Result<(), String>
+where
+    F: FnOnce(BufWriter<fs::File>) -> Result<(), String>,
+{
     let tmp = out.with_extension("tmp");
     let file = fs::File::create(&tmp).map_err(|e| e.to_string())?;
     if let Err(e) = encode(BufWriter::new(file)) {
         let _ = fs::remove_file(&tmp);
-        return Err(e.to_string());
+        return Err(e);
     }
     fs::rename(&tmp, out).map_err(|e| {
         let _ = fs::remove_file(&tmp);

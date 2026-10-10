@@ -3,9 +3,11 @@ mod batch_convert;
 mod drag_out;
 mod exr_view;
 mod external_apps;
+mod file_ops;
 mod file_info;
 mod file_labels;
 mod folder_icons;
+mod media_info;
 mod network;
 mod network_login;
 mod recent_folders;
@@ -1085,13 +1087,22 @@ fn open_external(file_path: String) -> bool {
 }
 
 // IPC: Blender status
+// Async because the install check looks at several drives, and a disconnected network drive can take seconds to answer;
+// it runs at startup, so it must not hold up the window.
 #[tauri::command]
-fn get_blender_status(app: tauri::AppHandle) -> BlenderStatus {
-    let path = detect_blender(&app);
-    BlenderStatus {
-        available: path.is_some(),
-        path,
-    }
+async fn get_blender_status(app: tauri::AppHandle) -> BlenderStatus {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = detect_blender(&app);
+        BlenderStatus {
+            available: path.is_some(),
+            path,
+        }
+    })
+    .await
+    .unwrap_or(BlenderStatus {
+        available: false,
+        path: None,
+    })
 }
 
 // IPC: Set Blender path
@@ -1674,6 +1685,14 @@ pub fn run() {
             external_apps::send_to_external_app,
             batch_convert::start_batch_convert,
             batch_convert::cancel_batch_convert,
+            batch_convert::list_exr_layers,
+            file_ops::check_file_transfer,
+            file_ops::start_file_transfer,
+            file_ops::cancel_file_transfer,
+            file_ops::create_folder,
+            file_ops::set_clipboard_files,
+            file_ops::get_clipboard_files,
+            file_ops::clear_clipboard_files,
             user_guide::open_user_guide
         ])
         .run(tauri::generate_context!())

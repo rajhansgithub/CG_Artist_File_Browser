@@ -1,6 +1,8 @@
-//! Header-only details for the Inspector drawer: pixel size, colour layout, EXR channels and the file's dates.
+//! Header-only details for the Inspector drawer: pixel size, colour layout, EXR channels, video and audio streams and
+//! the file's dates.
 //! Only the header is read, never the pixels, so the drawer stays quick on large files and over the network.
 
+use crate::media_info;
 use exr::meta::MetaData;
 use image::ImageDecoder;
 use serde::Serialize;
@@ -25,6 +27,16 @@ pub struct FileInfo {
     pub compression: Option<String>,
     /// EXR: number of parts (more than one for multi-part files)
     pub parts: Option<usize>,
+    /// Video and audio: length in seconds, where the container header states it
+    pub duration: Option<f64>,
+    /// Video: codec name such as "H.264 (High)" and frames per second
+    pub video_codec: Option<String>,
+    pub frame_rate: Option<f64>,
+    /// Audio (a video's first audio track too): codec name, sample rate in Hz, channel count and bits per sample
+    pub audio_codec: Option<String>,
+    pub sample_rate: Option<u32>,
+    pub audio_channels: Option<u32>,
+    pub bit_depth: Option<u32>,
     /// Milliseconds since the Unix epoch, like FileItem.modified
     pub created: Option<f64>,
     pub modified: Option<f64>,
@@ -85,6 +97,21 @@ pub fn read_file_info(path: &Path) -> Result<FileInfo, String> {
         ..FileInfo::default()
     };
     if meta.is_dir() {
+        return Ok(info);
+    }
+
+    if media_info::is_media_extension(path) {
+        if let Some(media) = media_info::read_media_info(path) {
+            info.width = media.width;
+            info.height = media.height;
+            info.duration = media.duration;
+            info.video_codec = media.video_codec;
+            info.frame_rate = media.frame_rate;
+            info.audio_codec = media.audio_codec;
+            info.sample_rate = media.sample_rate;
+            info.audio_channels = media.channels;
+            info.bit_depth = media.bit_depth;
+        }
         return Ok(info);
     }
 

@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
-import ImageViewer from './ImageViewer';
-import TxTexViewer from './TxTexViewer';
-import ImageSequencePlayer from './ImageSequencePlayer';
-import VideoPlayer from './VideoPlayer';
-import PdfViewer from './PdfViewer';
-import AudioPlayer from './AudioPlayer';
-import Viewport3D from './Viewport3D';
-import HdrExrInspector from './HdrExrInspector';
+import {
+  ImageViewer,
+  TxTexViewer,
+  ImageSequencePlayer,
+  VideoPlayer,
+  PdfViewer,
+  AudioPlayer,
+  Viewport3D,
+  HdrExrInspector
+} from './lazyViewers';
 import { getQuickLookViewer } from '../utils/quickLook';
 
 // The same viewers the full view uses, shown here in a small window with `floating` set (see the .quick-look-window CSS)
@@ -115,15 +117,17 @@ export default function QuickLookWindow({ asset, folderItems, sequenceGroups, on
       </div>
       <div className="quick-look-body">
         {Viewer ? (
-          <Viewer
-            key={viewerKey}
-            asset={asset}
-            allFolderItems={viewer === 'sequence' ? sequenceGroups : folderItems}
-            onClose={onClose}
-            onSelectAsset={onSelectAsset}
-            onRevealInExplorer={onRevealInExplorer}
-            floating
-          />
+          <Suspense fallback={null}>
+            <Viewer
+              key={viewerKey}
+              asset={asset}
+              allFolderItems={viewer === 'sequence' ? sequenceGroups : folderItems}
+              onClose={onClose}
+              onSelectAsset={onSelectAsset}
+              onRevealInExplorer={onRevealInExplorer}
+              floating
+            />
+          </Suspense>
         ) : (
           <div className="quick-look-empty">No quick preview for this item. Use the arrow keys to move on, or Space to close.</div>
         )}
