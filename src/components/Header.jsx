@@ -42,7 +42,8 @@ export default function Header({
   sidebarCollapsed,
   onToggleSidebar,
   onRefreshFolder,
-  isRefreshing
+  isRefreshing,
+  searchInputRef
 }) {
   // Filter labels: 'auto' shows the text next to each icon whenever the header has room
   // for it and icons only otherwise. The chevron button overrides that ('labels' or 'icons')
@@ -198,6 +199,7 @@ export default function Header({
         <Search size={14} className="search-icon" />
         <input
           type="text"
+          ref={searchInputRef}
           className="search-input"
           placeholder="Filter 3D, HDR, Video (.mp4), Audio (.wav), PDF..."
           value={searchTerm}

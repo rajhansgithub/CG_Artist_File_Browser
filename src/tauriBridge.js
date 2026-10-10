@@ -201,6 +201,16 @@ export function setupTauriBridge() {
       }
     },
 
+    // Deletes a file or folder for good (Shift + Delete). Resolves { ok } or { ok: false, error }
+    deleteItemPermanently: async (filePath) => {
+      try {
+        await invoke('delete_item_permanently', { filePath });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
     readFileBuffer: async (filePath) => {
       const bytes = await invoke('read_file_buffer', { filePath });
       // Raw ipc::Response arrives as an ArrayBuffer (no JSON array round trip)
