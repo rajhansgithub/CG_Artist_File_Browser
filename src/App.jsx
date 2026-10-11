@@ -37,6 +37,7 @@ import {
   isVideoFormat,
   isAudioFormat,
   isPdfFormat,
+  isMarkdownFormat,
   isTxTexFormat,
   isComparableItem,
   getCompareKind
@@ -65,6 +66,7 @@ import {
   ImageSequencePlayer,
   VideoPlayer,
   PdfViewer,
+  MarkdownViewer,
   AudioPlayer,
   Viewport3D,
   HdrExrInspector,
@@ -141,7 +143,7 @@ export default function App() {
   const labelTags = useMemo(() => collectTags(fileLabels.labels), [fileLabels.labels]);
 
   // Views & UI State
-  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'sequence', 'compare'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'studio3d', 'hdrexr', 'image', 'txtex', 'video', 'audio', 'pdf', 'markdown', 'sequence', 'compare'
   const [previewOpen, setPreviewOpen] = useState(false); // the floating Quick Look window, shown over the grid
   const [inspectorOpen, setInspectorOpen] = useState(false); // the file details drawer beside the grid, toggled with I
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
@@ -400,6 +402,8 @@ export default function App() {
         cat = 'audio';
       } else if (ext === '.pdf') {
         cat = 'pdf';
+      } else if (isMarkdownFormat(ext)) {
+        cat = 'markdown';
       }
 
       const item = {
@@ -851,6 +855,8 @@ export default function App() {
       setViewMode('audio');
     } else if (item.category === 'pdf') {
       setViewMode('pdf');
+    } else if (item.category === 'markdown') {
+      setViewMode('markdown');
     }
   };
 
@@ -940,6 +946,8 @@ export default function App() {
       cat = 'audio';
     } else if (isPdfFormat(ext)) {
       cat = 'pdf';
+    } else if (isMarkdownFormat(ext)) {
+      cat = 'markdown';
     }
 
     return {
@@ -1039,12 +1047,15 @@ export default function App() {
     } else if (firstItem.category === 'pdf') {
       setSelectedAsset(firstItem);
       setViewMode('pdf');
+    } else if (firstItem.category === 'markdown') {
+      setSelectedAsset(firstItem);
+      setViewMode('markdown');
     } else {
       // Truly unsupported non-media file (e.g. .exe, .zip, .dll, etc.)
       setDropError({
         fileName: firstItem.name,
         currentViewerTitle: 'Universal Media Viewport',
-        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Render textures (.tx, .tex), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac), PDF Documents (.pdf)',
+        expectedTypes: 'Supported: 3D Models (.obj, .fbx, .gltf, .glb, .stl, .ply, .usd, .abc), HDR/EXR Maps (.hdr, .exr), Images (.png, .jpg, .webp, .tif, .tga), Render textures (.tx, .tex), Videos (.mp4, .mov, .webm), Audio (.wav, .mp3, .ogg, .flac), PDF Documents (.pdf), Markdown (.md)',
         suggestedViewer: null,
         fileItem: firstItem
       });
@@ -1788,6 +1799,16 @@ export default function App() {
 
           {viewMode === 'pdf' && (
             <PdfViewer
+              asset={selectedAsset}
+              allFolderItems={folderItems}
+              onClose={() => setViewMode('grid')}
+              onSelectAsset={(item) => setSelectedAsset(item)}
+              onRevealInExplorer={handleRevealInExplorer}
+            />
+          )}
+
+          {viewMode === 'markdown' && (
+            <MarkdownViewer
               asset={selectedAsset}
               allFolderItems={folderItems}
               onClose={() => setViewMode('grid')}

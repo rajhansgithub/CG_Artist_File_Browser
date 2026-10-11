@@ -47,7 +47,7 @@ export const SHORTCUT_GROUPS = [
   },
   {
     // Every viewer's own Escape handler (ImageViewer, TxTexViewer, VideoPlayer, ImageSequencePlayer, AudioPlayer,
-    // PdfViewer, Viewport3D, HdrExrInspector)
+    // PdfViewer, MarkdownViewer, Viewport3D, HdrExrInspector)
     title: 'Any viewer',
     items: [{ keys: [['Esc']], action: 'Close the viewer (leaves full screen first)' }]
   },
@@ -114,6 +114,22 @@ export const SHORTCUT_GROUPS = [
       { keys: [['Ctrl', '1']], action: 'Actual size (100%)' },
       { keys: [['F']], action: 'Fit page' },
       { keys: [['R']], action: 'Rotate 90 degrees' }
+    ]
+  },
+  {
+    // MarkdownViewer.jsx
+    title: 'Markdown viewer',
+    items: [
+      { keys: [['Page Down'], ['Space']], action: 'Scroll down a screen' },
+      { keys: [['Page Up'], ['Shift', 'Space']], action: 'Scroll up a screen' },
+      { keys: [['Home'], ['End']], action: 'Top / bottom of the document' },
+      { keys: [['Up'], ['Down']], action: 'Scroll a little' },
+      { keys: [['Left'], ['Right']], action: 'Previous / next Markdown file in the folder' },
+      { keys: [['Backspace']], action: 'Back to the document you followed a link from' },
+      { keys: [['+'], ['-']], action: 'Larger / smaller text (also Ctrl + mouse wheel)' },
+      { keys: [['Ctrl', '0']], action: 'Reset the text size' },
+      { keys: [['O']], action: 'Show / hide the outline of headings' },
+      { keys: [['S']], action: 'Switch between the formatted page and the Markdown text' }
     ]
   },
   {

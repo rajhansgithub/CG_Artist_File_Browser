@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Markdown documents · CG Artist File Browser guide</title>
+<meta name="description" content="The Markdown viewer: a clean reading page with pictures, GIFs, tables, code, a heading outline and links, for .md files.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/tour.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/markdown.html" aria-current="page">Markdown documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.17.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Markdown documents</h1>
+      <p class="summary">The Markdown viewer: a clean reading page with pictures, GIFs, tables, code, a heading outline and links, for .md files.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/tour.html">A quick tour &rarr;</a></aside>
+<h2 id="opening-a-markdown-file">Opening a Markdown file</h2>
+<p><code>.md</code> and <code>.markdown</code> files open in a reading page instead of a plain text view. Open one with <code>Enter</code> or a double-click, or press <code>Space</code> in the folder view for a quick look. The viewer only shows the document; it never changes the file.</p>
+<figure class="shot screenshot"><img loading="lazy" alt="The Markdown viewer with the outline on the right" src="../assets/media/markdown-viewer.webp"><figcaption>A notes file with a tip, a picture, a table and a task list. The outline of headings is on the right.</figcaption></figure>
+<h2 id="what-it-shows">What it shows</h2>
+<ul><li>Headings, paragraphs, <strong>bold</strong>, <em>italic</em>, ~~strikethrough~~, quotes and lists.</li><li>Tables, with the column alignment from the file.</li><li>Task lists with ticked and empty boxes.</li><li>Code blocks with colours for common languages (JavaScript, Python, Rust, C and C++, GLSL, MEL, shell, JSON, YAML and more) and a <strong>Copy</strong> button on each block.</li><li>Call-outs written as <code>&gt; [!NOTE]</code>, <code>&gt; [!TIP]</code>, <code>&gt; [!IMPORTANT]</code>, <code>&gt; [!WARNING]</code> and <code>&gt; [!CAUTION]</code>.</li><li>A <code>---</code> properties block at the top of the file, tucked into a &quot;Document properties&quot; fold.</li></ul>
+<p>The page follows the colour theme you chose in Settings, so it is light in the Light theme and dark in the others.</p>
+<h2 id="pictures-gifs-and-video">Pictures, GIFs and video</h2>
+<p>Pictures in the document are loaded from where the file says they are:</p>
+<ul><li><strong>Next to the document.</strong> <code>![](shots/lookdev.png)</code> shows <code>shots\lookdev.png</code> from the folder the <code>.md</code> file is in. <code>../</code> goes up a folder.</li><li><strong>A full path or a network share.</strong> A path such as <code>D:\Library\ref.jpg</code> or <code>\\studio\library\ref.jpg</code> works too, so a document can show files on a network drive.</li><li><strong>A web address.</strong> Pictures from <code>https://</code> addresses show when you are online.</li></ul>
+<p>PNG, JPG, WebP and BMP pictures show as they are, and <strong>animated GIFs play</strong>. Click a picture to see it large, and click again or press <code>Esc</code> to close it. A picture that cannot be found is shown as a small note with its name instead of a broken symbol. <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code> tags play the file next to the document.</p>
+<h2 id="the-outline">The outline</h2>
+<p>The panel on the right lists the headings. Click one to jump to it; the heading you are reading is highlighted. Press <code>O</code> to hide or show it. In a narrow window the outline hides itself to leave room for the text.</p>
+<h2 id="links">Links</h2>
+<ul><li>A link to a heading in the same document (<code>#shot-notes</code>) scrolls to it.</li><li>A link to another <code>.md</code> file opens it in the viewer. <strong>Back</strong> in the toolbar (or <code>Backspace</code>) returns to the document you came from.</li><li>A web address opens in your browser.</li><li>A link to any other file or folder opens it with its default program.</li></ul>
+<h2 id="reading-comfortably">Reading comfortably</h2>
+<ul><li><code>+</code> and <code>-</code>, or <code>Ctrl</code> + mouse wheel, make the text larger or smaller. <code>Ctrl</code> + <code>0</code> goes back to the normal size. The size is remembered.</li><li><code>S</code> switches between the formatted page and the Markdown text, which you can select and copy.</li><li><code>Page Down</code> and <code>Space</code>, <code>Page Up</code> and <code>Shift</code> + <code>Space</code>, <code>Home</code>, <code>End</code> and the arrow keys scroll. <code>Left</code> and <code>Right</code> open the previous or next Markdown file in the folder.</li><li>Very large files show their first 2 MB, with a note at the top; <strong>Open</strong> in the toolbar opens the whole file in your default program.</li></ul>
+<h2 id="safety">Safety</h2>
+<p>A Markdown file is only text and cannot run anything in the app. Scripts, forms, frames and styles inside a document are removed, and links to anything other than web, mail or local files are blocked, so opening a file from someone else is as safe as opening a picture.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/markdown.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/pdf.html"><span>Previous</span>PDF documents</a><a class="next" href="../deep/image-sequences.html"><span>Next</span>Image sequences</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#opening-a-markdown-file">Opening a Markdown file</a></li><li class="l2"><a href="#what-it-shows">What it shows</a></li><li class="l2"><a href="#pictures-gifs-and-video">Pictures, GIFs and video</a></li><li class="l2"><a href="#the-outline">The outline</a></li><li class="l2"><a href="#links">Links</a></li><li class="l2"><a href="#reading-comfortably">Reading comfortably</a></li><li class="l2"><a href="#safety">Safety</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

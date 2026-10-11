@@ -16,6 +16,7 @@ import {
   Film,
   Volume2,
   FileText,
+  BookOpen,
   ChevronsLeft,
   ChevronsRight,
   RefreshCw,
@@ -144,6 +145,9 @@ export default function Header({
     { key: 'pdf', icon: <FileText size={13} />, label: 'PDF', name: 'PDF',
       title: 'PDF Documents (.pdf)',
       active: filterType === 'pdf', onClick: () => selectFilter('pdf') },
+    { key: 'markdown', icon: <BookOpen size={13} />, label: 'Markdown', name: 'Markdown',
+      title: 'Markdown documents (.md, .markdown)',
+      active: filterType === 'markdown', onClick: () => selectFilter('markdown') },
     { key: 'favorites', label: 'Favorites', name: 'Favorites', title: 'Starred Favorites',
       icon: (
         <Star size={13} fill={showFavoritesOnly ? 'currentColor' : 'none'} color="currentColor" />
@@ -203,7 +207,7 @@ export default function Header({
           type="text"
           ref={searchInputRef}
           className="search-input"
-          placeholder="Filter 3D, HDR, Video (.mp4), Audio (.wav), PDF..."
+          placeholder="Filter 3D, HDR, Video (.mp4), Audio (.wav), PDF, Markdown..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

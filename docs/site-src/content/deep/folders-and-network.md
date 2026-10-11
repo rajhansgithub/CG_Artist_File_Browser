@@ -26,7 +26,7 @@ A folder is remembered per session. When you leave a viewer with `Esc`, you retu
 
 ## Filter, type filter and sorting
 
-`Ctrl` + `F` puts the cursor in the filter box. Type part of a name and the folder shows only matches. The type buttons next to it limit the view to 3D, HDR, images, video, audio or PDF files.
+`Ctrl` + `F` puts the cursor in the filter box. Type part of a name and the folder shows only matches. The type buttons next to it limit the view to 3D, HDR, images, video, audio, PDF or Markdown files.
 
 Use the **Name** button in the path bar to sort by name, date modified, size or type, with folders first if you like. Click a column heading in the details view. The sort is remembered for each folder.
 

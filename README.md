@@ -90,6 +90,7 @@
 | **Video** | `.mp4`, `.mov`, `.webm`, `.mkv`, `.avi` | Frame scrubber, loop playback, speed control |
 | **Audio** | `.wav`, `.mp3`, `.ogg`, `.flac`, `.aac`, `.aiff`, `.m4a` | Waveform visualizer, loop playback, audio properties |
 | **PDF** | `.pdf` | First-page thumbnails, continuous-scroll viewer, page jump, zoom / fit width / fit page, rotate |
+| **Markdown** | `.md`, `.markdown` | Clean reading page with inline pictures and animated GIFs (next to the file or on a network drive), tables, code blocks, task lists, links, heading outline, themes |
 
 ---
 
@@ -177,6 +178,7 @@ We follow an iterative release cadence with standalone testable builds for each 
 | **PDF: next / previous page** | `Page Down` / `Page Up` (or `Space` / `Shift + Space`), `Home` / `End` for first / last |
 | **PDF: zoom** | `Ctrl + Mouse Wheel`, `+` / `-`, `Ctrl + 0` fit width, `F` fit page, `Ctrl + 1` 100% |
 | **PDF: rotate / pan** | `R` rotates 90°, `Left Click + Drag` pans, `Left` / `Right` arrows switch PDF |
+| **Markdown** | `O` outline, `S` formatted / source, `+` / `-` or `Ctrl + Mouse Wheel` text size, `Backspace` back after a link, `Left` / `Right` arrows switch file |
 
 ---
 

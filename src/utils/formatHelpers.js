@@ -42,6 +42,7 @@ export function getFileBadgeClass(ext) {
   if (cleanExt === 'mp4' || cleanExt === 'mov' || cleanExt === 'webm' || cleanExt === 'mkv' || cleanExt === 'avi') return 'badge-video';
   if (cleanExt === 'wav' || cleanExt === 'mp3' || cleanExt === 'ogg' || cleanExt === 'flac' || cleanExt === 'aac' || cleanExt === 'aiff' || cleanExt === 'm4a') return 'badge-audio';
   if (cleanExt === 'pdf') return 'badge-pdf';
+  if (cleanExt === 'md' || cleanExt === 'markdown') return 'badge-md';
   return '';
 }
 
@@ -114,6 +115,11 @@ export function isAudioFormat(ext) {
 export function isPdfFormat(ext) {
   const e = (ext || '').toLowerCase();
   return e === '.pdf';
+}
+
+export function isMarkdownFormat(ext) {
+  const e = (ext || '').toLowerCase();
+  return e === '.md' || e === '.markdown';
 }
 
 export function formatTimecode(seconds, fps = 24) {

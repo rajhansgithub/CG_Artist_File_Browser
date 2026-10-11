@@ -262,6 +262,16 @@ export function setupTauriBridge() {
       return await invoke('open_external', { filePath });
     },
 
+    // Opens a web or mail link (http, https, mailto) from a document in the default browser. Resolves { ok } or { ok: false, error }
+    openUrl: async (url) => {
+      try {
+        await invoke('open_url', { url });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
     // Opens the built-in user guide in the default browser. Resolves { ok } or { ok: false, error } with a sentence to show
     openUserGuide: async () => {
       try {

@@ -12,6 +12,7 @@ const CATEGORY_LABELS = [
   ['video', 'video', 'videos'],
   ['audio', 'audio file', 'audio files'],
   ['pdf', 'PDF', 'PDFs'],
+  ['markdown', 'Markdown file', 'Markdown files'],
   ['other', 'other file', 'other files']
 ];
 

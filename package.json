@@ -1,6 +1,6 @@
 {
   "name": "cg-artist-file-browser",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "High-Performance 3D & HDR/EXR File Browser and Inspector for CG & VFX Artists",
   "type": "module",
   "repository": {
@@ -40,7 +40,10 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.0",
     "@tauri-apps/plugin-dialog": "^2.8.0",
+    "dompurify": "3.4.16",
+    "highlight.js": "11.12.0",
     "lucide-react": "^1.48.0",
+    "marked": "18.1.0",
     "pdfjs-dist": "4.10.38",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

@@ -981,7 +981,8 @@ select option {
   border-color: rgba(255, 255, 255, 0.25);
   color: #e0e0e0;
 }
-.badge-pdf {
+.badge-pdf,
+.badge-md {
   background: rgba(30, 30, 30, 0.85);
   border-color: rgba(255, 255, 255, 0.3);
   color: #f0f0f0;
