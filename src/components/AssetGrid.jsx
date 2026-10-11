@@ -11,6 +11,7 @@ import {
   Film,
   Music,
   FileText,
+  BookOpen,
   Tag
 } from 'lucide-react';
 import { formatBytes, formatDate, getFileBadgeClass, isComparableItem } from '../utils/formatHelpers';
@@ -374,6 +375,11 @@ function AssetCard({
                 style={{ color: '#888888' }}
               >
                 <FileText size={36} strokeWidth={1.2} />
+              </div>
+            )}
+            {item.category === 'markdown' && (
+              <div className="card-placeholder-icon" style={{ color: '#888888' }}>
+                <BookOpen size={36} strokeWidth={1.2} />
               </div>
             )}
             {item.category === 'other' && (

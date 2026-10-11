@@ -27,6 +27,10 @@ Open a `.glb`, `.obj`, `.fbx`, `.stl` or `.ply` file. Drag with the left mouse b
 
 Install Blender, then check the path in Settings. The app converts `.usd`, `.abc` and `.blend` files to a model in the background and keeps the result. [USD and Alembic](@deep/usd-outliner) explains what to expect.
 
+## Read a Markdown note or README
+
+Open the `.md` file. Pictures and GIFs next to it show in the page, the outline on the right jumps between headings, and `S` shows the plain text. [Markdown documents](@deep/markdown) covers links, network drives and the keys.
+
 ## Read an HDR or EXR map
 
 Open it. It appears as a 360° sky. Hold `E` and drag to change the exposure, and use the tone-mapping list in the panel on the right to change how the image is squeezed onto the screen. [HDR and EXR](@deep/hdr-exr) has the rest.

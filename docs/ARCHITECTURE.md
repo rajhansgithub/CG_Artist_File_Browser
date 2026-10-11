@@ -31,6 +31,7 @@
 | **Desktop Framework** | [Tauri](https://tauri.app/) | `v2.12` | Native OS windowing, IPC bridge, security sandboxing, WebView2 host |
 | **Backend Language** | [Rust](https://www.rust-lang.org/) | `2024 edition` (v1.90+) | Multi-threaded file indexing, native thumbnail decoding, disk caching |
 | **PDF Rendering** | [pdf.js](https://mozilla.github.io/pdf.js/) (`pdfjs-dist`) | `4.10` | Lazy-loaded PDF viewer and first-page thumbnails |
+| **Markdown Rendering** | [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) + [highlight.js](https://highlightjs.org/) | `18.1` / `3.4` / `11.12` | Lazy-loaded Markdown viewer: GitHub-style Markdown, sanitised, with coloured code blocks |
 | **Frontend Framework** | [React](https://react.dev/) | `19.3` | Reactive user interface and DCC component hierarchy |
 | **Bundler & Dev Server** | [Vite](https://vite.dev/) | `8.3` | Instant HMR and ES-module compilation |
 | **3D & WebGL Engine** | [Three.js](https://threejs.org/) | `r186` | Real-time PBR shading, OrbitControls, wireframe geometry, skybox spheres |
@@ -100,6 +101,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `save_image_file` | `file_path`, `data_url` | `bool` | Exports a viewport snapshot to PNG. |
 | `show_in_folder` | `file_path` | `bool` | Spawns Windows Explorer with `/select,<path>`. |
 | `open_external` | `file_path` | `bool` | Opens file with default Windows associated application. |
+| `open_url` | `url` | `()` | Opens a web or mail link from a Markdown document in the default browser or mail program (`rundll32 url.dll,FileProtocolHandler` on Windows, `xdg-open` on Linux). Only `http`, `https` and `mailto` links without spaces or control characters are accepted; anything else is refused with a sentence the viewer shows. Code in [`open_url.rs`](../src-tauri/src/open_url.rs). |
 | `rename_item` | `file_path`, `new_name` | `String` | Renames a file or folder inside its own folder and returns the new path. Rejects names with `< > : " / \ \| ? *`, names ending in a space or dot, and names that already exist (a case-only change is allowed). |
 | `delete_item` | `file_path` | `()` | Moves a file or folder to the Recycle Bin (never a permanent delete). Drive and share roots are refused. |
 | `get_blender_status` | — | `BlenderStatus` | Scans program files and Steam libraries across drives for `blender.exe`. |
@@ -205,6 +207,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
   - **In the render tab**: [`src/utils/txTexAnalysis.js`](../src/utils/txTexAnalysis.js) holds all the maths and no UI. The texture's width in render pixels is `frame width × coverage ÷ repeats`; texture pixels per render pixel is `texture width ÷ that`. Its log2 picks the mip level(s) like a trilinear filter (`pickMipLevels`), and `judge()` turns the ratio into the verdict (below 0.5 soft, 0.5-0.9 slightly soft, 0.9-2 sharp, 2-4 more than enough, above 4 overkill) and the recommended power-of-two size. [`src/utils/txTexPreview.js`](../src/utils/txTexPreview.js) paints the footprint onto a canvas that is exactly one canvas pixel per render pixel (decoding only the visible region of the chosen levels) and the viewer magnifies it without smoothing. Clicking a level in the list while on this tab tests "what if the texture were only this big".
   - **Unsupported on purpose** (clear message shown, the size-based verdict still works): PixarLog / Pixar "lossless" compression, JPEG compression, palette / CMYK / YCbCr data, OpenEXR-based `.tx`/`.tex` (and Pixar's own `-format pixar`), RenderMan ripmaps beyond the normal pyramid. A `.tex` that is not a TIFF (for example a LaTeX file) is reported as such.
 - **PDF Viewer ([`src/components/PdfViewer.jsx`](../src/components/PdfViewer.jsx))**: Continuous-scroll PDF reader built on [pdf.js](https://mozilla.github.io/pdf.js/) (`pdfjs-dist`). Bytes arrive through the same raw `read_file_buffer` IPC; pages are rasterised only while near the viewport, so large documents stay light. Page jump and counter, zoom (`Ctrl`+wheel, `+`/`-`), fit width, fit page, 100%, rotate, drag-to-pan, previous/next PDF in the folder. The engine and its worker are loaded lazily by [`src/utils/pdfLoader.js`](../src/utils/pdfLoader.js) the first time a PDF is opened or thumbnailed, so startup and the main bundle are unaffected. Grid thumbnails render page 1 and use the same disk cache as every other thumbnail. Not included (yet): text selection/search, annotations, form filling.
+- **Markdown Viewer ([`src/components/MarkdownViewer.jsx`](../src/components/MarkdownViewer.jsx))**: renders `.md` and `.markdown` files (category `markdown`, opened with double-click / `Enter`, and shown in Quick Look) as a reading page with the app's colour themes. Render only, no editing. The file is read through `read_file_range` (first 2 MB; the page says so when a file is longer), so it works on drives and network shares alike. [`src/utils/markdownRender.js`](../src/utils/markdownRender.js) reads the text with `marked` (GitHub-style tables, task lists, strikethrough, `> [!NOTE]` call-outs, a `---` front matter block), colours code with `highlight.js` (a short language list, including GLSL, MEL and PowerShell) and cleans the result with `DOMPurify` into real DOM nodes: scripts, styles, forms, frames, `id`/`name`, event handlers and every address attribute it did not rebuild itself are removed, so a local `.md` cannot run code. Links and pictures are resolved by [`src/utils/markdownPaths.js`](../src/utils/markdownPaths.js) against the folder of the document: relative paths (`img/shot.gif`, `../x.png`), drive paths, `\\server\share` paths and `file:` links become `asset:` URLs through `toAssetUrl`, so pictures and animated GIFs show inline from local and network folders; `http(s)` pictures load when online. Clicking a link is handled by the viewer (never by the page): `#heading` scrolls, another `.md` opens in the viewer (Back with `Backspace`), web and mail links go to `open_url`, other local files go to `open_external`. Also: heading outline with scroll tracking (`O`), text size (`+`/`-`, `Ctrl`+wheel, remembered), formatted / source switch (`S`), copy buttons on code blocks, click-to-enlarge pictures, previous/next Markdown file in the folder. The renderer and its libraries (about 210 KB, 73 KB gzipped) sit in the viewer's own lazy chunk, so startup and the main bundle are unaffected.
 
 ---
 
@@ -257,6 +260,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── Header.jsx             # Search bar, filter pills (icon + text when they fit, icons only when not), settings
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
+│   │   ├── MarkdownViewer.jsx     # Markdown reading page: images/GIFs, tables, code, outline, links
 │   │   ├── SettingsModal.jsx      # Appearance (colour scheme), Blender path settings & cache management
 │   │   ├── TxTexViewer.jsx        # Arnold .tx / RenderMan .tex viewer: mip levels, "will it be sharp enough?" check
 │   │   ├── ConnectNetworkModal.jsx # "Connect to network folder" window (path, username, password, stay connected)
@@ -282,6 +286,8 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── quickLook.js           # Quick Look: which viewer shows a file, nav keys left to the grid
 │   │   ├── pathHelpers.js         # Drive and UNC-aware breadcrumbs / parent folder
 │   │   ├── pdfLoader.js           # Lazy pdf.js loader (engine + worker)
+│   │   ├── markdownPaths.js       # Where links and pictures of a .md point (relative, drive, UNC, file:), heading slugs
+│   │   ├── markdownRender.js      # marked + highlight.js + DOMPurify: Markdown text to a safe page
 │   │   ├── thumbnailScheduler.js  # Bounded, cancellable lanes for thumbnail jobs
 │   │   ├── thumbnailService.js    # Thumbnail generation lanes & cache lookup
 │   │   ├── thumbnailToneMap.js    # HDR / EXR float to thumbnail pixels (auto exposure, ACES)
@@ -305,6 +311,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── recent_folders.rs      # Recent folders for the sidebar: read back (existing ones only) and clear
 │   │   ├── network.rs             # UNC path parsing, timeout-guarded probe, extra/network drives, Explorer network shortcuts
 │   │   ├── thumbnails.rs          # Native Rust multi-threaded thumbnail decoders
+│   │   ├── open_url.rs            # open_url: web / mail links from Markdown documents
 │   │   └── user_guide.rs          # Help: docs/site is embedded (build.rs lists it), saved to the app data folder, opened in the browser
 │   ├── Cargo.toml                 # Rust dependencies (tauri, rayon, image, exr, sysinfo)
 │   └── tauri.conf.json            # Window dimensions, bundle targets, asset protocol
@@ -380,7 +387,7 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
 
-**Current release version:** `1.16.0`
+**Current release version:** `1.17.0`
 
 `npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 

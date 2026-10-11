@@ -10,6 +10,7 @@ mod folder_icons;
 mod media_info;
 mod network;
 mod network_login;
+mod open_url;
 mod recent_folders;
 mod thumbnails;
 mod user_guide;
@@ -228,6 +229,7 @@ fn get_category(ext: &str) -> &'static str {
         ".mp4" | ".webm" | ".mov" | ".mkv" | ".avi" => "video",
         ".wav" | ".mp3" | ".ogg" | ".flac" | ".aac" | ".aiff" | ".m4a" => "audio",
         ".pdf" => "pdf",
+        ".md" | ".markdown" => "markdown",
         _ => "other",
     }
 }
@@ -395,6 +397,7 @@ fn pass_category_filter(filter: &str, category: &str) -> bool {
         "video" => category == "video",
         "audio" => category == "audio",
         "pdf" => category == "pdf",
+        "markdown" => category == "markdown",
         "assets" => ["3d", "hdr", "image", "texture", "video", "audio", "pdf"].contains(&category),
         _ => true,
     }
@@ -1693,7 +1696,8 @@ pub fn run() {
             file_ops::set_clipboard_files,
             file_ops::get_clipboard_files,
             file_ops::clear_clipboard_files,
-            user_guide::open_user_guide
+            user_guide::open_user_guide,
+            open_url::open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -1711,6 +1715,15 @@ mod tests {
         assert!(validate_item_name("bad:name").is_err());
         assert!(validate_item_name("back\\slash").is_err());
         assert!(validate_item_name("ends with dot.").is_err());
+    }
+
+    #[test]
+    fn markdown_files_get_their_own_category() {
+        assert_eq!(get_category(".md"), "markdown");
+        assert_eq!(get_category(".markdown"), "markdown");
+        assert!(pass_category_filter("markdown", "markdown"));
+        assert!(!pass_category_filter("markdown", "pdf"));
+        assert!(pass_category_filter("all", "markdown"));
     }
 
     #[test]

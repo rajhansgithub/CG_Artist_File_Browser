@@ -12,6 +12,7 @@ import {
   Film,
   Music,
   FileText,
+  BookOpen,
   ChevronUp,
   ChevronDown
 } from 'lucide-react';
@@ -35,7 +36,8 @@ const CATEGORY_ICONS = {
   texture: Grid,
   video: Film,
   audio: Music,
-  pdf: FileText
+  pdf: FileText,
+  markdown: BookOpen
 };
 
 function DetailsRow({

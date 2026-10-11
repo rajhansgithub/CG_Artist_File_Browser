@@ -7,6 +7,7 @@ export const TxTexViewer = lazy(() => import('./TxTexViewer'));
 export const ImageSequencePlayer = lazy(() => import('./ImageSequencePlayer'));
 export const VideoPlayer = lazy(() => import('./VideoPlayer'));
 export const PdfViewer = lazy(() => import('./PdfViewer'));
+export const MarkdownViewer = lazy(() => import('./MarkdownViewer'));
 export const AudioPlayer = lazy(() => import('./AudioPlayer'));
 export const Viewport3D = lazy(() => import('./Viewport3D'));
 export const HdrExrInspector = lazy(() => import('./HdrExrInspector'));

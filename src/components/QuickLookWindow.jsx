@@ -6,6 +6,7 @@ import {
   ImageSequencePlayer,
   VideoPlayer,
   PdfViewer,
+  MarkdownViewer,
   AudioPlayer,
   Viewport3D,
   HdrExrInspector
@@ -21,7 +22,8 @@ const QUICK_LOOK_VIEWERS = {
   sequence: ImageSequencePlayer,
   video: VideoPlayer,
   audio: AudioPlayer,
-  pdf: PdfViewer
+  pdf: PdfViewer,
+  markdown: MarkdownViewer
 };
 
 const SIZE_KEY = 'quickLookWindowSize';

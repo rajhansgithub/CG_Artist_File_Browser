@@ -13,7 +13,7 @@ counterpart: deep/folders-and-network
 
 - **Sidebar, left.** Drives and network shares, recent folders, pinned folders, and the assets you starred. The box at the bottom counts the files in the current folder.
 - **Path bar, top.** Where you are, with back, forward and up buttons. Click the empty part of the path, or press `Ctrl` + `L`, to type a path.
-- **Filter box, top right.** Type to narrow the folder to matching names. The type buttons next to it show only 3D, HDR, images, video, audio or PDF files.
+- **Filter box, top right.** Type to narrow the folder to matching names. The type buttons next to it show only 3D, HDR, images, video, audio, PDF or Markdown files.
 - **Views.** Thumbnails by default. The list icon switches to a details list with name, date, type and size. Your choice is remembered.
 
 ![The same folder in the details list](media:details-view.webp "Details view: click a column header to sort")

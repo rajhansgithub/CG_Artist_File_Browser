@@ -9,7 +9,7 @@ counterpart: quick/tour
 
 ## Opening and closing
 
-Select a file in the folder view and press `Space`. A window opens over the grid and shows the file in the viewer it would normally get: an image, a 3D model, an HDR map, a video, an audio file, a PDF, a render texture or an image sequence. Press `Space` or `Esc` to close it. `Enter` closes the window and opens the file in its full viewer, and double-clicking the picture does the same.
+Select a file in the folder view and press `Space`. A window opens over the grid and shows the file in the viewer it would normally get: an image, a 3D model, an HDR map, a video, an audio file, a PDF, a Markdown document, a render texture or an image sequence. Press `Space` or `Esc` to close it. `Enter` closes the window and opens the file in its full viewer, and double-clicking the picture does the same.
 
 Files without a viewer, such as text or archives, are skipped. Quick Look only works in the folder view, not inside a viewer.
 

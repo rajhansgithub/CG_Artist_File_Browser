@@ -5,7 +5,7 @@
 import { isTxTexFormat } from './formatHelpers';
 
 // Categories that have a viewer. 'other' has none, so Quick Look skips those files.
-const QUICK_LOOK_CATEGORIES = new Set(['3d', 'hdr', 'image', 'texture', 'video', 'audio', 'pdf']);
+const QUICK_LOOK_CATEGORIES = new Set(['3d', 'hdr', 'image', 'texture', 'video', 'audio', 'pdf', 'markdown']);
 
 export function isQuickLookItem(item) {
   if (!item || item.isDirectory) return false;
@@ -20,7 +20,7 @@ export function getQuickLookViewer(item) {
   if (item.category === 'hdr') return 'hdrexr';
   if (item.category === 'texture' && isTxTexFormat(item.extension)) return 'txtex';
   if (item.category === 'image' || item.category === 'texture') return 'image';
-  return item.category; // 'video', 'audio' or 'pdf'
+  return item.category; // 'video', 'audio', 'pdf' or 'markdown'
 }
 
 // While the floating window is open the arrow and page keys belong to the grid (they move the selection, and the

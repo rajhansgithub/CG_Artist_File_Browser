@@ -13,7 +13,7 @@ order: 0
 
 ## What the app does
 
-CG Artist File Browser is a Windows file browser for the files a 3D or VFX artist opens all day. You point it at a folder and it shows the files as pictures: 3D models turn in a viewer, HDR and EXR maps open as a 360° sky with exposure controls, textures can be compared side by side, and video, audio, PDF and render textures (`.tx`, `.tex`) open right where you are. Nothing is uploaded anywhere.
+CG Artist File Browser is a Windows file browser for the files a 3D or VFX artist opens all day. You point it at a folder and it shows the files as pictures: 3D models turn in a viewer, HDR and EXR maps open as a 360° sky with exposure controls, textures can be compared side by side, and video, audio, PDF, Markdown notes and render textures (`.tx`, `.tex`) open right where you are. Nothing is uploaded anywhere.
 
 ## Start in a minute
 
