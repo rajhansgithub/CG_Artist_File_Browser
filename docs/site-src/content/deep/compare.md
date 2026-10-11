@@ -30,6 +30,8 @@ The modes sit in the top bar of the comparison, and the keys `1` to `4` pick the
 
 Pan and zoom move both pictures together, so the same spot stays in view for each. `R` resets the view. Use it when a comparison has drifted.
 
+When the two pictures have different sizes, **Align Features** (on by default) scales the smaller one up so both cover the same area as the larger one. A picture with a different shape is centred, not stretched. Press the button again for **1:1 Pixels**, which shows every picture at its own size.
+
 ## Video and 3D
 
 Two videos compare the same way. `X` switches between A and B, `Space` plays and pauses, and the arrow keys step one frame (`Shift` with an arrow steps one second). Two 3D models compare in the same window, and `F` frames them. > **Note:** For 3D models the fourth key (diff) does nothing.
