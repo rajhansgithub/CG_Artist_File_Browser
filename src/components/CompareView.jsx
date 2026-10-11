@@ -397,18 +397,20 @@ export default function CompareView({
   const wB = mediaB?.width || 1920;
   const hB = mediaB?.height || 1080;
 
-  const baseFitA = Math.min(vpWidth / wA, vpHeight / hA, 1.0);
-  const baseFitB = Math.min(vpWidth / wB, vpHeight / hB, 1.0);
-
   // Scaled dimensions depending on alignment mode
   let renderScaleA = 1.0;
   let renderScaleB = 1.0;
 
   if (zoomAlignment === 'normalized') {
-    // Both scale to fit viewport, then zoom multiplies proportionally.
-    // 4K and 2K occupy the exact same screen bounds!
-    renderScaleA = baseFitA * zoom;
-    renderScaleB = baseFitB * zoom;
+    // Align Features: the larger picture (most pixels) is the reference. It is fitted to the
+    // viewport, and the other picture is scaled to cover the same box, keeping its aspect ratio
+    // (a different shape is centred, never stretched or cropped). Pan and zoom then move both together.
+    const aIsRef = wA * hA >= wB * hB;
+    const refW = aIsRef ? wA : wB;
+    const refH = aIsRef ? hA : hB;
+    const refFit = Math.min(vpWidth / refW, vpHeight / refH, 1.0);
+    renderScaleA = refFit * Math.min(refW / wA, refH / hA) * zoom;
+    renderScaleB = refFit * Math.min(refW / wB, refH / hB) * zoom;
   } else {
     // 1:1 Native Pixel Match (1 image pixel = 1 screen pixel at zoom=1)
     renderScaleA = zoom;
@@ -749,7 +751,7 @@ export default function CompareView({
             }
             title={
               zoomAlignment === 'normalized'
-                ? 'Aligned Features: 4K & 2K are scaled to align identical framing'
+                ? 'Align Features: the smaller picture is scaled up to match the larger one, so both cover the same area'
                 : '1:1 Pixel Match: 1 screen pixel = 1 native image texel'
             }
           >

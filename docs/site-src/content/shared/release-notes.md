@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.17.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.17.1.
 order: 2
 ---
 
-The current version is **1.17.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.17.1**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -24,7 +24,7 @@ The current version is **1.17.0**. This list groups the changes by what you see 
 - Render textures (`.tx`, `.tex`) with mip levels and a "sharp enough?" check.
 - Image sequences that play as one sequence, PDF viewing, video and audio players.
 - Markdown (`.md`) documents in a clean reading page, with pictures and animated GIFs from next to the file or from a network drive, tables, code blocks, task lists, links and a heading outline.
-- Compare with wipe, side-by-side, A/B toggle and diff, for pictures, videos and 3D models.
+- Compare with wipe, side-by-side, A/B toggle and diff, for pictures, videos and 3D models. Align Features scales a smaller picture up to match the larger one.
 
 ## Browsing and working with files
 
