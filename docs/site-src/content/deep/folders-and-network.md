@@ -9,7 +9,7 @@ counterpart: quick/tour
 
 ## Drives and the sidebar
 
-The top of the sidebar lists your drives with their free space. Mapped network drives such as `Z:` appear next to local ones. Below them are four lists:
+The top of the sidebar lists your drives with their free space. Mapped network drives such as `Z:` appear next to local ones. Long names are cut with an ellipsis; hover a card to see the full name. Below them are four lists:
 
 - **Network locations**: shares you typed in, plus the network places Windows Explorer already knows. Typed shares can be removed with the cross on their row.
 - **Recent folders**: the last folders you opened, newest first. Folders that are offline are kept and come back when their share does.

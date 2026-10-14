@@ -37,7 +37,7 @@ export default function RecentFolders({ paths, currentPath, onNavigate, onClear 
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <History size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {recentFolderName(path)}
             </span>
           </div>
