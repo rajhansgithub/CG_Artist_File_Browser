@@ -137,6 +137,31 @@ export function setupTauriBridge() {
       };
     },
 
+    // Duplicate finder: scans a folder in the background in Rust and reports through events, like the batch convert.
+    // options: { exact, minScore }. Resolves { ok } or { ok: false, error }
+    startDuplicateScan: async (jobId, root, options) => {
+      try {
+        await invoke('start_duplicate_scan', { jobId, root, options: options || null });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+
+    cancelDuplicateScan: async (jobId) => {
+      return await invoke('cancel_duplicate_scan', { jobId });
+    },
+
+    // Calls handler('progress' | 'finished', payload) for each scan event. Resolves a function that stops listening
+    onDuplicateScanEvent: async (handler) => {
+      const unlistenProgress = await listen('duplicate-scan-progress', (event) => handler('progress', event.payload));
+      const unlistenFinished = await listen('duplicate-scan-finished', (event) => handler('finished', event.payload));
+      return () => {
+        unlistenProgress();
+        unlistenFinished();
+      };
+    },
+
     // File operations (copy, cut, paste, new folder). Pasting runs in the background in Rust and reports through events,
     // like the batch convert: the caller makes the job id and listens before starting.
     // checkFileTransfer resolves { ok, conflicts: [names already in the folder], actionable } or { ok: false, error }

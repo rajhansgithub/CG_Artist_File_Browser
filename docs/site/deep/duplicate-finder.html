@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Duplicate finder · CG Artist File Browser guide</title>
+<meta name="description" content="Find folders and files that are copies of each other under one folder, with a 0 to 100% similarity score. Report only; nothing is moved or deleted.">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.SITE_ROOT="../";try{var t=localStorage.getItem('cg_guide_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body class="layer-deep">
+<a class="skip-link" href="#content">Skip to the text</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Show the page list">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="../index.html">CG Artist File Browser <span>guide</span></a>
+  <nav class="levels" aria-label="Reading level">
+    <a href="../quick/how-do-i.html" class="">Quick start</a>
+    <a href="../deep/folders-and-network.html" class="on">Deep dive</a>
+  </nav>
+  <div class="search" role="search">
+    <input id="search" type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" aria-controls="results" aria-expanded="false">
+    <kbd class="hint">/</kbd>
+    <div id="results" class="results" role="listbox" hidden></div>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidebar" class="sidebar" aria-label="Guide pages"><div class="nav-group"><ul><li><a href="../index.html">Start here</a></li></ul></div><div class="nav-group"><p class="nav-title">Quick start<span>Surface level</span></p><ul><li><a href="../quick/tour.html">A quick tour</a></li><li><a href="../quick/how-do-i.html">How do I…?</a></li><li><a href="../quick/shortcuts.html">Keyboard shortcuts</a></li></ul></div><div class="nav-group"><p class="nav-title">Deep dive<span>Details, one page per feature</span></p><ul><li><a href="../deep/folders-and-network.html">Folders and network drives</a></li><li><a href="../deep/images.html">Images and textures</a></li><li><a href="../deep/hdr-exr.html">HDR and EXR maps</a></li><li><a href="../deep/3d-models.html">3D models</a></li><li><a href="../deep/usd-outliner.html">USD, Alembic and Blender</a></li><li><a href="../deep/video-and-audio.html">Video and audio</a></li><li><a href="../deep/quick-look.html">Quick Look</a></li><li><a href="../deep/render-textures.html">Render textures (.tx, .tex)</a></li><li><a href="../deep/pdf.html">PDF documents</a></li><li><a href="../deep/markdown.html">Markdown documents</a></li><li><a href="../deep/image-sequences.html">Image sequences</a></li><li><a href="../deep/compare.html">Compare</a></li><li><a href="../deep/labels-tags.html">Labels and tags</a></li><li><a href="../deep/inspector.html">Inspector</a></li><li><a href="../deep/send-to-apps.html">Send to apps</a></li><li><a href="../deep/batch-converter.html">Batch converter</a></li><li><a href="../deep/duplicate-finder.html" aria-current="page">Duplicate finder</a></li><li><a href="../deep/settings-themes.html">Settings and themes</a></li><li><a href="../deep/troubleshooting.html">Troubleshooting</a></li><li><a href="../deep/architecture.html">Architecture (contributors)</a></li></ul></div><div class="nav-group"><p class="nav-title">Both layers<span>Useful for both</span></p><ul><li><a href="../shared/faq.html">FAQ</a></li><li><a href="../shared/release-notes.html">Release notes</a></li></ul></div>
+    <p class="sidebar-foot">Version 1.18.0. Pictures are previews, see <a href="../shared/faq.html">FAQ</a>.</p>
+  </nav>
+  <main id="content" class="content" tabindex="-1">
+    <article class="page">
+      <p class="crumb">Deep dive</p>
+      <h1>Duplicate finder</h1>
+      <p class="summary">Find folders and files that are copies of each other under one folder, with a 0 to 100% similarity score. Report only; nothing is moved or deleted.</p>
+      <aside class="cross"><span>Just the basics?</span><a href="../quick/how-do-i.html">How do I…? &rarr;</a></aside>
+<h2 id="starting-a-scan">Starting a scan</h2>
+<p>Right-click a folder and choose <strong>Find duplicates…</strong>. To scan the folder you have open, right-click the empty space of the folder view instead. The scan covers every subfolder. It runs in the background with a progress bar, and <strong>Cancel</strong> stops it.</p>
+<p>The finder only makes a report. It never moves, renames or deletes anything.</p>
+<h2 id="fast-or-exact">Fast or exact</h2>
+<ul><li><strong>Fast: same name and size.</strong> Two files count as the same when their names (ignoring upper and lower case) and sizes match. No file is read, so it is quick, also on a network drive.</li><li><strong>Exact: same contents.</strong> Two files count as the same when their contents match, whatever their names. Only files that share their size with another file are read: first a small piece of each end, then the whole file for those that still match. This finds renamed copies and never mixes up two different files that happen to share a name and size. It is slower on a network drive.</li></ul>
+<h2 id="how-folders-are-matched">How folders are matched</h2>
+<p>A folder is compared by all the files inside it, subfolders included. Its own name and the folder layout inside it do not matter, so <code>Project</code> and <code>Backup\Project_copy</code> are found as copies.</p>
+<p>The similarity score is the size of the files two folders share, divided by the size of all their files together. 100% means the same files. A big file counts for more than a small one, so a folder that only lacks a few small files still scores high.</p>
+<p><strong>Group folders that are alike by</strong> sets the lowest score that counts. Pick <strong>100%</strong> for exact copies only, or a lower value to also see near copies, such as a folder with a few files added or removed. The default is 80%.</p>
+<p>A few rules keep the report short:</p>
+<ul><li>When two folders match, their matching subfolders are not listed again.</li><li>A folder is never compared with a folder inside it. A folder that only holds one other folder is listed as that inner folder.</li><li><code>Thumbs.db</code>, <code>desktop.ini</code> and <code>.DS_Store</code> are ignored, and so are the Recycle Bin and System Volume Information folders. Links and junctions are not followed.</li></ul>
+<h2 id="the-report">The report</h2>
+<p>The top line shows how many files and folders were scanned and how much space the extra copies take (in fast mode this is an estimate, since name and size can match for different files).</p>
+<p><strong>Folders</strong> lists each group of matching folders, biggest first. The first folder of a group is the one the others are scored against. A folder that is not a 100% match shows its score; click it to see which files are missing from it and which files only it has. Each folder has buttons to open it in the browser or reveal it in Explorer.</p>
+<p><strong>Files</strong> lists files that have copies elsewhere, biggest waste first. Copies that are only inside matching folders are left out, since the folder group already shows them. Click a file to see where each copy is.</p>
+<p><strong>Copy report</strong> puts the whole report on the clipboard as plain text. <strong>Scan again</strong> goes back to the options.</p>
+<p>Very large reports show the biggest 2,000 folder groups and 3,000 file groups.</p>
+      <p class="page-foot">Found a mistake or something missing? <a href="https://github.com/rajhansgithub/CG_Artist_File_Browser/blob/main/docs/site-src/content/deep/duplicate-finder.md" rel="noopener">Edit this page on GitHub</a>.</p>
+    </article>
+    <nav class="pager" aria-label="Previous and next page"><a class="prev" href="../deep/batch-converter.html"><span>Previous</span>Batch converter</a><a class="next" href="../deep/settings-themes.html"><span>Next</span>Settings and themes</a></nav>
+  </main>
+  <aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="l2"><a href="#starting-a-scan">Starting a scan</a></li><li class="l2"><a href="#fast-or-exact">Fast or exact</a></li><li class="l2"><a href="#how-folders-are-matched">How folders are matched</a></li><li class="l2"><a href="#the-report">The report</a></li></ul></aside>
+</div>
+<div class="scrim" hidden></div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

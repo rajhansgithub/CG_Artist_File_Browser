@@ -51,6 +51,10 @@ Right-click the folder, choose **Change icon…**, and pick one from the library
 
 Select the images, right-click one of them and choose **Convert…**. Pick the format and the output folder. Existing files are never overwritten. [Batch converter](@deep/batch-converter) lists the formats.
 
+## Find duplicate folders and files
+
+Right-click a folder and choose **Find duplicates…**. Pick **Fast** (same name and size) or **Exact** (same contents), then how alike folders must be. The report lists matching folders with a 0 to 100% score and loose duplicate files. Nothing is moved or deleted. [Duplicate finder](@deep/duplicate-finder) explains the score.
+
 ## Send a file to another app
 
 Right-click the file and use **Send to**. The apps come from Settings, where you can add or remove them. [Send to apps](@deep/send-to-apps) explains how to add one.

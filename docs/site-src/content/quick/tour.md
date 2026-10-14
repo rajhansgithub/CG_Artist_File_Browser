@@ -34,7 +34,7 @@ Select a file and press `Space`. A small window opens over the folder and shows 
 
 ## Right-click for actions
 
-Right-click a file or folder for its menu: open, reveal in Explorer, copy the path, rename, delete, send to an app, add it to favourites, label it, or convert images.
+Right-click a file or folder for its menu: open, reveal in Explorer, copy the path, rename, delete, send to an app, add it to favourites, label it, convert images, or find duplicates in a folder.
 
 ![The right-click menu on a texture](media:context-menu.webp "The menu changes with the file type. Send to shows the apps you added in Settings.")
 

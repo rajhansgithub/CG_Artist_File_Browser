@@ -1,4 +1,4 @@
-import { ClipboardPaste, Copy, Eye, ExternalLink, Files, FileOutput, FolderOpen, FolderPlus, FolderSearch, ImagePlus, Layers, Pencil, Play, RefreshCw, RotateCcw, Scissors, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
+import { ClipboardPaste, Copy, CopyCheck, Eye, ExternalLink, Files, FileOutput, FolderOpen, FolderPlus, FolderSearch, ImagePlus, Layers, Pencil, Play, RefreshCw, RotateCcw, Scissors, Send, Star, StarOff, Tag, Trash2 } from 'lucide-react';
 import { isComparableItem, isConvertibleItem } from './formatHelpers';
 
 // Drive roots (C:) and share roots (\\server\share) can't be renamed or deleted from the app
@@ -22,7 +22,8 @@ export function registerItemMenuProvider(provider) {
 // `actions` holds the app's handlers and state: isFavorite, hasIconChoice, sequenceFor, onOpen, onOpenExternal,
 // onSetCompareA, onSetCompareB, onPlaySequence, onCopyPaths, onEditLabels, onReveal, onToggleFavorite, onChangeIcon,
 // onResetIcon, onRename, onDelete, textureSetFor, onViewTextureSet, externalApps (the apps from Settings), onSendTo,
-// onConvert (the images that can be converted, as one list), onCut and onCopy (the items, for the file clipboard).
+// onConvert (the images that can be converted, as one list), onCut and onCopy (the items, for the file clipboard),
+// onFindDuplicates (a folder).
 export function buildItemMenu(items, actions) {
   const entries = [];
   const add = (entry) => entries.push(entry);
@@ -95,6 +96,9 @@ export function buildItemMenu(items, actions) {
 
   if (single?.isDirectory) {
     separator();
+    if (actions.onFindDuplicates) {
+      add({ id: 'find-duplicates', label: 'Find duplicates…', icon: CopyCheck, onSelect: () => actions.onFindDuplicates(single) });
+    }
     add({ id: 'change-icon', label: 'Change icon…', icon: ImagePlus, onSelect: () => actions.onChangeIcon(single) });
     if (actions.hasIconChoice(single)) {
       add({ id: 'reset-icon', label: 'Use default icon', icon: RotateCcw, onSelect: () => actions.onResetIcon(single) });
@@ -143,13 +147,23 @@ export function buildItemMenu(items, actions) {
 
 // Entries for the right-click menu on the empty space of the folder view (not on a card or a row).
 // `actions` holds onRefresh, the same in-place reload that F5 and Ctrl + R run, onPaste and onNewFolder (both act on the
-// open folder), and canWrite (false where no folder is open, such as the list of drives).
+// open folder), canWrite (false where no folder is open, such as the list of drives) and onFindDuplicatesHere.
 export function buildFolderMenu(actions) {
   const entries = [{ id: 'refresh', label: 'Refresh', icon: RefreshCw, onSelect: () => actions.onRefresh() }];
   if (actions.onPaste && actions.onNewFolder) {
     entries.push({ separator: true });
     entries.push({ id: 'paste', label: 'Paste', icon: ClipboardPaste, disabled: !actions.canWrite, onSelect: () => actions.onPaste() });
     entries.push({ id: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !actions.canWrite, onSelect: () => actions.onNewFolder() });
+  }
+  if (actions.onFindDuplicatesHere) {
+    entries.push({ separator: true });
+    entries.push({
+      id: 'find-duplicates',
+      label: 'Find duplicates…',
+      icon: CopyCheck,
+      disabled: !actions.canWrite,
+      onSelect: () => actions.onFindDuplicatesHere()
+    });
   }
   return entries;
 }
