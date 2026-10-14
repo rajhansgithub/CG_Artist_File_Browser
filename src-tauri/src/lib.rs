@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 mod batch_convert;
 mod drag_out;
+mod duplicates;
 mod exr_view;
 mod external_apps;
 mod file_ops;
@@ -1689,6 +1690,8 @@ pub fn run() {
             batch_convert::start_batch_convert,
             batch_convert::cancel_batch_convert,
             batch_convert::list_exr_layers,
+            duplicates::start_duplicate_scan,
+            duplicates::cancel_duplicate_scan,
             file_ops::check_file_transfer,
             file_ops::start_file_transfer,
             file_ops::cancel_file_transfer,

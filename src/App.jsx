@@ -75,6 +75,7 @@ import {
   InspectorDrawer,
   SettingsModal,
   BatchConvertModal,
+  DuplicateFinderModal,
   TextureSetModal,
   FolderIconPicker,
   PasteConflictModal
@@ -1220,6 +1221,7 @@ export default function App() {
   const [itemMenu, setItemMenu] = useState(null); // { x, y, item, useSelection }
   const [itemAction, setItemAction] = useState(null); // { type: 'rename' | 'delete', items }
   const [convertItems, setConvertItems] = useState(null); // the images picked for right-click "Convert..."
+  const [duplicateFolder, setDuplicateFolder] = useState(null); // { path, name } for right-click "Find duplicates..."
   const [labelEditor, setLabelEditor] = useState(null); // { items, anchor } for "Colour and tags" opened from a menu
   const [textureSet, setTextureSet] = useState(null); // { base, maps } for "View as texture set" opened from a menu
   const openItemMenu = useCallback((e, item, useSelection = false) => {
@@ -1241,7 +1243,7 @@ export default function App() {
   );
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
-  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!labelEditor || !!textureSet || !!guideError || !!pasteConflict;
+  const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!duplicateFolder || !!labelEditor || !!textureSet || !!guideError || !!pasteConflict;
   windowOpenRef.current = isWindowOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
@@ -1937,6 +1939,9 @@ export default function App() {
             onPaste: () => pasteIntoOpenFolder(true),
             onNewFolder: createFolderHere,
             canWrite: !!currentPath,
+            onFindDuplicatesHere: () =>
+              setDuplicateFolder({ path: currentPath, name: currentPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || currentPath }),
+            onFindDuplicates: (item) => setDuplicateFolder({ path: item.path, name: item.name }),
             onCut: (items) => putOnClipboard(items, true),
             onCopy: (items) => putOnClipboard(items, false),
             isFavorite: (item) => favorites.some((f) => f.path === item.path),
@@ -2024,6 +2029,19 @@ export default function App() {
       {convertItems && (
         <Suspense fallback={null}>
           <BatchConvertModal items={convertItems} onClose={() => setConvertItems(null)} />
+        </Suspense>
+      )}
+      {duplicateFolder && (
+        <Suspense fallback={null}>
+          <DuplicateFinderModal
+            folder={duplicateFolder}
+            onOpenFolder={(path) => {
+              setDuplicateFolder(null);
+              navigateTo(path);
+            }}
+            onReveal={handleRevealInExplorer}
+            onClose={() => setDuplicateFolder(null)}
+          />
         </Suspense>
       )}
       {iconPickerItem && (

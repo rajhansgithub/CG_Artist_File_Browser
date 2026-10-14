@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.17.2.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.18.0.
 order: 2
 ---
 
-The current version is **1.17.2**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.18.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -35,6 +35,7 @@ The current version is **1.17.2**. This list groups the changes by what you see 
 - Custom folder icons from a CG library, plus your own PNG, SVG, ICO, WebP and JPG files.
 - Send to apps from the right-click menu.
 - Batch conversion of images to PNG, JPG, TIFF, BMP, TGA and WebP, without overwriting files.
+- A duplicate finder: right-click a folder and choose **Find duplicates…** to list the folders and files under it that are copies of each other, with a 0 to 100% similarity score. It checks by name and size, or by file contents, and never moves or deletes anything.
 - Delete to the Recycle Bin, with a confirmation; permanent delete only on `Shift` + `Delete`.
 - Keyboard shortcut card on `?` and `F1`.
 - A Help button in the top bar (and a Documentation entry in Settings) that opens this guide in your browser. The guide is built into the app and works offline.

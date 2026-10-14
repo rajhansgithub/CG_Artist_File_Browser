@@ -115,6 +115,7 @@ The Rust backend is defined in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
 | `get_cache_stats` / `clear_cache` | — | `CacheStats` | Reports and clears `%APPDATA%/AssetStudioCache`. |
 | `get_folder_icons` / `set_folder_icon` | — / `folder_path`, `icon` | `FolderIconState` | The user's folder icon choices (`assignments`, keyed by lower-cased folder path, value `lib:<id>` or `custom:<id>`) and imported icons (`custom`). `set_folder_icon` with no `icon` resets the folder. |
 | `import_folder_icons` / `remove_folder_icon` | `file_paths` / `icon_id` | `FolderIconState` | Copies the user's PNG / SVG / ICO / WebP / JPG files (max 2 MB each) into the icon store, or removes one (folders using it revert to their default icon). |
+| `start_duplicate_scan` / `cancel_duplicate_scan` | `job_id`, `root`, `options` (`{ exact, minScore }`) / `job_id` | `()` / `bool` | Duplicate finder. Scans every file under `root` in the background and reports through `duplicate-scan-progress` (`phase` listing / reading / comparing, `done`, `total`) and `duplicate-scan-finished` (`report`, `error` or `cancelled`) events. Files match by lower-cased name and size, or with `exact` by contents (only files sharing a size are read: 32 KB of each end, then MD5 of the whole file). Folders are compared by all the files inside them, names and layout ignored, with a size-weighted Jaccard score; groups form around the biggest folder, and candidates come from an index of the biggest files so it never compares every pair. Matching subfolders of matching folders and folders that only wrap another are left out. Report only: nothing is moved or deleted. Code in [`duplicates.rs`](../src-tauri/src/duplicates.rs). |
 | `start_drag_out` | `paths` | `()` | Windows only. Starts a native OLE file drag of the given files (copy only) so they can be dropped into other apps. Resolves when the drag ends. Used by `AssetGrid` and `DetailsView` cards. |
 | `get_system_folder_icon` | `folder_path` | `Option<String>` | Windows only. The icon File Explorer shows for a folder customised through `desktop.ini` (`IconResource` / `IconFile`, including icons inside `imageres.dll` and similar), exported once as a 96 px PNG under `AssetStudioCache/folder_icons`. `None` for plain folders. |
 
@@ -387,7 +388,7 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
 
-**Current release version:** `1.17.2`
+**Current release version:** `1.18.0`
 
 `npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 

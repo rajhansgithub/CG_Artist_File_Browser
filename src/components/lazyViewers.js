@@ -16,6 +16,7 @@ export const QuickLookWindow = lazy(() => import('./QuickLookWindow'));
 export const InspectorDrawer = lazy(() => import('./InspectorDrawer'));
 export const SettingsModal = lazy(() => import('./SettingsModal'));
 export const BatchConvertModal = lazy(() => import('./BatchConvertModal'));
+export const DuplicateFinderModal = lazy(() => import('./DuplicateFinderModal'));
 export const TextureSetModal = lazy(() => import('./TextureSetModal'));
 export const FolderIconPicker = lazy(() => import('./FolderIconPicker'));
 export const PasteConflictModal = lazy(() => import('./PasteConflictModal'));
