@@ -84,15 +84,13 @@ export default function Sidebar({
                 title={`${d.label} (${d.mount})`}
               >
                 <div className="drive-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, width: '100%' }}>
                     {d.isNetwork ? (
                       <Network size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
                     ) : (
-                      <HardDrive size={12} color="var(--text-secondary)" />
+                      <HardDrive size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
                     )}
-                    <span style={d.isNetwork ? { overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}>
-                      {d.isNetwork ? networkDriveName(d) : d.mount}
-                    </span>
+                    <span className="drive-name">{d.isNetwork ? networkDriveName(d) : d.mount}</span>
                   </div>
                 </div>
                 {d.freeGB && d.totalGB ? (
@@ -136,7 +134,7 @@ export default function Sidebar({
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
               <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {loc.name || loc.path.replace(/\\$/, '')}
               </span>
               {loc.removable && (
@@ -190,7 +188,7 @@ export default function Sidebar({
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <FolderIcon item={sf} size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {sf.name}
                 </span>
                 <button
@@ -233,7 +231,7 @@ export default function Sidebar({
                 title={fav.path}
               >
                 <Star size={12} fill="#ffffff" color="#ffffff" />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {fav.name}
                 </span>
               </div>
@@ -263,7 +261,7 @@ export default function Sidebar({
                 title={f.path}
               >
                 <FolderIcon item={f} size={13} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                 <ChevronRight size={11} style={{ opacity: 0.3 }} />
               </div>
             ))
@@ -283,7 +281,7 @@ export default function Sidebar({
         <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, letterSpacing: 0.5 }}>
           CURRENT FOLDER ASSETS
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', textAlign: 'center', gap: '8px 4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', textAlign: 'center', gap: '8px 4px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
               <Box size={11} />

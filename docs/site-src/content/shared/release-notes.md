@@ -2,14 +2,15 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.17.1.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.17.2.
 order: 2
 ---
 
-The current version is **1.17.1**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.17.2**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
+- The sidebar always fits its width. Drive and network drive cards shrink, long names are cut with an ellipsis (hover shows the full name), and there is no bottom scroll bar.
 - Folder navigation with a history, back and forward, and the mouse side buttons.
 - Mapped and typed network shares in the sidebar, with sign-in for shares that refuse guest access. Saved sign-ins reconnect when the app starts.
 - Recent folders, pinned folders and starred files in the sidebar.
