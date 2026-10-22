@@ -26,6 +26,12 @@ Models open in the 3D studio viewer: `.glb`, `.gltf`, `.obj`, `.fbx`, `.stl` and
 
 The shading list has the full PBR material, clay, wireframe, normal-map and matcap looks. Wireframe and grid buttons sit beside it. Clay and matcap modes show form and surface flow without colour, which is useful for checking dents and smooth curves.
 
+## Smooth preview and mesh colours
+
+**Smooth** (or `3`, like Maya) shows the meshes smoothed, as if they were subdivided twice. It only changes what you see. The file is not touched. It is off when a model opens, and press it again to go back to the original. Very dense models get fewer subdivisions, and a model that is too dense to smooth stays as it is with a short note. Skinned and animated-shape meshes are left as they are. The **Wireframe** button shows the smoothed lines while Smooth is on.
+
+**Colors** (or `C`) gives every mesh its own colour, so it is easy to see where one part ends and the next begins. It works in the Shaded, Clay and Wireframe Overlay looks, and it is off when a model opens.
+
 ## Lights and the turntable
 
 The lighting list sets the studio rig: the softbox, sunset, neutral and cyber presets. The **Light** slider turns the light rig around the model. **Turntable** spins the model at an adjustable speed for a quick look from every side.
