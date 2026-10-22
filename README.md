@@ -38,6 +38,7 @@
 - **Shading & Inspection Modes**: Full Lit PBR, Wireframe, Wireframe Overlay, Normal Map Visualization, and Clay mode.
 - **MatCaps**: Clay, Red Wax, Chrome, Zebra and Ceramic MatCap shading (in the Shading Mode list) to read form, dents and surface flow without lights.
 - **Camera & Lights**: Focal length presets (18, 35, 50, 85 and 200 mm), an Ortho projection for silhouette checks, Front / Back / Left / Right / Top snap views (numpad `1`, `3`, `7`, `Ctrl` for the opposite side, `5` toggles Ortho) and a Light slider that turns the light rig around the model.
+- **Smooth Preview & Mesh Colors**: A Smooth button (or `3`, like Maya) shows the meshes subdivided for a smooth look, without changing the file. A Colors button (or `C`) gives every mesh its own colour so parts are easy to spot. Both start off.
 - **Turntable & Animation**: 360° turntable rotation with adjustable speed and full playback controls for rigged skeletal animations.
 - **Mesh Statistics**: Real-time vertex count, triangle count, geometry bounding size, and draw-call telemetry.
 

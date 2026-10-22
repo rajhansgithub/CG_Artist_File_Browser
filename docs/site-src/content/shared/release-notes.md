@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.18.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.19.0.
 order: 2
 ---
 
-The current version is **1.18.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.19.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -20,6 +20,7 @@ The current version is **1.18.0**. This list groups the changes by what you see 
 ## Viewers
 
 - 3D viewer with lighting presets, shading modes, matcaps, wireframe, cameras and turntable.
+- Smooth preview in the 3D viewer (button or `3`, like Maya) shows the meshes subdivided so curves look smooth. A Colors button (or `C`) gives each mesh its own colour so parts are easy to tell apart. Both start off.
 - USD, Alembic and Blender files converted in the background with Blender, plus a 3D model outliner.
 - HDR and EXR inspector with a 360° view, exposure, tone mapping, channel solo, eyedropper and probes.
 - Render textures (`.tx`, `.tex`) with mip levels and a "sharp enough?" check.

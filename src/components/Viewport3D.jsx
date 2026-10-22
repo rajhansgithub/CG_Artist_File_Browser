@@ -16,6 +16,13 @@ import {
   isOrtho
 } from '../utils/viewportCamera';
 import { MATCAP_OPTIONS, getMatcapMaterial, disposeMatcaps } from '../utils/matcaps';
+import {
+  canSmoothMesh,
+  countGeometryTriangles,
+  smoothLevelFor,
+  buildSmoothGeometry,
+  randomMeshColor
+} from '../utils/smoothPreview';
 import ModelOutliner from './ModelOutliner';
 import {
   RotateCw,
@@ -28,7 +35,9 @@ import {
   Box,
   Check,
   ExternalLink,
-  ListTree
+  ListTree,
+  Spline,
+  Palette
 } from 'lucide-react';
 
 // Optimized wireframe LineSegments overlay generator
@@ -109,6 +118,16 @@ function getOrCreateWireframeHelper(mesh) {
   return wireHelper;
 }
 
+// Throw away a mesh's wireframe overlay so it is rebuilt from the mesh's current geometry
+function dropWireframeHelper(mesh) {
+  const helper = mesh.userData.wireframeHelper;
+  if (!helper) return;
+  helper.geometry?.dispose();
+  helper.material?.dispose();
+  mesh.remove(helper);
+  mesh.userData.wireframeHelper = null;
+}
+
 // Option styling shared by the HUD dropdowns
 const OPTION_STYLE = { color: '#000000', backgroundColor: '#ffffff' };
 const MATCAP_PREFIX = 'matcap:';
@@ -140,6 +159,13 @@ export default function Viewport3D({
   const [viewPreset, setViewPreset] = useState('free'); // 'free', 'front', 'back', 'left', 'right', 'top'
   const [stats, setStats] = useState(null);
 
+  // Smooth preview (subdivided display copy of the meshes) and one flat colour per mesh. Both start off.
+  const [smoothPreview, setSmoothPreview] = useState(false);
+  const [smoothInfo, setSmoothInfo] = useState(null); // { level, triangles } while the preview is showing
+  const [smoothNote, setSmoothNote] = useState('');
+  const [randomColors, setRandomColors] = useState(false);
+  const [geometryVersion, setGeometryVersion] = useState(0); // bumps when meshes get a different geometry
+
   // Outliner: the loaded model root (set once it loads), the panel's open state and the object picked in it
   const [modelRoot, setModelRoot] = useState(null);
   const [outlinerOpen, setOutlinerOpen] = useState(false);
@@ -167,6 +193,8 @@ export default function Viewport3D({
   const actionRef = useRef(null);
   const clockRef = useRef(new THREE.Clock());
   const needsRenderRef = useRef(true);
+  const smoothCacheRef = useRef(new Map()); // original geometry -> { [level]: smoothed geometry }
+  const smoothNoteTimerRef = useRef(null);
 
   // Refs to avoid stale closures in render loop
   const turntableRef = useRef(false);
@@ -563,7 +591,13 @@ export default function Viewport3D({
         if (child.userData.wireframeOccluderMat) child.userData.wireframeOccluderMat.dispose();
         if (child.userData.normalsMat) child.userData.normalsMat.dispose();
         if (child.userData.clayMat) child.userData.clayMat.dispose();
+        if (child.userData.randomMat) child.userData.randomMat.dispose();
       });
+      smoothCacheRef.current.forEach((levels) => {
+        Object.values(levels).forEach((geometry) => geometry.dispose());
+      });
+      smoothCacheRef.current.clear();
+      setSmoothInfo(null);
       sceneRef.current.remove(modelRef.current);
       modelRef.current = null;
     }
@@ -624,6 +658,7 @@ export default function Viewport3D({
   }, [asset]);
 
   // Keyboard shortcuts: F to focus/frame model, Esc to close, O to show/hide the outliner (not in Quick Look),
+  // 3 for smooth preview (like Maya), C for a random colour per mesh,
   // numpad 1/3/7 for Front/Right/Top (Ctrl for Back/Left), numpad 5 to toggle orthographic
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -635,6 +670,10 @@ export default function Viewport3D({
         onClose();
       } else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey && !containerRef.current?.closest('.quick-look-body')) {
         setOutlinerOpen((open) => !open);
+      } else if (e.code === 'Digit3' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat) {
+        setSmoothPreview((on) => !on);
+      } else if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+        setRandomColors((on) => !on);
       } else if (e.code === 'Numpad1') {
         e.preventDefault();
         actionsRef.current.snapView(e.ctrlKey ? 'back' : 'front');
@@ -656,6 +695,92 @@ export default function Viewport3D({
     };
   }, [onClose]);
 
+  // Show a note for a few seconds, for example when a model is too dense to smooth
+  const flashSmoothNote = (text) => {
+    clearTimeout(smoothNoteTimerRef.current);
+    setSmoothNote(text);
+    smoothNoteTimerRef.current = setTimeout(() => setSmoothNote(''), 4000);
+  };
+
+  // Smooth preview: swap each mesh's geometry for a subdivided copy, or back to the original.
+  // The original geometry is kept on the mesh, so turning the preview off is instant.
+  useEffect(() => {
+    const root = modelRef.current;
+    if (!root) return;
+
+    const meshes = [];
+    root.traverse((child) => {
+      if (child.userData.isHelper || child.userData.isWireframeOverlay) return;
+      if (child.isMesh && child.geometry) meshes.push(child);
+    });
+
+    const restore = () => {
+      let changed = false;
+      meshes.forEach((mesh) => {
+        if (mesh.userData.origGeometry && mesh.geometry !== mesh.userData.origGeometry) {
+          mesh.geometry = mesh.userData.origGeometry;
+          dropWireframeHelper(mesh);
+          changed = true;
+        }
+      });
+      setSmoothInfo(null);
+      if (!changed) return;
+      setGeometryVersion((v) => v + 1);
+      needsRenderRef.current = true;
+      if (rendererRef.current) rendererRef.current.shadowMap.needsUpdate = true;
+    };
+
+    if (!smoothPreview) {
+      restore();
+      return;
+    }
+
+    const targets = meshes.filter(canSmoothMesh);
+    const totalTris = targets.reduce(
+      (sum, mesh) => sum + countGeometryTriangles(mesh.userData.origGeometry || mesh.geometry),
+      0
+    );
+    if (targets.length === 0) {
+      setSmoothPreview(false);
+      flashSmoothNote('Smooth preview: nothing to smooth in this model');
+      return;
+    }
+    const level = smoothLevelFor(totalTris);
+    if (level === 0) {
+      setSmoothPreview(false);
+      flashSmoothNote('Smooth preview: model is too dense');
+      return;
+    }
+
+    try {
+      let outTris = 0;
+      targets.forEach((mesh) => {
+        const orig = mesh.userData.origGeometry || mesh.geometry;
+        mesh.userData.origGeometry = orig;
+        let levels = smoothCacheRef.current.get(orig);
+        if (!levels) {
+          levels = {};
+          smoothCacheRef.current.set(orig, levels);
+        }
+        if (!levels[level]) levels[level] = buildSmoothGeometry(orig, level);
+        if (mesh.geometry !== levels[level]) {
+          mesh.geometry = levels[level];
+          dropWireframeHelper(mesh);
+        }
+        outTris += countGeometryTriangles(levels[level]);
+      });
+      setSmoothInfo({ level, triangles: outTris });
+      setGeometryVersion((v) => v + 1);
+      needsRenderRef.current = true;
+      if (rendererRef.current) rendererRef.current.shadowMap.needsUpdate = true;
+    } catch (err) {
+      console.error('Smooth preview failed:', err);
+      restore();
+      setSmoothPreview(false);
+      flashSmoothNote('Smooth preview failed');
+    }
+  }, [smoothPreview, modelRoot]);
+
   // Handle Render Style changes (Lit, Wireframe, Normals, Clay) & Wireframe Overlay
   useEffect(() => {
     if (!modelRef.current) return;
@@ -674,6 +799,23 @@ export default function Viewport3D({
       mat.needsUpdate = true;
     };
 
+    // One steady colour per mesh, numbered in scene order so the colours do not change between toggles
+    let meshNumber = 0;
+    const getRandomColorMaterial = (mesh) => {
+      if (!mesh.userData.randomMat) {
+        const original = Array.isArray(mesh.userData.origMaterial)
+          ? mesh.userData.origMaterial[0]
+          : mesh.userData.origMaterial;
+        mesh.userData.randomMat = new THREE.MeshStandardMaterial({
+          color: randomMeshColor(mesh.userData.meshNumber),
+          roughness: 0.6,
+          metalness: 0.05,
+          side: original?.side ?? THREE.FrontSide
+        });
+      }
+      return mesh.userData.randomMat;
+    };
+
     modelRef.current.traverse((child) => {
       // Strictly ignore any wireframe or helper overlays to prevent recursion
       if (child.userData.isHelper || child.userData.isWireframeOverlay) {
@@ -684,6 +826,8 @@ export default function Viewport3D({
         if (!child.userData.origMaterial) {
           child.userData.origMaterial = child.material;
         }
+        if (child.userData.meshNumber === undefined) child.userData.meshNumber = meshNumber;
+        meshNumber++;
 
         // 1. Base surface shading according to renderMode
         if (renderMode === 'wireframe') {
@@ -708,6 +852,9 @@ export default function Viewport3D({
           const matcapMat = getMatcapMaterial(renderMode.slice(MATCAP_PREFIX.length));
           child.material = matcapMat || child.userData.origMaterial;
           setMatPolygonOffset(child.material, isWireframeActive);
+        } else if (randomColors && renderMode === 'clay') {
+          child.material = getRandomColorMaterial(child);
+          setMatPolygonOffset(child.material, isWireframeActive);
         } else if (renderMode === 'clay') {
           if (!child.userData.clayMat) {
             child.userData.clayMat = new THREE.MeshStandardMaterial({
@@ -717,6 +864,10 @@ export default function Viewport3D({
             });
           }
           child.material = child.userData.clayMat;
+          setMatPolygonOffset(child.material, isWireframeActive);
+        } else if (randomColors) {
+          // Lit / Wireframe Overlay with one flat colour per mesh
+          child.material = getRandomColorMaterial(child);
           setMatPolygonOffset(child.material, isWireframeActive);
         } else {
           // Lit / Standard or Wireframe Overlay
@@ -740,7 +891,7 @@ export default function Viewport3D({
     });
 
     needsRenderRef.current = true;
-  }, [renderMode, showWireframe, stats]);
+  }, [renderMode, showWireframe, stats, randomColors, geometryVersion]);
 
   // Grid visibility
   useEffect(() => {
@@ -764,6 +915,10 @@ export default function Viewport3D({
 
   // Lights only shape the result in the lit-style modes
   const lightsAffectShading =
+    renderMode === 'lit' || renderMode === 'clay' || renderMode === 'wire_overlay';
+
+  // Random colours replace the surface look in these modes only
+  const colorsAffectShading =
     renderMode === 'lit' || renderMode === 'clay' || renderMode === 'wire_overlay';
 
   // Take Snapshot
@@ -846,6 +1001,31 @@ export default function Viewport3D({
         >
           <Box size={14} />
           <span className="hud-label">Wireframe</span>
+        </button>
+
+        {/* Smooth preview: subdivided display copy of the meshes (3 key, like Maya) */}
+        <button
+          className={`hud-btn ${smoothPreview ? 'active' : ''}`}
+          onClick={() => setSmoothPreview(!smoothPreview)}
+          title="Smooth preview: subdivide the meshes on screen (3 key). The file is not changed."
+        >
+          <Spline size={14} />
+          <span className="hud-label">Smooth</span>
+        </button>
+
+        {/* Random colour per mesh, to tell the parts apart (C key) */}
+        <button
+          className={`hud-btn ${randomColors ? 'active' : ''}`}
+          onClick={() => setRandomColors(!randomColors)}
+          style={{ opacity: colorsAffectShading || !randomColors ? 1 : 0.5 }}
+          title={
+            colorsAffectShading
+              ? 'Random colour per mesh (C key)'
+              : 'Random colours show in Shaded, Clay and Wireframe Overlay modes'
+          }
+        >
+          <Palette size={14} />
+          <span className="hud-label">Colors</span>
         </button>
 
         <div className="hud-divider" />
@@ -1023,6 +1203,19 @@ export default function Viewport3D({
             <span>Materials:</span>
             <span className="stat-value">{stats.materials.length}</span>
           </div>
+          {smoothInfo && (
+            <div className="stat-row">
+              <span>Smooth preview:</span>
+              <span className="stat-value">
+                Lv {smoothInfo.level} · {smoothInfo.triangles.toLocaleString()} tris
+              </span>
+            </div>
+          )}
+          {smoothNote && (
+            <div className="stat-row">
+              <span>{smoothNote}</span>
+            </div>
+          )}
           <div className="stat-row">
             <span>Dimensions:</span>
             <span className="stat-value">
