@@ -82,7 +82,9 @@ function getOrCreateWireframeHelper(mesh) {
     return mesh.userData.wireframeHelper;
   }
 
-  const geom = mesh.geometry;
+  // Always the file's own geometry, even while Smooth preview or softened normals show another copy.
+  // So the wireframe is the original cage, like Maya's 3 key, and it stays valid when the display geometry changes.
+  const geom = mesh.userData.origGeometry || mesh.geometry;
   if (!geom || !geom.attributes?.position) return null;
 
   const posAttr = geom.attributes.position;
@@ -127,16 +129,6 @@ function getOrCreateWireframeHelper(mesh) {
   mesh.add(wireHelper);
   mesh.userData.wireframeHelper = wireHelper;
   return wireHelper;
-}
-
-// Throw away a mesh's wireframe overlay so it is rebuilt from the mesh's current geometry
-function dropWireframeHelper(mesh) {
-  const helper = mesh.userData.wireframeHelper;
-  if (!helper) return;
-  helper.geometry?.dispose();
-  helper.material?.dispose();
-  mesh.remove(helper);
-  mesh.userData.wireframeHelper = null;
 }
 
 // Option styling shared by the HUD dropdowns
@@ -781,7 +773,6 @@ export default function Viewport3D({
         const base = getBaseGeometry(mesh);
         if (mesh.geometry !== base) {
           mesh.geometry = base;
-          dropWireframeHelper(mesh);
           changed = true;
         }
       });
@@ -819,7 +810,6 @@ export default function Viewport3D({
         const base = getBaseGeometry(mesh);
         if (mesh.geometry !== base) {
           mesh.geometry = base;
-          dropWireframeHelper(mesh);
           changed = true;
         }
       });
@@ -865,7 +855,6 @@ export default function Viewport3D({
         if (!levels[level]) levels[level] = buildSmoothGeometry(orig, level);
         if (mesh.geometry !== levels[level]) {
           mesh.geometry = levels[level];
-          dropWireframeHelper(mesh);
         }
         outTris += countGeometryTriangles(levels[level]);
       });
@@ -1107,7 +1096,7 @@ export default function Viewport3D({
         <button
           className={`hud-btn ${smoothPreview ? 'active' : ''}`}
           onClick={() => setSmoothPreview(!smoothPreview)}
-          title="Smooth preview: subdivide the meshes on screen (3 key). The file is not changed."
+          title="Smooth preview: show the meshes smoothed, wireframe stays on the original cage (3 key, like Maya). The file is not changed."
         >
           <Spline size={14} />
           <span className="hud-label">Smooth</span>
