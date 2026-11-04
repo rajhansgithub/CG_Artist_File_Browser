@@ -36,7 +36,7 @@ The **Wireframe** button shows the edges of the original quads and n-gons, not t
 
 ## Smooth preview and mesh colours
 
-**Smooth** (or `3`, like Maya) shows the meshes smoothed, as if they were subdivided twice. It only changes what you see. The file is not touched. It is off when a model opens, and press it again to go back to the original. Very dense models get fewer subdivisions, and a model that is too dense to smooth stays as it is with a short note. Skinned and animated-shape meshes are left as they are. The **Wireframe** button shows the smoothed lines while Smooth is on.
+**Smooth** (or `3`, like Maya) shows the meshes smoothed, as if they were subdivided twice. It only changes what you see. The file is not touched. It is off when a model opens, and press it again to go back to the original. Very dense models get fewer subdivisions, and a model that is too dense to smooth stays as it is with a short note. Skinned and animated-shape meshes are left as they are. The **Wireframe** button keeps showing the original lines (the cage) over the smoothed surface, like Maya's `3` key, not the extra lines made by smoothing.
 
 **Colors** (or `C`) gives every mesh its own colour, so it is easy to see where one part ends and the next begins. It works in the Shaded, Clay and Wireframe Overlay looks, and it is off when a model opens.
 

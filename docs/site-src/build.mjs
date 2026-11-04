@@ -38,7 +38,7 @@ function walk(dir) {
 }
 
 function parsePage(file) {
-  const raw = readFileSync(file, 'utf8');
+  const raw = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
   const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) throw new Error(`${file}: missing front matter`);
   const meta = {};
