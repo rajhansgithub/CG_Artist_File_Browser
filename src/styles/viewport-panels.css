@@ -1,0 +1,178 @@
+/* Viewport panels (3D viewer): UV view (UvView.jsx, U key) and the Normals soften panel (Viewport3D.jsx). */
+
+/* UV view: UV layout panel over the 3D viewer. */
+
+.uv-view {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 18, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.uv-view-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.uv-view-title {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.uv-view-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.uv-view-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.uv-view-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.uv-view-btn.active {
+  background: #2a2a2a;
+  border-color: #555555;
+  color: #ffffff;
+}
+
+.uv-view-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.uv-view-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.uv-view-body {
+  position: relative;
+  background: #0c0c0c;
+  cursor: grab;
+}
+
+.uv-view-body canvas {
+  display: block;
+  touch-action: none;
+}
+
+.uv-view-body canvas:active {
+  cursor: grabbing;
+}
+
+.uv-view-note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Normals (soften / harden by angle) panel in the 3D viewer */
+.normals-panel {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(18, 18, 18, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  z-index: 11;
+}
+
+.normals-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.normals-panel-presets {
+  display: flex;
+  gap: 5px;
+}
+
+.normals-panel-presets .hud-btn {
+  flex: 1;
+  justify-content: center;
+  border-color: var(--border-subtle);
+}
+
+.normals-panel-angle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.normals-panel-angle input[type='range'] {
+  flex: 1;
+}
+
+.normals-panel-angle input[type='number'] {
+  width: 52px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  color: var(--text-main);
+  font-size: 11px;
+  padding: 3px 4px;
+  text-align: right;
+}
+
+.normals-panel-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

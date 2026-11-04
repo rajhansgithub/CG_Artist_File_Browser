@@ -23,7 +23,15 @@ import {
   buildSmoothGeometry,
   randomMeshColor
 } from '../utils/smoothPreview';
+import {
+  buildPolygonWireIndices,
+  buildAngleNormalGeometry,
+  POLYGON_WIRE_MAX_TRIANGLES,
+  ANGLE_NORMALS_MAX_TRIANGLES
+} from '../utils/meshTopology';
 import ModelOutliner from './ModelOutliner';
+import UvView from './UvView';
+import '../styles/viewport-panels.css';
 import {
   RotateCw,
   Sun,
@@ -37,8 +45,36 @@ import {
   ExternalLink,
   ListTree,
   Spline,
-  Palette
+  Palette,
+  Grid2x2,
+  SlidersHorizontal
 } from 'lucide-react';
+
+// Every triangle edge, for very dense models and as the fallback.
+// Pre-allocates a contiguous Uint32Array (no V8 array reallocations / 1.5GB heap spikes).
+// Supports up to 2.5 million triangles at 1:1 fidelity (under 12ms build time).
+function buildTriangleWireIndices(geom, totalTris) {
+  const isIndexed = !!geom.index;
+  const maxSafeTris = 2500000;
+  const step = totalTris > maxSafeTris ? Math.ceil(totalTris / maxSafeTris) : 1;
+  const sampledTris = Math.ceil(totalTris / step);
+
+  const lineIndices = new Uint32Array(sampledTris * 6);
+  let writeIdx = 0;
+  const src = isIndexed ? geom.index.array : null;
+  for (let i = 0; i < totalTris; i += step) {
+    const a = src ? src[i * 3] : i * 3;
+    const b = src ? src[i * 3 + 1] : i * 3 + 1;
+    const c = src ? src[i * 3 + 2] : i * 3 + 2;
+    lineIndices[writeIdx++] = a;
+    lineIndices[writeIdx++] = b;
+    lineIndices[writeIdx++] = b;
+    lineIndices[writeIdx++] = c;
+    lineIndices[writeIdx++] = c;
+    lineIndices[writeIdx++] = a;
+  }
+  return lineIndices;
+}
 
 // Optimized wireframe LineSegments overlay generator
 function getOrCreateWireframeHelper(mesh) {
@@ -56,43 +92,18 @@ function getOrCreateWireframeHelper(mesh) {
 
   if (totalTris <= 0) return null;
 
-  // Ultra-fast typed array generation for wireframe indices.
-  // Pre-allocates a contiguous Uint32Array (no V8 array reallocations / 1.5GB heap spikes).
-  // Supports up to 2.5 million triangles at 1:1 fidelity (under 12ms build time).
-  const maxSafeTris = 2500000;
-  const step = totalTris > maxSafeTris ? Math.ceil(totalTris / maxSafeTris) : 1;
-  const sampledTris = Math.ceil(totalTris / step);
-
-  const lineIndices = new Uint32Array(sampledTris * 6);
-  let writeIdx = 0;
-
-  if (isIndexed) {
-    const src = geom.index.array;
-    for (let i = 0; i < totalTris; i += step) {
-      const idx = i * 3;
-      const a = src[idx];
-      const b = src[idx + 1];
-      const c = src[idx + 2];
-      lineIndices[writeIdx++] = a;
-      lineIndices[writeIdx++] = b;
-      lineIndices[writeIdx++] = b;
-      lineIndices[writeIdx++] = c;
-      lineIndices[writeIdx++] = c;
-      lineIndices[writeIdx++] = a;
-    }
-  } else {
-    for (let i = 0; i < totalTris; i += step) {
-      const a = i * 3;
-      const b = a + 1;
-      const c = a + 2;
-      lineIndices[writeIdx++] = a;
-      lineIndices[writeIdx++] = b;
-      lineIndices[writeIdx++] = b;
-      lineIndices[writeIdx++] = c;
-      lineIndices[writeIdx++] = c;
-      lineIndices[writeIdx++] = a;
+  // Polygon edges: quads and n-gons show their own edges, not the triangulation lines inside them.
+  // Real triangle meshes (STL, or models without flat neighbouring triangles) keep every triangle edge.
+  let lineIndices = null;
+  if (totalTris <= POLYGON_WIRE_MAX_TRIANGLES) {
+    try {
+      const polygonal = buildPolygonWireIndices(geom, { keepTriangles: !!mesh.userData.keepTriangleEdges });
+      if (polygonal) lineIndices = polygonal.indices;
+    } catch (err) {
+      console.error('Polygon wireframe failed, showing triangles:', err);
     }
   }
+  if (!lineIndices) lineIndices = buildTriangleWireIndices(geom, totalTris);
 
   const wireGeom = new THREE.BufferGeometry();
   // Direct zero-copy reuse of the mesh's vertex buffer:
@@ -166,6 +177,13 @@ export default function Viewport3D({
   const [randomColors, setRandomColors] = useState(false);
   const [geometryVersion, setGeometryVersion] = useState(0); // bumps when meshes get a different geometry
 
+  // Normals: 'original' keeps the file's normals; 'angle' softens / hardens edges by angle like Maya (0 = all hard, 180 = all soft)
+  const [normalMode, setNormalMode] = useState('original');
+  const [softenAngle, setSoftenAngle] = useState(30);
+  const [appliedAngle, setAppliedAngle] = useState(null); // softenAngle after a short pause while dragging, null = original
+  const [normalsPanelOpen, setNormalsPanelOpen] = useState(false);
+  const [uvOpen, setUvOpen] = useState(false);
+
   // Outliner: the loaded model root (set once it loads), the panel's open state and the object picked in it
   const [modelRoot, setModelRoot] = useState(null);
   const [outlinerOpen, setOutlinerOpen] = useState(false);
@@ -194,6 +212,8 @@ export default function Viewport3D({
   const clockRef = useRef(new THREE.Clock());
   const needsRenderRef = useRef(true);
   const smoothCacheRef = useRef(new Map()); // original geometry -> { [level]: smoothed geometry }
+  const angleCacheRef = useRef(new Map()); // original geometry -> { angle, geometry } with softened normals
+  const appliedAngleRef = useRef(null);
   const smoothNoteTimerRef = useRef(null);
 
   // Refs to avoid stale closures in render loop
@@ -205,6 +225,7 @@ export default function Viewport3D({
   const applyingViewRef = useRef(false);
   const actionsRef = useRef({});
   onViewChangeRef.current = onViewChange;
+  appliedAngleRef.current = appliedAngle;
 
   // Synchronize turntable and controls autoRotate
   useEffect(() => {
@@ -597,6 +618,8 @@ export default function Viewport3D({
         Object.values(levels).forEach((geometry) => geometry.dispose());
       });
       smoothCacheRef.current.clear();
+      angleCacheRef.current.forEach((entry) => entry.geometry.dispose());
+      angleCacheRef.current.clear();
       setSmoothInfo(null);
       sceneRef.current.remove(modelRef.current);
       modelRef.current = null;
@@ -658,7 +681,7 @@ export default function Viewport3D({
   }, [asset]);
 
   // Keyboard shortcuts: F to focus/frame model, Esc to close, O to show/hide the outliner (not in Quick Look),
-  // 3 for smooth preview (like Maya), C for a random colour per mesh,
+  // 3 for smooth preview (like Maya), C for a random colour per mesh, U for the UV view,
   // numpad 1/3/7 for Front/Right/Top (Ctrl for Back/Left), numpad 5 to toggle orthographic
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -670,6 +693,8 @@ export default function Viewport3D({
         onClose();
       } else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey && !containerRef.current?.closest('.quick-look-body')) {
         setOutlinerOpen((open) => !open);
+      } else if ((e.key === 'u' || e.key === 'U') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+        setUvOpen((open) => !open);
       } else if (e.code === 'Digit3' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat) {
         setSmoothPreview((on) => !on);
       } else if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
@@ -702,6 +727,76 @@ export default function Viewport3D({
     smoothNoteTimerRef.current = setTimeout(() => setSmoothNote(''), 4000);
   };
 
+  // The geometry a mesh shows when Smooth preview is off: the file's own, or a copy with softened normals
+  const getBaseGeometry = (mesh) => {
+    const orig = mesh.userData.origGeometry || mesh.geometry;
+    const angle = appliedAngleRef.current;
+    if (angle === null || !mesh.isMesh || !orig.attributes?.position) return orig;
+    let entry = angleCacheRef.current.get(orig);
+    if (!entry || entry.angle !== angle) {
+      entry?.geometry.dispose();
+      angleCacheRef.current.delete(orig);
+      const geometry = buildAngleNormalGeometry(orig, angle);
+      if (!geometry) return orig;
+      entry = { angle, geometry };
+      angleCacheRef.current.set(orig, entry);
+    }
+    return entry.geometry;
+  };
+
+  // Soften / harden normals by angle: apply the slider value a moment after it stops moving
+  const effectiveAngle = normalMode === 'angle' ? softenAngle : null;
+  useEffect(() => {
+    const id = setTimeout(() => setAppliedAngle(effectiveAngle), effectiveAngle === null ? 0 : 120);
+    return () => clearTimeout(id);
+  }, [effectiveAngle]);
+
+  useEffect(() => {
+    const root = modelRef.current;
+    if (!root || smoothPreview) return; // Smooth preview has its own smooth normals
+
+    const meshes = [];
+    root.traverse((child) => {
+      if (child.userData.isHelper || child.userData.isWireframeOverlay) return;
+      if (child.isMesh && child.geometry?.attributes?.position) meshes.push(child);
+    });
+
+    if (appliedAngle !== null) {
+      const totalTris = meshes.reduce(
+        (sum, mesh) => sum + countGeometryTriangles(mesh.userData.origGeometry || mesh.geometry),
+        0
+      );
+      if (totalTris > ANGLE_NORMALS_MAX_TRIANGLES) {
+        setNormalMode('original');
+        flashSmoothNote('Normals: model is too dense to change');
+        return;
+      }
+    }
+
+    try {
+      let changed = false;
+      meshes.forEach((mesh) => {
+        if (appliedAngle === null && !mesh.userData.origGeometry) return;
+        mesh.userData.origGeometry = mesh.userData.origGeometry || mesh.geometry;
+        const base = getBaseGeometry(mesh);
+        if (mesh.geometry !== base) {
+          mesh.geometry = base;
+          dropWireframeHelper(mesh);
+          changed = true;
+        }
+      });
+      if (changed) {
+        setGeometryVersion((v) => v + 1);
+        needsRenderRef.current = true;
+        if (rendererRef.current) rendererRef.current.shadowMap.needsUpdate = true;
+      }
+    } catch (err) {
+      console.error('Soften normals failed:', err);
+      setNormalMode('original');
+      flashSmoothNote('Normals: could not change this model');
+    }
+  }, [appliedAngle, modelRoot]);
+
   // Smooth preview: swap each mesh's geometry for a subdivided copy, or back to the original.
   // The original geometry is kept on the mesh, so turning the preview off is instant.
   useEffect(() => {
@@ -717,8 +812,13 @@ export default function Viewport3D({
     const restore = () => {
       let changed = false;
       meshes.forEach((mesh) => {
-        if (mesh.userData.origGeometry && mesh.geometry !== mesh.userData.origGeometry) {
-          mesh.geometry = mesh.userData.origGeometry;
+        if (!mesh.userData.origGeometry) {
+          if (appliedAngleRef.current === null) return;
+          mesh.userData.origGeometry = mesh.geometry;
+        }
+        const base = getBaseGeometry(mesh);
+        if (mesh.geometry !== base) {
+          mesh.geometry = base;
           dropWireframeHelper(mesh);
           changed = true;
         }
@@ -1013,6 +1113,26 @@ export default function Viewport3D({
           <span className="hud-label">Smooth</span>
         </button>
 
+        {/* Normals: soften / harden edges by angle, like Maya */}
+        <button
+          className={`hud-btn ${normalMode === 'angle' || normalsPanelOpen ? 'active' : ''}`}
+          onClick={() => setNormalsPanelOpen(!normalsPanelOpen)}
+          title="Normals: soften or harden edges by angle, like Maya. The file is not changed."
+        >
+          <SlidersHorizontal size={14} />
+          <span className="hud-label">Normals</span>
+        </button>
+
+        {/* UV layout of the model or the object picked in the outliner (U key) */}
+        <button
+          className={`hud-btn ${uvOpen ? 'active' : ''}`}
+          onClick={() => setUvOpen(!uvOpen)}
+          title="UV view: show the UV layout (U key)"
+        >
+          <Grid2x2 size={14} />
+          <span className="hud-label">UV</span>
+        </button>
+
         {/* Random colour per mesh, to tell the parts apart (C key) */}
         <button
           className={`hud-btn ${randomColors ? 'active' : ''}`}
@@ -1180,6 +1300,84 @@ export default function Viewport3D({
           </button>
         )}
       </div>
+
+      {/* Normals panel: soften / harden by angle */}
+      {normalsPanelOpen && (
+        <div className="normals-panel">
+          <div className="normals-panel-title">
+            <span>Normals</span>
+            <button className="uv-view-close" onClick={() => setNormalsPanelOpen(false)} title="Close">
+              ✕
+            </button>
+          </div>
+          <div className="normals-panel-presets">
+            <button
+              className={`hud-btn ${normalMode === 'original' ? 'active' : ''}`}
+              onClick={() => setNormalMode('original')}
+              title="Use the normals from the file"
+            >
+              Original
+            </button>
+            <button
+              className={`hud-btn ${normalMode === 'angle' && softenAngle === 0 ? 'active' : ''}`}
+              onClick={() => {
+                setSoftenAngle(0);
+                setNormalMode('angle');
+              }}
+              title="Harden all edges (faceted look)"
+            >
+              Hard
+            </button>
+            <button
+              className={`hud-btn ${normalMode === 'angle' && softenAngle === 180 ? 'active' : ''}`}
+              onClick={() => {
+                setSoftenAngle(180);
+                setNormalMode('angle');
+              }}
+              title="Soften all edges (smooth look)"
+            >
+              Soft
+            </button>
+          </div>
+          <label className="normals-panel-angle" style={{ opacity: normalMode === 'angle' ? 1 : 0.6 }}>
+            <span>Angle</span>
+            <input
+              type="range"
+              className="scrubber-slider"
+              min="0"
+              max="180"
+              step="1"
+              value={softenAngle}
+              onChange={(e) => {
+                setSoftenAngle(Number(e.target.value));
+                setNormalMode('angle');
+              }}
+              onDoubleClick={() => setSoftenAngle(30)}
+            />
+            <input
+              type="number"
+              min="0"
+              max="180"
+              step="1"
+              value={softenAngle}
+              onChange={(e) => {
+                const v = Math.min(180, Math.max(0, Math.round(Number(e.target.value) || 0)));
+                setSoftenAngle(v);
+                setNormalMode('angle');
+              }}
+            />
+            <span>°</span>
+          </label>
+          <div className="normals-panel-hint">
+            Edges between faces that meet at less than this angle are soft. Others stay hard. Try the Normal Vectors shading mode to see the result.
+          </div>
+        </div>
+      )}
+
+      {/* UV view (U key) */}
+      {uvOpen && modelRoot && (
+        <UvView root={modelRoot} selected={selectedObject} onClose={() => setUvOpen(false)} />
+      )}
 
       {/* Model Stats HUD (Triangles, Vertices, Meshes, Dimensions) */}
       {stats && (
