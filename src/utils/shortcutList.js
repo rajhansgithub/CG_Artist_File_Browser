@@ -139,6 +139,7 @@ export const SHORTCUT_GROUPS = [
       { keys: [['F']], action: 'Frame the model' },
       { keys: [['O']], action: 'Show / hide the outliner (prim tree; click a prim to select and frame it)' },
       { keys: [['3']], action: 'Smooth preview on / off (subdivides the meshes on screen, like Maya)' },
+      { keys: [['U']], action: 'UV view on / off (shows the UV layout of the model or the picked object)' },
       { keys: [['C']], action: 'Random colour per mesh on / off' },
       { keys: [['Numpad 1'], ['Numpad 3'], ['Numpad 7']], action: 'Front, right or top view (Ctrl: back or left for 1 and 3)' },
       { keys: [['Numpad 5']], action: 'Toggle orthographic view' }

@@ -298,6 +298,7 @@ function loadStlFile(url, onProgress) {
         const mesh = new THREE.Mesh(geom, mat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        mesh.userData.keepTriangleEdges = true; // STL is triangles only, so the wireframe shows every triangle
 
         const group = new THREE.Group();
         group.add(mesh);
