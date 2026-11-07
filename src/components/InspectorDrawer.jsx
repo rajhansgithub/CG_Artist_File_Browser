@@ -1,6 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import { formatBytes, formatDate, formatDuration, getTypeLabel, toStreamUrl } from '../utils/formatHelpers';
+import { X, ExternalLink, FolderSearch, FolderOpen, FileQuestion, Plus } from 'lucide-react';
+import {
+  formatBytes,
+  formatDate,
+  formatDuration,
+  getTypeLabel,
+  isComparableItem,
+  toStreamUrl
+} from '../utils/formatHelpers';
+import { getCachedThumbnail } from '../utils/thumbnailService';
+import { LABEL_COLORS } from '../utils/fileLabelStore';
+import FolderIcon from './FolderIcon';
+import { FileLabelPopover } from './LabelPanels';
 import '../styles/inspector-drawer.css';
 
 // Details of the selected file, shown beside the folder grid without opening the file. The size in pixels, the colour
@@ -97,7 +108,97 @@ function saveWidth(width) {
   }
 }
 
-export default function InspectorDrawer({ item, onClose }) {
+// Channel views of the preview: one channel shown as grey. Alpha is offered only when the file has one.
+const CHANNELS = [
+  { id: 'rgb', label: 'RGB' },
+  { id: 'r', label: 'R', matrix: '1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1' },
+  { id: 'g', label: 'G', matrix: '0 1 0 0 0  0 1 0 0 0  0 1 0 0 0  0 0 0 0 1' },
+  { id: 'b', label: 'B', matrix: '0 0 1 0 0  0 0 1 0 0  0 0 1 0 0  0 0 0 0 1' },
+  { id: 'a', label: 'A', matrix: '0 0 0 1 0  0 0 0 1 0  0 0 0 1 0  0 0 0 0 1' }
+];
+const CHANNEL_KINDS = new Set(['image', 'texture', 'hdr']);
+
+// Short names for the maps of a texture set
+const ROLE_SHORT = { albedo: 'Color', normal: 'Normal', roughness: 'Rough', metallic: 'Metal', height: 'Height', ao: 'AO', opacity: 'Opacity', specular: 'Spec', emissive: 'Emit', orm: 'ORM' };
+
+function Preview({ item, hasAlpha }) {
+  const [channel, setChannel] = useState('rgb');
+  const [failed, setFailed] = useState(null);
+  const url = item.isDirectory ? null : getCachedThumbnail(item.path) || item.thumbnail || null;
+  useEffect(() => setChannel('rgb'), [item.path]);
+
+  if (item.isDirectory) {
+    return (
+      <div className="inspector-preview empty">
+        <FolderIcon item={item} size={56} strokeWidth={1.2} color="var(--accent)" />
+      </div>
+    );
+  }
+  if (!url || failed === url) {
+    return (
+      <div className="inspector-preview empty">
+        <FileQuestion size={40} strokeWidth={1.2} />
+      </div>
+    );
+  }
+  const channels = CHANNEL_KINDS.has(item.category) ? CHANNELS.filter((c) => c.id !== 'a' || hasAlpha) : [];
+  const active = CHANNELS.find((c) => c.id === channel);
+  return (
+    <div className="inspector-preview">
+      {channels.length > 0 && (
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+          {channels
+            .filter((c) => c.matrix)
+            .map((c) => (
+              <filter key={c.id} id={`inspector-ch-${c.id}`} colorInterpolationFilters="sRGB">
+                <feColorMatrix type="matrix" values={c.matrix} />
+              </filter>
+            ))}
+        </svg>
+      )}
+      <img
+        src={url}
+        alt=""
+        draggable={false}
+        style={active?.matrix ? { filter: `url(#inspector-ch-${active.id})` } : undefined}
+        onError={() => setFailed(url)}
+      />
+      {channels.length > 0 && (
+        <div className="inspector-channels" role="group" aria-label="Channel">
+          {channels.map((c) => (
+            <button
+              key={c.id}
+              className={`ch-${c.id} ${channel === c.id ? 'active' : ''}`}
+              onClick={() => setChannel(c.id)}
+              title={c.id === 'rgb' ? 'All channels' : `Show the ${c.label} channel as grey`}
+              aria-pressed={channel === c.id}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function InspectorDrawer({
+  item,
+  onClose,
+  onOpen,
+  onReveal,
+  compareAssetA,
+  compareAssetB,
+  onSetCompareA,
+  onSetCompareB,
+  textureSet,
+  onViewTextureSet,
+  externalApps,
+  onSendToApp,
+  label,
+  labelActions
+}) {
+  const [tagAnchor, setTagAnchor] = useState(null);
   const path = item?.path || '';
   const modified = item?.modified;
   const [info, setInfo] = useState(null); // null while the header is being read
@@ -170,19 +271,48 @@ export default function InspectorDrawer({ item, onClose }) {
         onPointerUp={endResize}
         onPointerCancel={endResize}
       />
-      <div className="inspector-header">
-        <span>Inspector</span>
-        <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={onClose} title="Hide the Inspector (I)" aria-label="Hide the Inspector">
-          <X size={13} />
-        </button>
-      </div>
+      <button className="inspector-close" onClick={onClose} title="Hide the Inspector (I)" aria-label="Hide the Inspector">
+        <X size={13} />
+      </button>
 
       {!item ? (
         <p className="inspector-empty">Select a file or folder to see its details here.</p>
       ) : (
         <div className="inspector-body">
-          {item.thumbnail && <img className="inspector-thumb" src={item.thumbnail} alt="" draggable={false} />}
-          <div className="inspector-name" title={item.name}>{item.name}</div>
+          <Preview item={item} hasAlpha={/^(La|Rgba)/.test(info?.colorType || '')} />
+          <div className="inspector-title">
+            <span className="inspector-name" title={item.name}>{item.name}</span>
+            {!item.isDirectory && <span className="inspector-pill">{(item.extension || '').replace(/^\./, '').toUpperCase()}</span>}
+          </div>
+
+          {/* One click each: open, Compare slots, reveal */}
+          <div className="inspector-actions">
+            <button className="ins-act primary" onClick={() => onOpen?.(item)} title={item.isDirectory ? 'Open folder' : 'Open in Viewer'}>
+              {item.isDirectory ? <FolderOpen size={14} /> : <ExternalLink size={14} />}
+              <span>Open</span>
+            </button>
+            {isComparableItem(item) && (
+              <>
+                <button
+                  className={`ins-act slot-a ${compareAssetA?.path === item.path ? 'active' : ''}`}
+                  onClick={() => onSetCompareA?.(item)}
+                  title={compareAssetA?.path === item.path ? 'Assigned as A' : 'Set as A (Compare)'}
+                >
+                  A
+                </button>
+                <button
+                  className={`ins-act slot-b ${compareAssetB?.path === item.path ? 'active' : ''}`}
+                  onClick={() => onSetCompareB?.(item)}
+                  title={compareAssetB?.path === item.path ? 'Assigned as B' : 'Set as B (Compare)'}
+                >
+                  B
+                </button>
+              </>
+            )}
+            <button className="ins-act square" onClick={() => onReveal?.(item.path)} title="Reveal in Windows Explorer" aria-label="Reveal in Windows Explorer">
+              <FolderSearch size={14} />
+            </button>
+          </div>
 
           {/* preload="metadata" reads the start of the file only: nothing plays and nothing is buffered */}
           {isMedia && item.category === 'video' && (
@@ -235,7 +365,85 @@ export default function InspectorDrawer({ item, onClose }) {
             <Row label="Modified">{formatDate(item.modified)}</Row>
           </dl>
 
-          <div className="inspector-path" title={item.path}>{item.path}</div>
+          {textureSet && (
+            <div className="inspector-section">
+              <h4>Texture set · {textureSet.base}</h4>
+              <button className="inspector-set" onClick={() => onViewTextureSet?.(textureSet)} title="View as texture set">
+                {textureSet.maps.slice(0, 4).map((m) => {
+                  const url = getCachedThumbnail(m.item.path) || m.item.thumbnail;
+                  return (
+                    <span key={m.role} className={`set-map ${m.item.path === item.path ? 'current' : ''}`} title={m.item.name}>
+                      {url ? <img src={url} alt="" draggable={false} /> : null}
+                      <em>{ROLE_SHORT[m.role] || m.label}</em>
+                    </span>
+                  );
+                })}
+                {textureSet.maps.length > 4 && <span className="set-map more">+{textureSet.maps.length - 4}</span>}
+              </button>
+            </div>
+          )}
+
+          {labelActions && (
+            <div className="inspector-section">
+              <h4>Labels</h4>
+              <div className="inspector-colors" role="group" aria-label="Colour label">
+                {LABEL_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    className={label?.color === c.id ? 'active' : ''}
+                    style={{ background: c.hex, color: c.hex }}
+                    onClick={() => labelActions.setColor([item.path], label?.color === c.id ? null : c.id)}
+                    title={label?.color === c.id ? `Remove ${c.name}` : c.name}
+                    aria-label={c.name}
+                    aria-pressed={label?.color === c.id}
+                  />
+                ))}
+              </div>
+              <div className="inspector-tags">
+                {(label?.tags || []).map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+                <button
+                  className="add"
+                  onClick={(e) => {
+                    const button = e.currentTarget;
+                    setTagAnchor((a) => (a ? null : button));
+                  }}
+                  title="Edit tags"
+                >
+                  <Plus size={11} /> tag
+                </button>
+              </div>
+              {tagAnchor && (
+                <FileLabelPopover
+                  anchor={tagAnchor}
+                  label={label || { color: null, tags: [] }}
+                  onSetColor={(color) => labelActions.setColor([item.path], color)}
+                  onAddTag={(tag) => labelActions.editTags([item.path], [tag], [])}
+                  onRemoveTag={(tag) => labelActions.editTags([item.path], [], [tag])}
+                  onClose={() => setTagAnchor(null)}
+                />
+              )}
+            </div>
+          )}
+
+          {!item.isDirectory && externalApps?.length > 0 && (
+            <div className="inspector-section">
+              <h4>Send to</h4>
+              <div className="inspector-tags">
+                {externalApps.map((app) => (
+                  <button key={app.path} className="app" onClick={() => onSendToApp?.([item], app)} title={`Open in ${app.name}`}>
+                    {app.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="inspector-path" title={item.path}>
+            <FolderIcon item={{ path: item.path.replace(/[\\/][^\\/]*$/, '') }} size={12} />
+            <span>{item.path}</span>
+          </div>
         </div>
       )}
     </aside>

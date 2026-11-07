@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
-import { formatBytes } from '../utils/formatHelpers';
-import { normalizeFolderKey } from '../utils/folderIconStore';
+import { useMemo } from 'react';
+import { formatBytes } from './formatHelpers';
+import { normalizeFolderKey } from './folderIconStore';
 
 // [singular, plural] as shown in the counts, in the order they are listed
 const CATEGORY_LABELS = [
@@ -59,8 +59,9 @@ export function findDriveForPath(drives, path) {
   return best;
 }
 
-// Slim bar under the folder view: what is listed, what is selected, and how much room is left on the drive.
-export default function StatusBar({ items, filtered, selectedItem, selectedPaths, drives, currentPath }) {
+// What the toolbar's subtitle says about the folder: what is listed, what is selected, and the room left on the drive.
+// (This used to be a status bar under the grid.)
+export function useFolderStatus({ items, filtered, selectedItem, selectedPaths, drives, currentPath }) {
   const summary = useMemo(() => summarizeItems(items), [items]);
   const drive = useMemo(() => findDriveForPath(drives, currentPath), [drives, currentPath]);
 
@@ -72,30 +73,11 @@ export default function StatusBar({ items, filtered, selectedItem, selectedPaths
   if (picked.length > 1) {
     const bytes = picked.reduce((sum, item) => sum + (item.isDirectory ? 0 : item.size || 0), 0);
     selectionText = `${picked.length} selected${bytes ? ` (${formatBytes(bytes)})` : ''}`;
-  } else if (selectedItem) {
-    selectionText = selectedItem.isDirectory
-      ? `1 selected: ${selectedItem.name}`
-      : `1 selected: ${selectedItem.name} (${formatBytes(selectedItem.size)})`;
   }
 
+  const freeText = drive ? `${formatGB(drive.freeGB)} free` : '';
   const diskText = drive ? `${drive.mount.replace(/\\$/, '')} ${formatGB(drive.freeGB)} free of ${formatGB(drive.totalGB)}` : '';
+  const sizeText = summary.bytes ? formatBytes(summary.bytes) : '';
 
-  return (
-    <div className="status-bar" role="status">
-      <span className="status-item status-counts" title={detailText ? `${countText}: ${detailText}` : countText}>
-        <strong>{countText}</strong>
-        {detailText && <span className="status-muted"> · {detailText}</span>}
-      </span>
-      {selectionText && (
-        <span className="status-item status-selection" title={selectionText}>
-          {selectionText}
-        </span>
-      )}
-      {diskText && (
-        <span className="status-item status-disk" title="Free space on this drive">
-          {diskText}
-        </span>
-      )}
-    </div>
-  );
+  return { countText, detailText, selectionText, freeText, diskText, sizeText };
 }

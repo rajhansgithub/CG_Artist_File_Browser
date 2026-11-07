@@ -1,8 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 // Must match .grid-container in src/styles/index.css (padding and gap)
-export const GRID_PADDING = 14;
-export const GRID_GAP = 12;
+export const GRID_PADDING = 0;
+export const GRID_GAP = 2;
 
 // Height guess for rows, used only until the first row has been measured
 const ESTIMATED_FOOTER = 48;

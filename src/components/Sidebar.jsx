@@ -25,6 +25,31 @@ function networkDriveName(drive) {
   return share ? `${letter} ${share}` : letter;
 }
 
+// Is `path` on this drive (or the share it maps)?
+function isOnDrive(drive, path) {
+  if (!path) return false;
+  const p = path.toUpperCase();
+  return p.startsWith(drive.mount.toUpperCase()) || (drive.isNetwork && p.startsWith(drive.name.toUpperCase()));
+}
+
+// How full a drive is, 0 to 1, or null when its size is unknown
+function usedShare(drive) {
+  const free = parseFloat(drive.freeGB);
+  const total = parseFloat(drive.totalGB);
+  if (!Number.isFinite(free) || !Number.isFinite(total) || total <= 0) return null;
+  return Math.min(1, Math.max(0, 1 - free / total));
+}
+
+function DriveBar({ drive }) {
+  const used = usedShare(drive);
+  if (used == null) return null;
+  return (
+    <span className="drive-bar" aria-hidden="true">
+      <i style={{ width: `${Math.round(used * 100)}%` }} />
+    </span>
+  );
+}
+
 const ellipsis = { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
 // What the side rail's pop-out panels hold
@@ -103,22 +128,24 @@ export default function Sidebar({
       </div>
       <div className="nav-list">
         {drives.map((d) => {
-          const isSelected =
-            currentPath &&
-            (currentPath.toUpperCase().startsWith(d.mount.toUpperCase()) ||
-              (d.isNetwork && currentPath.toUpperCase().startsWith(d.name.toUpperCase())));
+          const isSelected = isOnDrive(d, currentPath);
           const Icon = d.isNetwork ? Network : HardDrive;
           return (
             <div
               key={d.mount}
-              className={`nav-item ${isSelected ? 'active' : ''}`}
+              className={`nav-item drive-item ${isSelected ? 'active' : ''}`}
               onClick={() => go(d.name)}
               title={`${d.label} (${d.mount})`}
             >
               <Icon size={14} className="nav-icon" />
-              <span style={ellipsis}>{d.isNetwork ? networkDriveName(d) : d.mount}</span>
-              <span className="nav-trail">
-                {d.freeGB && d.totalGB ? `${d.freeGB} GB free` : d.isNetwork ? (d.offline ? 'Offline' : 'Network') : ''}
+              <span className="drive-col">
+                <span className="drive-top">
+                  <span style={ellipsis}>{d.isNetwork ? networkDriveName(d) : d.mount}</span>
+                  <span className="nav-trail">
+                    {d.freeGB && d.totalGB ? `${d.freeGB} GB free` : d.isNetwork ? (d.offline ? 'Offline' : 'Network') : ''}
+                  </span>
+                </span>
+                <DriveBar drive={d} />
               </span>
             </div>
           );
@@ -316,6 +343,27 @@ export default function Sidebar({
         {railButton('folders', 'Subfolders and pinned folders', FLYOUTS.folders.icon)}
         {railButton('recent', 'Recent folders', FLYOUTS.recent.icon)}
         {railButton('starred', 'Starred assets', FLYOUTS.starred.icon)}
+        {drives.length > 0 && <div className="rail-sep" />}
+        {/* Every drive is one click away, with a bar for how full it is */}
+        <div className="rail-drives">
+          {drives.map((d) => {
+            const Icon = d.isNetwork ? Network : HardDrive;
+            const letter = d.mount.replace(/[:\\/]+$/, '') || d.mount;
+            return (
+              <button
+                key={d.mount}
+                className={`rail-drive ${isOnDrive(d, currentPath) ? 'active' : ''}`}
+                onClick={() => go(d.name)}
+                title={`${d.isNetwork ? networkDriveName(d) : d.mount} ${d.label || ''}${d.freeGB ? ` · ${d.freeGB} GB free` : ''}`}
+                aria-label={`Open drive ${d.mount}`}
+              >
+                <Icon size={12} />
+                <span>{letter}</span>
+                <DriveBar drive={d} />
+              </button>
+            );
+          })}
+        </div>
         <div className="rail-spacer" />
         <button className="rail-btn" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
           <CircleHelp size={19} strokeWidth={1.7} />

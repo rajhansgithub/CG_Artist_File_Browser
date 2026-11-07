@@ -42,6 +42,16 @@ export function setupTauriBridge() {
       return res;
     },
 
+    // Up to `limit` pictures from a folder, for its tile preview. Names only; does not add to recent folders.
+    peekFolder: async (dirPath, limit = 4) => {
+      const items = await invoke('peek_folder', { dirPath, limit });
+      return (items || []).map((item) =>
+        item.thumbnail && !item.thumbnail.startsWith('http') && !item.thumbnail.startsWith('data:')
+          ? { ...item, thumbnail: convertFileSrc(item.thumbnail) }
+          : item
+      );
+    },
+
     // Validates a typed path (\\server\share, //server/share, D:/x) and returns it in Windows form
     resolvePath: async (input) => {
       return await invoke('resolve_path', { input });

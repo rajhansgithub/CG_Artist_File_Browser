@@ -28,7 +28,7 @@ Select a file and press `Space`. A small window opens over the folder and shows 
 
 ## Select several files
 
-`Click` picks one file. `Ctrl` + `Click` adds or removes one, `Shift` + `Click` selects a range, and dragging on empty space draws a box. `Ctrl` + `A` selects everything. The status bar at the bottom says how many are selected and their total size.
+`Click` picks one file. `Ctrl` + `Click` adds or removes one, `Shift` + `Click` selects a range, and dragging on empty space draws a box. `Ctrl` + `A` selects everything. The line under the folder name at the top says how many are selected and their total size.
 
 ![Ctrl and Shift clicks building a selection](media:multi-select.gif "Ctrl + Click and Shift + Click build up a selection")
 
