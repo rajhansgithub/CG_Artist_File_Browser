@@ -882,10 +882,6 @@
 
 /* ---------- Tiles: edge to edge, the name on a chip, marks that stay ---------- */
 
-.grid-container {
-  padding-bottom: 76px;
-}
-
 .asset-card {
   background: var(--card-bg);
   border: none;
@@ -962,10 +958,8 @@
   color: var(--text-muted);
 }
 
-/* Folder: a square with up to four pictures from inside, or its icon */
+/* Folder: a square tile with up to four pictures from inside, or its icon */
 .folder-preview {
-  aspect-ratio: 1 / 1;
-  min-height: 0;
   background: var(--card-bg) !important;
 }
 

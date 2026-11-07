@@ -19,7 +19,7 @@ order: 18
 - File listings are read on a worker thread and use directory metadata, so folders with thousands of files stay responsive.
 - Thumbnails are decoded in Rust with a limit on how many run at once, and cached on disk by a hash of the path, size and modified time.
 - Binary files travel as raw buffers rather than base64, so large textures are not copied through JSON.
-- The grid is virtualised: only the visible cards are drawn.
+- The grid is virtualised: only the visible cards are drawn. Tiles are laid out in justified rows from each thumbnail's shape, which is remembered between sessions.
 
 ## Keeping the guide and the app in step
 

@@ -1,0 +1,481 @@
+/* 3D viewer layout (Viewport3D.jsx): a dock along the bottom, a Model panel on the right (Pro), the outliner on the
+   left, close in the top right corner. Simple mode hides everything marked .v3d-pro. */
+
+[data-ui='simple'] .v3d .v3d-pro {
+  display: none !important;
+}
+
+.v3d {
+  --v3d-glass: var(--topbar-bg);
+  --v3d-ring: var(--chip-ring);
+  --v3d-panel-w: 272px;
+}
+
+/* ---------- Bottom dock ---------- */
+
+.v3d .viewport-hud.v3d-dock {
+  top: auto;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 28px);
+  padding: 5px;
+  gap: 2px;
+  align-items: stretch;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--v3d-glass);
+  box-shadow: 0 0 0 0.5px var(--v3d-ring), var(--topbar-shadow);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+
+/* With the Model panel open, the dock centres in the space left of it */
+.v3d.panel-open .viewport-hud.v3d-dock {
+  left: calc((100% - var(--v3d-panel-w) - 24px) / 2);
+  max-width: calc(100% - var(--v3d-panel-w) - 52px);
+}
+
+[data-ui='simple'] .v3d.panel-open .viewport-hud.v3d-dock {
+  left: 50%;
+  max-width: calc(100% - 28px);
+}
+
+.v3d-dock .hud-btn {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 54px;
+  height: 52px;
+  padding: 6px 5px 5px;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.v3d-dock .hud-btn:hover {
+  background: var(--seg-bg);
+  color: var(--text-main);
+}
+
+.v3d-dock .hud-btn.active {
+  background: var(--accent-soft);
+  border: none;
+  color: var(--accent);
+}
+
+.v3d-dock .hud-btn.accent {
+  color: var(--accent);
+}
+
+.v3d-dock .hud-label {
+  display: block;
+  line-height: 1;
+}
+
+.v3d-dock .hud-divider {
+  align-self: center;
+  height: 30px;
+  margin: 0 5px;
+}
+
+.v3d-group {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+/* A pick: the value with a chevron, what it sets underneath */
+.v3d-pick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 52px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.v3d-pick:hover {
+  background: var(--seg-bg);
+}
+
+.v3d-pick.dim {
+  opacity: 0.5;
+}
+
+.v3d-pick-value {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.v3d-pick select {
+  appearance: none;
+  field-sizing: content;
+  min-width: 40px;
+  max-width: 130px;
+  padding: 0 14px 0 0;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font: 600 12px var(--font-sans);
+  cursor: pointer;
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.v3d-pick select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.v3d-pick-chevron {
+  position: absolute;
+  right: 0;
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+.v3d-cap {
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---------- Top right corner ---------- */
+
+.v3d-corner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 12;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--v3d-glass);
+  box-shadow: 0 0 0 0.5px var(--v3d-ring), var(--topbar-shadow);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+
+.v3d-corner-btn {
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.v3d-corner-btn:hover {
+  background: var(--seg-bg);
+  color: var(--text-main);
+}
+
+.v3d-corner-btn.active {
+  color: var(--accent);
+}
+
+/* ---------- Model panel (Pro) ---------- */
+
+.v3d-panel {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  bottom: 12px;
+  width: var(--v3d-panel-w);
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--v3d-glass);
+  box-shadow: 0 0 0 0.5px var(--v3d-ring), var(--topbar-shadow);
+  backdrop-filter: blur(20px) saturate(1.6);
+  color: var(--text-secondary);
+  font-size: 12px;
+  scrollbar-width: thin;
+}
+
+.v3d-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.v3d-panel-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-main);
+}
+
+.v3d-ext {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--seg-bg);
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.v3d-panel-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.v3d-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 14px 0 6px;
+}
+
+.v3d-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 10px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--seg-bg);
+}
+
+.v3d-tile b {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.v3d-tile span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.v3d-section {
+  margin: 14px 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.v3d-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 24px;
+}
+
+.v3d-row b {
+  font-weight: 500;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.v3d-note {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.v3d-materials {
+  max-height: 160px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.v3d-material {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main);
+}
+
+.v3d-material::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  vertical-align: -1px;
+}
+
+.v3d-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 30px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-main);
+  font: 12.5px var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.v3d-toggle.dim {
+  opacity: 0.55;
+}
+
+.v3d-switch {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(120, 120, 128, 0.36);
+  transition: background 0.15s ease;
+}
+
+.v3d-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.v3d-toggle.on .v3d-switch {
+  background: var(--accent);
+}
+
+.v3d-toggle.on .v3d-switch::after {
+  transform: translateX(12px);
+}
+
+.v3d-panel-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: auto -14px 0;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.v3d-panel-foot span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Snap views: a row of small segments */
+.v3d-views {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--seg-bg);
+}
+
+.v3d-views button {
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 10.5px var(--font-sans);
+  cursor: pointer;
+}
+
+.v3d-views button:hover {
+  color: var(--text-main);
+}
+
+.v3d-views button.active {
+  background: var(--seg-active);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.v3d-range {
+  margin-top: 8px;
+}
+
+.v3d-range.dim {
+  opacity: 0.5;
+}
+
+.v3d-range input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.v3d-range b {
+  min-width: 34px;
+  text-align: right;
+}
+
+/* ---------- Panels that float over the model ---------- */
+
+/* Outliner on the left, as in the Opus layout */
+.v3d .viewport-outliner {
+  top: 12px;
+  left: 12px;
+  right: auto;
+  bottom: auto;
+  width: 260px;
+  max-height: calc(100% - 104px);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--v3d-glass);
+  box-shadow: 0 0 0 0.5px var(--v3d-ring), var(--topbar-shadow);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+
+.v3d .uv-view {
+  top: 12px;
+  left: 12px;
+}
+
+.v3d.outliner-open .uv-view {
+  left: 284px;
+}
+
+.v3d .normals-panel {
+  top: 12px;
+}
+
+/* Animation bar sits above the dock */
+.v3d .anim-bar {
+  bottom: 82px;
+}
+
+/* Quick Look shows only the model */
+.quick-look-body .v3d-corner,
+.quick-look-body .v3d-panel {
+  display: none !important;
+}
