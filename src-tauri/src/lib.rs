@@ -580,6 +580,76 @@ async fn read_directory(
     Ok(result)
 }
 
+// IPC: Peek into a folder for its tile preview: up to `limit` pictures from its first entries.
+// Reads names only (no recursion, no recent-folders entry) and stops early, so large folders stay cheap.
+const PEEK_SCAN_LIMIT: usize = 300;
+const PEEK_EXTENSIONS: [&str; 10] = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tga", ".tif", ".tiff", ".exr", ".hdr"];
+
+fn peek_folder_blocking(app: &tauri::AppHandle, dir_path: &str, limit: usize) -> Vec<FileItem> {
+    let rd = match fs::read_dir(dir_path) {
+        Ok(rd) => rd,
+        Err(_) => return Vec::new(),
+    };
+    let thumbs_dir = get_cache_dir(app).join("thumbs");
+    let mut picked = Vec::new();
+    for entry in rd.flatten().take(PEEK_SCAN_LIMIT) {
+        if picked.len() >= limit {
+            break;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || name.starts_with('$') {
+            continue;
+        }
+        if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            continue;
+        }
+        let full_path = entry.path();
+        let ext = full_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| format!(".{}", e.to_lowercase()))
+            .unwrap_or_default();
+        if !PEEK_EXTENSIONS.contains(&ext.as_str()) {
+            continue;
+        }
+        let full_path_str = full_path.to_string_lossy().to_string();
+        let meta = entry.metadata().ok();
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        let modified = meta
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0);
+        // Same cache key as read_directory, so a thumbnail made once is reused here
+        let hash = format!("{:x}", md5::compute(format!("v3_{}_{}_{}", full_path_str, modified, size)));
+        let thumbnail = [format!("{}.jpg", hash), format!("{}.png", hash)]
+            .iter()
+            .map(|n| thumbs_dir.join(n))
+            .find(|p| p.exists())
+            .map(|p| p.to_string_lossy().to_string());
+        picked.push(FileItem {
+            name,
+            path: full_path_str,
+            is_directory: false,
+            category: get_category(&ext).to_string(),
+            extension: ext,
+            size,
+            modified,
+            thumbnail,
+            system_icon: false,
+        });
+    }
+    picked
+}
+
+#[tauri::command]
+async fn peek_folder(app: tauri::AppHandle, dir_path: String, limit: Option<usize>) -> Vec<FileItem> {
+    let limit = limit.unwrap_or(4).min(9);
+    tauri::async_runtime::spawn_blocking(move || peek_folder_blocking(&app, &dir_path, limit))
+        .await
+        .unwrap_or_default()
+}
+
 #[derive(Serialize)]
 pub struct ResolvedPath {
     pub path: String,
@@ -1646,6 +1716,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_drives,
             read_directory,
+            peek_folder,
             resolve_path,
             connect_network,
             get_network_locations,

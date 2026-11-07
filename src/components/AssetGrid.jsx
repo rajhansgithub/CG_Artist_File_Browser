@@ -12,11 +12,15 @@ import {
   Music,
   FileText,
   BookOpen,
-  Tag
+  Tag,
+  Check,
+  FolderOpen,
+  FolderSearch
 } from 'lucide-react';
 import { formatBytes, formatDate, getFileBadgeClass, isComparableItem } from '../utils/formatHelpers';
 import { getOrGenerateThumbnail, getCachedThumbnail } from '../utils/thumbnailService';
-import { useFolderIcons } from '../utils/folderIconStore';
+import { normalizeFolderKey, useFolderIcons } from '../utils/folderIconStore';
+import { useFolderPeek } from '../utils/folderPeek';
 import { getLabelColor, labelFor } from '../utils/fileLabelStore';
 import { startNativeDragOut } from '../utils/dragOut';
 import {
@@ -51,7 +55,7 @@ function CardLabel({ path, label, labelActions }) {
   return (
     <>
       <button
-        className={`card-fav-btn card-label-btn ${hasLabel ? 'active' : ''}`}
+        className={`card-act ${hasLabel ? 'on' : ''}`}
         style={labelColor ? { color: labelColor.hex } : undefined}
         onClick={(e) => {
           e.stopPropagation();
@@ -62,9 +66,8 @@ function CardLabel({ path, label, labelActions }) {
         title="Colour and tags"
         aria-label="Colour and tags"
       >
-        <Tag size={13} fill={labelColor ? 'currentColor' : 'none'} />
+        <Tag size={14} fill={labelColor ? 'currentColor' : 'none'} />
       </button>
-      {labelColor && <span className="card-label-stripe" style={{ background: labelColor.hex }} />}
 
       {labelAnchor && (
         <FileLabelPopover
@@ -79,6 +82,35 @@ function CardLabel({ path, label, labelActions }) {
     </>
   );
 }
+
+// Marks that stay on a tile: its Compare slot (A or B) and its star. The star unstars in one click.
+function CardMarks({ item, isFavorite, onToggleFavorite, isA, isB }) {
+  if (!isA && !isB && !isFavorite) return null;
+  return (
+    <div className="card-marks">
+      {isA && <span className="card-mark slot-a" title="Compare slot A">A</span>}
+      {isB && <span className="card-mark slot-b" title="Compare slot B">B</span>}
+      {isFavorite && (
+        <button
+          className="card-mark star"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(item);
+          }}
+          title={item.isDirectory ? 'Unpin folder' : 'Remove from favorites'}
+          aria-label={item.isDirectory ? 'Unpin folder' : 'Remove from favorites'}
+        >
+          <Star size={12} fill="currentColor" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Small kind icon shown on a tile in Simple mode (plain pictures need none)
+const KIND_ICONS = { '3d': Box, hdr: SunMedium, texture: Grid, video: Film, audio: Music, pdf: FileText, markdown: BookOpen };
+// Placeholder while a thumbnail loads, or when there is none
+const PLACEHOLDER_ICONS = { hdr: SunMedium, '3d': Box, image: ImageIcon, texture: Grid, video: Film, pdf: FileText, markdown: BookOpen };
 
 // The first tags of a card, the rest counted
 function CardTags({ tags }) {
@@ -111,9 +143,14 @@ function AssetCard({
   compareAssetB,
   onSetCompareA,
   onSetCompareB,
+  onOpenExternal,
+  peekEnabled,
   getDragPaths
 }) {
-  const { openMenu } = useFolderIcons();
+  const { openMenu, assignments } = useFolderIcons();
+  // A folder with an icon of its own (picked here or set in Explorer) keeps it; others show pictures from inside
+  const hasCustomIcon = item.isDirectory && (!!assignments?.[normalizeFolderKey(item.path)] || !!item.systemIcon);
+  const peekUrls = useFolderPeek(item.path, item.isDirectory && peekEnabled && !hasCustomIcon);
   // Thumbnails already in memory are shown at once, so a card remounted by scrolling does not flash its placeholder
   const [thumbUrl, setThumbUrl] = useState(() => item.thumbnail || getCachedThumbnail(item.path));
   const [aspectRatio, setAspectRatio] = useState(() => previewAspectCache.get(item.path) ?? null);
@@ -184,12 +221,30 @@ function AssetCard({
     // a thumbnail that is already waiting or decoding for this card.
   }, [item.path, item.isDirectory, thumbUrl]);
 
-  // FOLDER CARD
+  const marks = (
+    <CardMarks
+      item={item}
+      isFavorite={isFavorite}
+      onToggleFavorite={onToggleFavorite}
+      isA={isComparableItem(item) && compareAssetA?.path === item.path}
+      isB={isComparableItem(item) && compareAssetB?.path === item.path}
+    />
+  );
+  const labelColor = getLabelColor(label?.color);
+  const tags = label?.tags || [];
+  const check = isSelected && (
+    <span className="card-check" aria-hidden="true">
+      <Check size={12} strokeWidth={3} />
+    </span>
+  );
+
+  // FOLDER CARD: up to four pictures from inside it, else its icon
   if (item.isDirectory) {
+    const showPeek = peekUrls.length > 0 && !hasCustomIcon;
     return (
       <div
         ref={cardRef}
-        className={`asset-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
+        className={`asset-card folder-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
         onClick={(e) => onSelect(item, e)}
         onDoubleClick={() => onOpen(item)}
         onContextMenu={(e) => {
@@ -198,44 +253,76 @@ function AssetCard({
           openMenu(e, item, true);
         }}
       >
-        <div
-          className="card-preview folder-preview"
-          style={{ cursor: 'pointer' }}
-        >
-          <FolderIcon item={item} size={52} color="var(--accent)" strokeWidth={1.25} />
-          <span className="card-badge">FOLDER</span>
+        <div className="card-preview folder-preview" style={{ cursor: 'pointer' }}>
+          {showPeek ? (
+            <div className={`folder-peek n${Math.min(peekUrls.length, 4)}`}>
+              {peekUrls.slice(0, 4).map((url) => (
+                <img key={url} src={url} alt="" draggable={false} />
+              ))}
+            </div>
+          ) : (
+            <FolderIcon item={item} size={52} color="var(--accent)" strokeWidth={1.25} />
+          )}
+          {check}
+          {marks}
 
-          {/* Star button on Folders! */}
-          <button
-            className={`card-fav-btn ${isFavorite ? 'active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite(item);
-            }}
-            title={isFavorite ? 'Unstar folder' : 'Star folder'}
-          >
-            <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
-          </button>
-
-          <CardLabel path={item.path} label={label} labelActions={labelActions} />
+          <div className="card-actions">
+            <button
+              className="card-act primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen(item);
+              }}
+              title="Open folder"
+              aria-label="Open folder"
+            >
+              <FolderOpen size={14} />
+            </button>
+            <button
+              className="card-act"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRevealInExplorer(item.path);
+              }}
+              title="Reveal in Windows Explorer"
+              aria-label="Reveal in Windows Explorer"
+            >
+              <FolderSearch size={14} />
+            </button>
+            <span className="card-act-sep" />
+            <button
+              className={`card-act ${isFavorite ? 'on' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(item);
+              }}
+              title={isFavorite ? 'Unpin folder' : 'Pin folder'}
+              aria-label={isFavorite ? 'Unpin folder' : 'Pin folder'}
+            >
+              <Star size={14} fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
+            <CardLabel path={item.path} label={label} labelActions={labelActions} />
+          </div>
         </div>
 
         <div className="card-meta">
-          <span className="card-title" title={item.name}>
-            {item.name}
+          <CardTags tags={tags} />
+          <span className="card-chip">
+            {labelColor && <span className="card-dot" style={{ background: labelColor.hex }} />}
+            <FolderIcon item={item} size={13} className="card-chip-icon" />
+            <span className="card-title" title={item.name}>
+              {item.name}
+            </span>
           </span>
-          <div className="card-sub">
-            <span>Folder</span>
-          </div>
-          <CardTags tags={label?.tags || []} />
         </div>
       </div>
     );
   }
 
-  // FILE CARD (3D, HDR, EXR, IMAGE)
+  // FILE CARD
   const ext = (item.extension || '').replace(/^\./, '').toUpperCase();
   const badgeClass = getFileBadgeClass(item.extension);
+  const KindIcon = KIND_ICONS[item.category];
 
   return (
     <div
@@ -263,31 +350,15 @@ function AssetCard({
         className="card-preview"
         style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : { aspectRatio: '2 / 1' }}
       >
-        <span className={`card-badge ${badgeClass}`}>{ext || 'FILE'}</span>
-
-        {isComparableItem(item) && compareAssetA?.path === item.path && (
-          <span className="slot-badge-card slot-badge-a" style={{ left: 50 }}>
-            SLOT A
+        {/* Pro shows the extension; Simple shows a small kind icon on anything that is not a plain picture */}
+        <span className={`card-badge card-badge-ext ${badgeClass}`}>{ext || 'FILE'}</span>
+        {KindIcon && (
+          <span className="card-badge card-badge-kind" title={ext}>
+            <KindIcon size={12} />
           </span>
         )}
-        {isComparableItem(item) && compareAssetB?.path === item.path && (
-          <span className="slot-badge-card slot-badge-b" style={{ left: 50 }}>
-            SLOT B
-          </span>
-        )}
-
-        <button
-          className={`card-fav-btn ${isFavorite ? 'active' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite(item);
-          }}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
-        </button>
-
-        <CardLabel path={item.path} label={label} labelActions={labelActions} />
+        {check}
+        {marks}
 
         {thumbUrl ? (
           <img
@@ -299,111 +370,31 @@ function AssetCard({
             onError={() => setThumbUrl(null)}
           />
         ) : (
-          <div
-            className="card-placeholder-wrapper"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              height: '100%',
-              background: '#0d0d0d'
-            }}
-          >
-            {item.category === 'hdr' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <SunMedium size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === '3d' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <Box size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'image' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <ImageIcon size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'texture' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <Grid size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'video' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <Film size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'audio' && (
-              <div
-                className="card-placeholder-icon"
-                style={{ color: '#888888', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
-              >
-                <Music size={32} strokeWidth={1.2} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 10 }}>
-                  <span style={{ width: 2, height: 6, background: '#666', borderRadius: 1 }} />
-                  <span style={{ width: 2, height: 12, background: '#888', borderRadius: 1 }} />
-                  <span style={{ width: 2, height: 8, background: '#666', borderRadius: 1 }} />
-                  <span style={{ width: 2, height: 14, background: '#aaa', borderRadius: 1 }} />
-                  <span style={{ width: 2, height: 5, background: '#555', borderRadius: 1 }} />
-                </div>
-              </div>
-            )}
-            {item.category === 'pdf' && (
-              <div
-                className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}
-                style={{ color: '#888888' }}
-              >
-                <FileText size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'markdown' && (
-              <div className="card-placeholder-icon" style={{ color: '#888888' }}>
-                <BookOpen size={36} strokeWidth={1.2} />
-              </div>
-            )}
-            {item.category === 'other' && (
-              <div className="card-placeholder-icon">
-                <FileQuestion size={32} strokeWidth={1.2} />
-              </div>
-            )}
-
-            {isLoadingThumb && (
-              <div
-                style={{
-                  fontSize: 9,
-                  color: 'var(--text-muted)',
-                  marginTop: 4,
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                Loading...
-              </div>
-            )}
+          <div className="card-placeholder-wrapper">
+            <div className={`card-placeholder-icon ${isLoadingThumb ? 'pulse-anim' : ''}`}>
+              {item.category === 'audio' ? (
+                <>
+                  <Music size={32} strokeWidth={1.2} />
+                  <div className="card-wave">
+                    <span style={{ height: 6 }} />
+                    <span style={{ height: 12 }} />
+                    <span style={{ height: 8 }} />
+                    <span style={{ height: 14 }} />
+                    <span style={{ height: 5 }} />
+                  </div>
+                </>
+              ) : (
+                React.createElement(PLACEHOLDER_ICONS[item.category] || FileQuestion, { size: 36, strokeWidth: 1.2 })
+              )}
+            </div>
+            {isLoadingThumb && <div className="card-loading">Loading...</div>}
           </div>
         )}
 
-        {/* Hover Quick Actions: Open, set as A or B for Compare, reveal in Explorer */}
+        {/* Hover bar: open, set as A or B for Compare, open in its app, reveal, star, colour and tags */}
         <div className="card-actions">
           <button
-            className="card-act"
+            className="card-act primary"
             onClick={(e) => {
               e.stopPropagation();
               onOpen(item);
@@ -427,7 +418,7 @@ function AssetCard({
                 A
               </button>
               <button
-                className={`card-act letter ${compareAssetB?.path === item.path ? 'active' : ''}`}
+                className={`card-act letter b ${compareAssetB?.path === item.path ? 'active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onSetCompareB) onSetCompareB(item);
@@ -439,6 +430,20 @@ function AssetCard({
               </button>
             </>
           )}
+          <span className="card-act-sep" />
+          {onOpenExternal && (
+            <button
+              className="card-act"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenExternal(item);
+              }}
+              title="Open in its default app"
+              aria-label="Open in its default app"
+            >
+              <ExternalLink size={14} />
+            </button>
+          )}
           <button
             className="card-act"
             onClick={(e) => {
@@ -448,25 +453,36 @@ function AssetCard({
             title="Reveal in Windows Explorer"
             aria-label="Reveal in Windows Explorer"
           >
-            <ExternalLink size={14} />
+            <FolderSearch size={14} />
           </button>
+          <span className="card-act-sep" />
+          <button
+            className={`card-act ${isFavorite ? 'on' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(item);
+            }}
+            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star size={14} fill={isFavorite ? 'currentColor' : 'none'} />
+          </button>
+          <CardLabel path={item.path} label={label} labelActions={labelActions} />
         </div>
       </div>
 
-      {/* Compact Metadata Footer */}
+      {/* Name chip on the picture. Pro adds the size (or frame count) and the tags. */}
       <div className="card-meta">
-        <span className="card-title" title={item.name}>
-          {item.name}
+        <CardTags tags={tags} />
+        <span className="card-chip">
+          {labelColor && <span className="card-dot" style={{ background: labelColor.hex }} />}
+          <span className="card-title" title={item.name}>
+            {item.name}
+          </span>
+          <span className="card-sub" title={formatDate(item.modified)}>
+            {item.isSequence ? `${item.frameCount} frames` : formatBytes(item.size)}
+          </span>
         </span>
-        <div className="card-sub">
-          {item.isSequence ? (
-            <span>{item.frameCount} frames</span>
-          ) : (
-            <span>{formatBytes(item.size)}</span>
-          )}
-          <span>{formatDate(item.modified).split(',')[0]}</span>
-        </div>
-        <CardTags tags={label?.tags || []} />
       </div>
     </div>
   );
@@ -497,7 +513,9 @@ export default function AssetGrid({
   onSortColumn,
   keyboardEnabled = true,
   onGoUp,
-  onOpenFolderMenu
+  onOpenFolderMenu,
+  onOpenExternal,
+  canPeekFolder
 }) {
   const wrapRef = useRef(null);
   const folderViewRef = useRef(folderView);
@@ -836,6 +854,8 @@ export default function AssetGrid({
             compareAssetB={compareAssetB}
             onSetCompareA={onSetCompareA}
             onSetCompareB={onSetCompareB}
+            onOpenExternal={onOpenExternal}
+            peekEnabled={item.isDirectory && (canPeekFolder ? canPeekFolder(item.path) : true)}
           />
         ))}
         {virtual.bottomSpacer > 0 && <div style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />}

@@ -16,7 +16,9 @@ import FileTransferPanel from './components/FileTransferPanel';
 import { useFileTransfers } from './hooks/useFileTransfers';
 import { copyText, isRootLocation } from './utils/itemMenu';
 import SortMenu from './components/SortMenu';
-import StatusBar from './components/StatusBar';
+import FilterDock from './components/FilterDock';
+import { useFolderStatus } from './utils/folderStatus';
+import { forgetFolderPeek } from './utils/folderPeek';
 import { isTextEntryTarget } from './utils/quickLook';
 import { FolderIconsContext, useFolderIconStore, normalizeFolderKey } from './utils/folderIconStore';
 import {
@@ -518,6 +520,8 @@ export default function App() {
     if (!window.electronAPI || !currentPathRef.current) return;
     const seq = navSeqRef.current;
     const startPath = currentPathRef.current;
+    // Folder tiles show what is inside them now
+    forgetFolderPeek();
     setIsRefreshing(true);
     try {
       let target = startPath;
@@ -1305,6 +1309,26 @@ export default function App() {
   // Only a selection that is in the folder on screen is shown in the status bar
   const selectionInFolder = selectedAsset ? displayedItems.find((item) => item.path === selectedAsset.path) || null : null;
 
+  // Counts, size, selection and free space for the toolbar's subtitle
+  const folderStatus = useFolderStatus({
+    items: displayedItems,
+    filtered: filterType !== 'all' || !!searchTerm.trim() || showFavoritesOnly || isLabelFilterActive(labelFilter),
+    selectedItem: selectionInFolder,
+    selectedPaths,
+    drives,
+    currentPath
+  });
+
+  // Folder tiles peek inside local folders only: a network share can be slow, and the grid must not wait on it
+  const canPeekFolder = useCallback(
+    (path) => {
+      if (/^[\\/]{2}/.test(path)) return false;
+      const letter = path.slice(0, 2).toUpperCase();
+      return !drives.some((d) => d.isNetwork && (d.mount || '').toUpperCase().startsWith(letter));
+    },
+    [drives]
+  );
+
   // Items that leave the folder on screen (a new folder, a filter, Favorites only) drop out of the multi-selection
   useEffect(() => {
     setSelectedPaths((prev) => {
@@ -1454,10 +1478,6 @@ export default function App() {
           <Header
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            filterType={filterType}
-            setFilterType={setFilterType}
-            showFavoritesOnly={showFavoritesOnly}
-            setShowFavoritesOnly={setShowFavoritesOnly}
             labelFilter={labelFilter}
             setLabelFilter={setLabelFilter}
             labelTags={labelTags}
@@ -1466,7 +1486,6 @@ export default function App() {
             searchInputRef={searchInputRef}
             uiMode={uiMode}
             onChangeUiMode={changeUiMode}
-            kindCounts={kindCounts}
             navNode={
               <>
             <button
@@ -1516,37 +1535,57 @@ export default function App() {
               />
             )}
 
-            {!isEditingPath && breadcrumbs.map((crumb, idx) => (
-              <React.Fragment key={crumb.path}>
-                <span
-                  className={`breadcrumb-crumb ${idx === breadcrumbs.length - 1 && viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (viewMode !== 'grid') {
-                      setViewMode('grid');
-                    }
-                    if (crumb.path !== currentPath) {
-                      navigateTo(crumb.path);
-                    }
-                  }}
-                  title={`Open folder: ${crumb.name}`}
-                >
-                  {crumb.name}
-                </span>
-                {(idx < breadcrumbs.length - 1 || (viewMode !== 'grid' && selectedAsset)) && (
-                  <span className="breadcrumb-separator">/</span>
-                )}
-              </React.Fragment>
-            ))}
-
-            {!isEditingPath && viewMode !== 'grid' && selectedAsset && (
-              <span
-                className="breadcrumb-crumb active"
-                style={{ cursor: 'default', color: 'var(--text-main)', fontWeight: 600 }}
-                title={selectedAsset.name}
-              >
-                {selectedAsset.name}
-              </span>
-            )}
+            {!isEditingPath && (() => {
+              // Title: the open folder (or the file in the viewer). Below it: the folders above it, one click each,
+              // then what the folder holds and the room left on the drive.
+              const here = breadcrumbs[breadcrumbs.length - 1];
+              const inViewer = viewMode !== 'grid' && selectedAsset;
+              const parents = inViewer ? breadcrumbs : breadcrumbs.slice(0, -1);
+              const status =
+                viewMode === 'grid'
+                  ? [
+                      folderStatus.countText,
+                      uiMode === 'pro' ? folderStatus.sizeText : '',
+                      folderStatus.freeText,
+                      folderStatus.selectionText
+                    ].filter(Boolean)
+                  : [];
+              return (
+                <div className="tb-title">
+                  <span className="tb-title-name" title={inViewer ? selectedAsset.name : here?.path || ''}>
+                    {inViewer ? selectedAsset.name : here?.name || 'Open a folder'}
+                  </span>
+                  {(parents.length > 0 || status.length > 0) && (
+                    <span className="tb-title-sub">
+                      {parents.map((crumb, idx) => (
+                        <React.Fragment key={crumb.path}>
+                          {idx > 0 && <ChevronRight size={10} className="tb-crumb-sep" />}
+                          <button
+                            className="tb-crumb"
+                            onClick={() => {
+                              if (viewMode !== 'grid') setViewMode('grid');
+                              if (crumb.path !== currentPath) navigateTo(crumb.path);
+                            }}
+                            title={`Open folder: ${crumb.path}`}
+                          >
+                            {crumb.name}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                      {status.length > 0 && (
+                        <span
+                          className="tb-status"
+                          title={[folderStatus.countText, folderStatus.detailText, folderStatus.diskText].filter(Boolean).join('\n')}
+                        >
+                          {parents.length > 0 ? ' · ' : ''}
+                          {status.join(' · ')}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {!isEditingPath && (
               // Empty space in the bar starts typing a path, like File Explorer's address bar
@@ -1636,149 +1675,183 @@ export default function App() {
             }
           />
 
-          {/* Dynamic Views */}
+          {/* The folder: tiles with the filter dock floating over them, and the Inspector beside them */}
           {viewMode === 'grid' && (
-            <AssetGrid
-              items={displayedItems}
-              selectedItem={selectedAsset}
-              selectedPaths={selectedPaths}
-              cutPaths={cutPaths}
-              onSelect={(item) => setSelectedAsset(item)}
-              onSelectionChange={setSelection}
-              onOpen={(item) => {
-                if (item.isDirectory) {
-                  navigateTo(item.path);
-                } else {
-                  openAsset(item);
-                }
-              }}
-              onToggleFavorite={handleToggleFavorite}
-              favorites={favorites}
-              onRevealInExplorer={handleRevealInExplorer}
-              onAddToCompare={handleAddToCompare}
-              compareAssetA={compareAssetA}
-              compareAssetB={compareAssetB}
-              onSetCompareA={handleSetCompareA}
-              onSetCompareB={handleSetCompareB}
-              labels={fileLabels.labels}
-              labelActions={fileLabels}
-              gridSize={gridSize}
-              onGridSizeChange={handleGridSizeChange}
-              folderView={folderView}
-              sort={sort}
-              onSortColumn={(key) => handleSortChange(sortByColumn(sort, key))}
-              keyboardEnabled={!isWindowOpen && !isEditingPath}
-              onGoUp={goUp}
-              onOpenFolderMenu={openFolderMenu}
-            />
-          )}
+            <div className="grid-row">
+              <div className="grid-stage">
+                {/* Dynamic Views */}
+                {viewMode === 'grid' && (
+                  <AssetGrid
+                    items={displayedItems}
+                    selectedItem={selectedAsset}
+                    selectedPaths={selectedPaths}
+                    cutPaths={cutPaths}
+                    onSelect={(item) => setSelectedAsset(item)}
+                    onSelectionChange={setSelection}
+                    onOpen={(item) => {
+                      if (item.isDirectory) {
+                        navigateTo(item.path);
+                      } else {
+                        openAsset(item);
+                      }
+                    }}
+                    onToggleFavorite={handleToggleFavorite}
+                    favorites={favorites}
+                    onRevealInExplorer={handleRevealInExplorer}
+                    onAddToCompare={handleAddToCompare}
+                    compareAssetA={compareAssetA}
+                    compareAssetB={compareAssetB}
+                    onSetCompareA={handleSetCompareA}
+                    onSetCompareB={handleSetCompareB}
+                    labels={fileLabels.labels}
+                    labelActions={fileLabels}
+                    gridSize={gridSize}
+                    onGridSizeChange={handleGridSizeChange}
+                    folderView={folderView}
+                    sort={sort}
+                    onSortColumn={(key) => handleSortChange(sortByColumn(sort, key))}
+                    keyboardEnabled={!isWindowOpen && !isEditingPath}
+                    onGoUp={goUp}
+                    onOpenFolderMenu={openFolderMenu}
+                    onOpenExternal={handleOpenExternal}
+                    canPeekFolder={canPeekFolder}
+                  />
+                )}
 
-          {viewMode === 'grid' && (
-            <StatusBar
-              items={displayedItems}
-              filtered={filterType !== 'all' || !!searchTerm.trim() || showFavoritesOnly || isLabelFilterActive(labelFilter)}
-              selectedItem={selectionInFolder}
-              selectedPaths={selectedPaths}
-              drives={drives}
-              currentPath={currentPath}
-            />
-          )}
+                {viewMode === 'grid' && (
+                  <FilterDock
+                    uiMode={uiMode}
+                    filterType={filterType}
+                    setFilterType={setFilterType}
+                    showFavoritesOnly={showFavoritesOnly}
+                    setShowFavoritesOnly={setShowFavoritesOnly}
+                    kindCounts={kindCounts}
+                    gridSize={gridSize}
+                    onGridSizeChange={handleGridSizeChange}
+                    showZoom={folderView === 'icons'}
+                  />
+                )}
 
-          {/* Floating Compare Dock (Displays active Slot A and Slot B selections) */}
-          {viewMode === 'grid' && (compareAssetA || compareAssetB) && (
-            <div className="floating-compare-dock">
-              <div
-                className="dock-slot"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'copy';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const data = e.dataTransfer.getData('application/json');
-                  if (data) {
-                    try {
-                      const item = JSON.parse(data);
-                      if (item && isComparableItem(item)) setCompareAssetA(item);
-                    } catch (_) {}
-                  }
-                }}
-              >
-                <span className="dock-slot-tag a">SLOT A</span>
-                <span className="dock-name" title={compareAssetA?.name || 'Not assigned'}>
-                  {compareAssetA ? compareAssetA.name : 'Select asset for A'}
-                </span>
-                {compareAssetA && (
-                  <button
-                    className="dock-clear-btn"
-                    onClick={() => setCompareAssetA(null)}
-                    title="Clear Slot A"
-                  >
-                    ✕
-                  </button>
+                {/* Floating Compare Dock (Displays active Slot A and Slot B selections) */}
+                {viewMode === 'grid' && (compareAssetA || compareAssetB) && (
+                  <div className="floating-compare-dock">
+                    <div
+                      className="dock-slot"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const data = e.dataTransfer.getData('application/json');
+                        if (data) {
+                          try {
+                            const item = JSON.parse(data);
+                            if (item && isComparableItem(item)) setCompareAssetA(item);
+                          } catch (_) {}
+                        }
+                      }}
+                    >
+                      <span className="dock-slot-tag a">SLOT A</span>
+                      <span className="dock-name" title={compareAssetA?.name || 'Not assigned'}>
+                        {compareAssetA ? compareAssetA.name : 'Select asset for A'}
+                      </span>
+                      {compareAssetA && (
+                        <button
+                          className="dock-clear-btn"
+                          onClick={() => setCompareAssetA(null)}
+                          title="Clear Slot A"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      className="icon-btn"
+                      style={{ width: 28, height: 28, background: '#1c1c1c' }}
+                      onClick={handleSwapCompareSlots}
+                      title="Swap Slot A and Slot B"
+                    >
+                      <ArrowLeftRight size={13} color="#ffffff" />
+                    </button>
+
+                    <div
+                      className="dock-slot"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const data = e.dataTransfer.getData('application/json');
+                        if (data) {
+                          try {
+                            const item = JSON.parse(data);
+                            if (item && isComparableItem(item)) setCompareAssetB(item);
+                          } catch (_) {}
+                        }
+                      }}
+                    >
+                      <span className="dock-slot-tag b">SLOT B</span>
+                      <span className="dock-name" title={compareAssetB?.name || 'Not assigned'}>
+                        {compareAssetB ? compareAssetB.name : 'Select asset for B'}
+                      </span>
+                      {compareAssetB && (
+                        <button
+                          className="dock-clear-btn"
+                          onClick={() => setCompareAssetB(null)}
+                          title="Clear Slot B"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      className="dock-launch-btn"
+                      onClick={() => setViewMode('compare')}
+                      title="Launch Comparison"
+                    >
+                      <Split size={14} />
+                      <span>Compare</span>
+                    </button>
+
+                    <button
+                      className="icon-btn"
+                      style={{ width: 26, height: 26, color: '#888888' }}
+                      onClick={handleClearCompareSlots}
+                      title="Clear Compare Selection"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <button
-                className="icon-btn"
-                style={{ width: 28, height: 28, background: '#1c1c1c' }}
-                onClick={handleSwapCompareSlots}
-                title="Swap Slot A and Slot B"
-              >
-                <ArrowLeftRight size={13} color="#ffffff" />
-              </button>
-
-              <div
-                className="dock-slot"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'copy';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const data = e.dataTransfer.getData('application/json');
-                  if (data) {
-                    try {
-                      const item = JSON.parse(data);
-                      if (item && isComparableItem(item)) setCompareAssetB(item);
-                    } catch (_) {}
-                  }
-                }}
-              >
-                <span className="dock-slot-tag b">SLOT B</span>
-                <span className="dock-name" title={compareAssetB?.name || 'Not assigned'}>
-                  {compareAssetB ? compareAssetB.name : 'Select asset for B'}
-                </span>
-                {compareAssetB && (
-                  <button
-                    className="dock-clear-btn"
-                    onClick={() => setCompareAssetB(null)}
-                    title="Clear Slot B"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              <button
-                className="dock-launch-btn"
-                onClick={() => setViewMode('compare')}
-                title="Launch Comparison"
-              >
-                <Split size={14} />
-                <span>Compare</span>
-              </button>
-
-              <button
-                className="icon-btn"
-                style={{ width: 26, height: 26, color: '#888888' }}
-                onClick={handleClearCompareSlots}
-                title="Clear Compare Selection"
-              >
-                ✕
-              </button>
+              {/* File details beside the grid: the selected file or folder, read without opening it */}
+              {viewMode === 'grid' && inspectorOpen && (
+                <Suspense fallback={null}>
+                  <InspectorDrawer
+                    item={selectionInFolder}
+                    onClose={() => setInspectorOpen(false)}
+                    onOpen={(item) => (item.isDirectory ? navigateTo(item.path) : openAsset(item))}
+                    onReveal={handleRevealInExplorer}
+                    compareAssetA={compareAssetA}
+                    compareAssetB={compareAssetB}
+                    onSetCompareA={handleSetCompareA}
+                    onSetCompareB={handleSetCompareB}
+                    textureSet={selectionInFolder && !selectionInFolder.isDirectory ? findTextureSet(selectionInFolder, folderItems) : null}
+                    onViewTextureSet={(set) => setTextureSet(set)}
+                    externalApps={externalApps}
+                    onSendToApp={handleSendToApp}
+                    label={selectionInFolder ? labelFor(fileLabels.labels, selectionInFolder.path) : null}
+                    labelActions={fileLabels}
+                  />
+                </Suspense>
+              )}
             </div>
           )}
 
@@ -1897,12 +1970,6 @@ export default function App() {
           </Suspense>
         </div>
 
-        {/* File details beside the grid: the selected file or folder, read without opening it */}
-        {viewMode === 'grid' && inspectorOpen && (
-          <Suspense fallback={null}>
-            <InspectorDrawer item={selectionInFolder} onClose={() => setInspectorOpen(false)} />
-          </Suspense>
-        )}
       </div>
 
       {/* Settings Modal */}

@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.21.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.22.0.
 order: 2
 ---
 
-The current version is **1.21.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.22.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -51,6 +51,8 @@ The current version is **1.21.0**. This list groups the changes by what you see 
 ## Looks
 
 - A new cleaner look with a Simple and Pro mode.
-
+- Edge-to-edge tiles with the file name always shown, small pictures from inside each folder, and Compare A/B and stars that stay on the tile.
+- Drives in the Simple side rail, the folder path and free space under the folder name, and the file filters in a dock at the bottom with a tile size slider.
+- A richer Inspector: colour channel buttons, the texture set, colour labels and tags, and Send to apps.
 - Four colour themes: Obsidian Dark, Dark Gray, True Black and Light.
 - Inspector drawer that can be resized by dragging its edge.
