@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.20.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.21.0.
 order: 2
 ---
 
-The current version is **1.20.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.21.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -49,6 +49,8 @@ The current version is **1.20.0**. This list groups the changes by what you see 
 - Thumbnail cache with a clear button in Settings.
 
 ## Looks
+
+- A new cleaner look with a Simple and Pro mode.
 
 - Four colour themes: Obsidian Dark, Dark Gray, True Black and Light.
 - Inspector drawer that can be resized by dragging its edge.

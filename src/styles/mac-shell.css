@@ -1,0 +1,899 @@
+/*
+ * Mac-style shell: floating toolbar, side rail / sidebar, borderless tiles, quiet status line.
+ * Loaded after index.css, so it restyles the pieces that file defines. Colours come from the same
+ * theme tokens (dark, gray, oled, light), plus the few new tokens below.
+ */
+
+:root {
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.22);
+  --seg-bg: rgba(255, 255, 255, 0.08);
+  --seg-active: rgba(255, 255, 255, 0.17);
+  --topbar-bg: rgba(26, 26, 26, 0.86);
+  --sidebar-bg: #121212;
+  --card-bg: #141414;
+  --topbar-shadow: var(--shadow-md);
+
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+[data-theme='light'] {
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, 0.16);
+  --seg-bg: rgba(0, 0, 0, 0.06);
+  --seg-active: #ffffff;
+  --topbar-bg: rgba(255, 255, 255, 0.88);
+  --sidebar-bg: #ececec;
+  --card-bg: #e6e6e6;
+  --topbar-shadow: 0 2px 14px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='gray'] {
+  --topbar-bg: rgba(52, 52, 52, 0.88);
+  --sidebar-bg: #303030;
+  --card-bg: #383838;
+}
+
+[data-theme='oled'] {
+  --topbar-bg: rgba(10, 10, 10, 0.9);
+  --sidebar-bg: #000000;
+  --card-bg: #0d0d0d;
+}
+
+/* ---------- Floating toolbar ---------- */
+
+.topbar-area {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 4px;
+  position: relative;
+  z-index: 30;
+}
+
+.topbar {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  border-radius: 24px;
+  background: var(--topbar-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--topbar-shadow);
+  backdrop-filter: blur(24px) saturate(1.5);
+  font-size: 13px;
+}
+
+.tb-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.tb-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.tb-kinds {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--seg-bg);
+  flex: none;
+}
+
+.seg-btn,
+.mode-btn {
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.seg-btn:hover,
+.mode-btn:hover {
+  color: var(--text-main);
+}
+
+.seg-btn.active,
+.mode-btn.active {
+  background: var(--seg-active);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+
+.tb-more {
+  position: relative;
+  display: flex;
+}
+
+.tb-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 190px;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+
+.tb-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tb-popover-item:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.tb-popover-item.active {
+  color: var(--accent);
+}
+
+.tb-popover-item.active:hover {
+  color: #ffffff;
+}
+
+.tb-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.tb-search {
+  position: relative;
+  flex: 0 1 170px;
+  min-width: 110px;
+}
+
+.tb-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.tb-search-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 26px 0 28px;
+  border: none;
+  border-radius: 9px;
+  background: var(--seg-bg);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  user-select: text;
+}
+
+.tb-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.tb-search-input:focus {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.tb-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mode-switch {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--seg-bg);
+  flex: none;
+}
+
+.mode-btn {
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+/* Controls that moved into the toolbar lose their frames */
+.topbar .icon-btn {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.topbar .icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.topbar .icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.topbar .icon-btn.active,
+.topbar .label-filter-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.topbar .sort-btn {
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.topbar .view-switcher {
+  background: var(--seg-bg);
+  border: none;
+  border-radius: 9px;
+  padding: 2px;
+  gap: 1px;
+}
+
+.topbar .view-switch-btn {
+  width: 30px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.topbar .view-switch-btn.active {
+  background: var(--seg-active);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+
+.topbar .breadcrumb-crumb {
+  font-size: 13px;
+}
+
+.topbar .breadcrumb-crumb:hover {
+  color: var(--text-main);
+}
+
+.topbar .breadcrumb-crumb.active {
+  color: var(--text-main);
+  font-weight: 650;
+}
+
+.topbar .path-input {
+  height: 30px;
+  border-radius: 9px;
+  border-color: var(--accent);
+}
+
+/* Pro mode: every kind of file, with how many the folder holds */
+.filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 18px;
+  background: var(--topbar-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--topbar-shadow);
+  backdrop-filter: blur(24px) saturate(1.5);
+  max-width: 100%;
+}
+
+.strip-btn {
+  height: 28px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.strip-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.strip-btn em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.strip-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.strip-btn.active em {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ---------- Side rail (Simple) and sidebar (Pro) ---------- */
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: none;
+}
+
+.sidebar-pro {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.sidebar-brand {
+  height: 58px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: #ffffff;
+  background: linear-gradient(145deg, #6cb8ff, #2d6fe8);
+}
+
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  margin: 6px 0 3px;
+  padding: 0 8px;
+  height: 20px;
+}
+
+.section-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.section-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.section-action:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+}
+
+.nav-item.active {
+  background: var(--bg-active);
+  color: var(--text-main);
+}
+
+.nav-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.nav-trail {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.nav-empty {
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.nav-remove {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.nav-item:hover .nav-remove,
+.nav-remove.pinned {
+  opacity: 1;
+}
+
+.nav-remove.pinned {
+  color: var(--accent);
+}
+
+.sidebar-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.foot-btn {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.foot-btn.icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.foot-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.foot-blender {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.foot-blender:hover {
+  color: var(--text-main);
+}
+
+.blender-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: none;
+}
+
+.blender-dot.ready {
+  background: #30d158;
+}
+
+.blender-dot.rail {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+}
+
+.sidebar-rail {
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  padding: 12px 0;
+  gap: 6px;
+  align-items: center;
+  overflow: visible;
+}
+
+.rail-brand {
+  margin: 2px 0 10px;
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+.rail-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 11px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.rail-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.rail-btn.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
+.rail-flyout {
+  position: fixed;
+  left: 72px;
+  top: 12px;
+  bottom: 12px;
+  width: 276px;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--topbar-bg);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(30px) saturate(1.6);
+  z-index: 80;
+  animation: flyoutIn 0.14s ease-out;
+}
+
+@keyframes flyoutIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ---------- Tiles ---------- */
+
+.grid-container {
+  padding-bottom: 70px;
+}
+
+.asset-card {
+  background: var(--card-bg);
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  transition: box-shadow 0.15s ease;
+}
+
+.asset-card:hover {
+  transform: none;
+  border: none;
+  box-shadow: 0 0 0 1px var(--border-medium), var(--shadow-md);
+}
+
+.asset-card.selected {
+  border: none;
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.card-preview {
+  background: var(--card-bg);
+}
+
+.card-thumb-image,
+.card-preview img {
+  background: var(--card-bg);
+}
+
+.folder-preview {
+  background: var(--card-bg) !important;
+}
+
+/* Name and details sit on the picture, so every tile is just its preview */
+.asset-card .card-meta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 26px 11px 9px;
+  gap: 2px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.82) 70%);
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.card-title {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
+.card-sub {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.card-tag {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.card-badge {
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+  background: rgba(30, 30, 34, 0.55);
+  border: none;
+  backdrop-filter: blur(12px);
+}
+
+.card-fav-btn {
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 30, 34, 0.6);
+}
+
+.card-label-btn {
+  right: 40px;
+}
+
+.card-fav-btn.active {
+  background: rgba(30, 30, 34, 0.6);
+  color: #ffd60a;
+}
+
+/* Hover bar: Open, set as A or B, reveal in Explorer */
+.card-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  transform: translate(-50%, 4px);
+  display: flex;
+  gap: 1px;
+  max-width: calc(100% - 12px);
+  padding: 3px;
+  border-radius: 16px;
+  background: rgba(28, 28, 32, 0.72);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 8;
+}
+
+.asset-card:hover .card-actions {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.card-act {
+  width: 30px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 13px;
+  background: none;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.card-act:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.card-act.letter.active {
+  background: var(--accent);
+}
+
+/* Slot badges and the details list pick up the accent too */
+.details-row.selected {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.details-row {
+  border-radius: 8px;
+}
+
+/* ---------- Status line: a quiet pill at the bottom ---------- */
+
+.status-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  height: 30px;
+  min-height: 30px;
+  padding: 0 16px;
+  gap: 14px;
+  border: none;
+  border-radius: 15px;
+  background: var(--topbar-bg);
+  box-shadow: 0 0 0 0.5px var(--border-medium), var(--topbar-shadow);
+  backdrop-filter: blur(24px) saturate(1.5);
+  z-index: 25;
+}
+
+.status-counts {
+  flex: 0 1 auto;
+}
+
+.floating-compare-dock {
+  bottom: 60px;
+}
+
+/* ---------- Menus and buttons ---------- */
+
+.context-menu {
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.context-menu-item {
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.12);
+}
+
+.btn-secondary,
+.btn-danger {
+  border-radius: var(--radius-sm);
+}
+
+.modal-card {
+  border-radius: var(--radius-lg);
+}
