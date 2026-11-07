@@ -32,6 +32,7 @@ import {
 import ModelOutliner from './ModelOutliner';
 import UvView from './UvView';
 import '../styles/viewport-panels.css';
+import '../styles/viewer3d.css';
 import {
   RotateCw,
   Sun,
@@ -45,10 +46,14 @@ import {
   ExternalLink,
   ListTree,
   Spline,
-  Palette,
   Grid2x2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronDown,
+  FolderSearch,
+  PanelRight,
+  X
 } from 'lucide-react';
+import { formatBytes, formatDate } from '../utils/formatHelpers';
 
 // Every triangle edge, for very dense models and as the fallback.
 // Pre-allocates a contiguous Uint32Array (no V8 array reallocations / 1.5GB heap spikes).
@@ -133,6 +138,56 @@ function getOrCreateWireframeHelper(mesh) {
 
 // Option styling shared by the HUD dropdowns
 const OPTION_STYLE = { color: '#000000', backgroundColor: '#ffffff' };
+
+// Model panel (Pro) open or closed, remembered between models and sessions
+const PANEL_KEY = 'cg_artist_viewer3d_panel';
+const readPanelOpen = () => {
+  try {
+    return localStorage.getItem(PANEL_KEY) !== '0';
+  } catch {
+    return true;
+  }
+};
+
+// 20800 -> 20.8k, for the stat tiles
+const compactNumber = (n) => {
+  if (!Number.isFinite(n)) return '-';
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e4) return `${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}k`;
+  return n.toLocaleString();
+};
+
+// A pick in the bottom dock: the current value on top, what it sets underneath
+function DockPick({ caption, title, value, onChange, children, disabled }) {
+  return (
+    <label className={`v3d-pick ${disabled ? 'dim' : ''}`} title={title}>
+      <span className="v3d-pick-value">
+        <select value={value} onChange={onChange}>
+          {children}
+        </select>
+        <ChevronDown size={12} className="v3d-pick-chevron" />
+      </span>
+      <span className="v3d-cap">{caption}</span>
+    </label>
+  );
+}
+
+// An on / off row in the Model panel
+function PanelToggle({ label, on, onChange, title, dim }) {
+  return (
+    <button
+      type="button"
+      className={`v3d-toggle ${on ? 'on' : ''} ${dim ? 'dim' : ''}`}
+      onClick={() => onChange(!on)}
+      title={title}
+      role="switch"
+      aria-checked={on}
+    >
+      <span>{label}</span>
+      <span className="v3d-switch" />
+    </button>
+  );
+}
 const MATCAP_PREFIX = 'matcap:';
 
 // `onViewChange(viewState)` fires whenever the camera moves or its lens/projection
@@ -142,9 +197,19 @@ export default function Viewport3D({
   asset,
   onClose,
   onRevealInExplorer,
+  onOpenExternal,
   onViewChange,
   viewApiRef
 }) {
+  const [panelOpen, setPanelOpenState] = useState(readPanelOpen);
+  const setPanelOpen = (open) => {
+    setPanelOpenState(open);
+    try {
+      localStorage.setItem(PANEL_KEY, open ? '1' : '0');
+    } catch {
+      // Not remembered; the panel still opens and closes
+    }
+  };
   const containerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState('Loading 3D asset...');
@@ -371,6 +436,8 @@ export default function Viewport3D({
       resizeRig(rigRef.current, w, h);
       rendererRef.current.setSize(w, h);
       rendererRef.current.shadowMap.needsUpdate = true;
+      // setSize clears the canvas, so draw again (the viewer only draws when something changed)
+      needsRenderRef.current = true;
     });
 
     resizeObserver.observe(containerRef.current);
@@ -1050,32 +1117,31 @@ export default function Viewport3D({
   };
 
   return (
-    <div className="viewport-wrapper">
+    <div
+      className={`viewport-wrapper v3d ${panelOpen && stats ? 'panel-open' : ''} ${outlinerOpen && modelRoot ? 'outliner-open' : ''}`}
+    >
       <div ref={containerRef} className="canvas-container" />
 
-      {/* Floating HUD Toolbar */}
-      <div className="viewport-hud">
-        {/* Turntable */}
+      {/* Bottom dock: view toggles, look and light, camera, then actions. Pro adds Normals, UV, light angle and camera. */}
+      <div className={`viewport-hud v3d-dock ${panelOpen ? 'with-panel' : ''}`}>
         <button
           className={`hud-btn ${turntable ? 'active' : ''}`}
           onClick={() => setTurntable(!turntable)}
           title="Auto Turntable Spin"
         >
-          <RotateCw size={14} className={turntable ? 'spin-icon' : ''} />
+          <RotateCw size={16} className={turntable ? 'spin-icon' : ''} />
           <span className="hud-label">Turntable</span>
         </button>
 
-        {/* Grid Toggle */}
         <button
           className={`hud-btn ${showGrid ? 'active' : ''}`}
           onClick={() => setShowGrid(!showGrid)}
           title="Toggle Ground Grid"
         >
-          <Grid size={14} />
+          <Grid size={16} />
           <span className="hud-label">Grid</span>
         </button>
 
-        {/* Wireframe Overlay Toggle */}
         <button
           className={`hud-btn ${showWireframe || renderMode === 'wire_overlay' || renderMode === 'wireframe' ? 'active' : ''}`}
           onClick={() => {
@@ -1088,8 +1154,28 @@ export default function Viewport3D({
           }}
           title="Toggle Wireframe Overlay"
         >
-          <Box size={14} />
+          <Box size={16} />
           <span className="hud-label">Wireframe</span>
+        </button>
+
+        {/* Normals: soften / harden edges by angle, like Maya */}
+        <button
+          className={`hud-btn v3d-pro ${normalMode === 'angle' || normalsPanelOpen ? 'active' : ''}`}
+          onClick={() => setNormalsPanelOpen(!normalsPanelOpen)}
+          title="Normals: soften or harden edges by angle, like Maya. The file is not changed."
+        >
+          <SlidersHorizontal size={16} />
+          <span className="hud-label">Normals</span>
+        </button>
+
+        {/* UV layout of the model or the object picked in the outliner (U key) */}
+        <button
+          className={`hud-btn v3d-pro ${uvOpen ? 'active' : ''}`}
+          onClick={() => setUvOpen(!uvOpen)}
+          title="UV view: show the UV layout (U key)"
+        >
+          <Grid2x2 size={16} />
+          <span className="hud-label">UV</span>
         </button>
 
         {/* Smooth preview: subdivided display copy of the meshes (3 key, like Maya) */}
@@ -1098,50 +1184,15 @@ export default function Viewport3D({
           onClick={() => setSmoothPreview(!smoothPreview)}
           title="Smooth preview: show the meshes smoothed, wireframe stays on the original cage (3 key, like Maya). The file is not changed."
         >
-          <Spline size={14} />
+          <Spline size={16} />
           <span className="hud-label">Smooth</span>
-        </button>
-
-        {/* Normals: soften / harden edges by angle, like Maya */}
-        <button
-          className={`hud-btn ${normalMode === 'angle' || normalsPanelOpen ? 'active' : ''}`}
-          onClick={() => setNormalsPanelOpen(!normalsPanelOpen)}
-          title="Normals: soften or harden edges by angle, like Maya. The file is not changed."
-        >
-          <SlidersHorizontal size={14} />
-          <span className="hud-label">Normals</span>
-        </button>
-
-        {/* UV layout of the model or the object picked in the outliner (U key) */}
-        <button
-          className={`hud-btn ${uvOpen ? 'active' : ''}`}
-          onClick={() => setUvOpen(!uvOpen)}
-          title="UV view: show the UV layout (U key)"
-        >
-          <Grid2x2 size={14} />
-          <span className="hud-label">UV</span>
-        </button>
-
-        {/* Random colour per mesh, to tell the parts apart (C key) */}
-        <button
-          className={`hud-btn ${randomColors ? 'active' : ''}`}
-          onClick={() => setRandomColors(!randomColors)}
-          style={{ opacity: colorsAffectShading || !randomColors ? 1 : 0.5 }}
-          title={
-            colorsAffectShading
-              ? 'Random colour per mesh (C key)'
-              : 'Random colours show in Shaded, Clay and Wireframe Overlay modes'
-          }
-        >
-          <Palette size={14} />
-          <span className="hud-label">Colors</span>
         </button>
 
         <div className="hud-divider" />
 
-        {/* Shading Mode */}
-        <select
-          className="hud-btn"
+        <DockPick
+          caption="Look"
+          title="Shading mode"
           value={renderMode}
           onChange={(e) => {
             const mode = e.target.value;
@@ -1150,142 +1201,105 @@ export default function Viewport3D({
               setShowWireframe(true);
             }
           }}
-          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
-          title="Shading Mode"
         >
-          <option value="lit" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Shaded (PBR Material)</option>
-          <option value="clay" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Clay Studio</option>
-          <option value="normals" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Normal Vectors</option>
-          <option value="wire_overlay" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Wireframe Overlay</option>
-          <option value="wireframe" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Pure Wireframe</option>
+          <option value="lit" style={OPTION_STYLE}>Shaded</option>
+          <option value="clay" style={OPTION_STYLE}>Clay</option>
+          <option value="normals" style={OPTION_STYLE}>Normals</option>
+          <option value="wire_overlay" style={OPTION_STYLE}>Wire overlay</option>
+          <option value="wireframe" style={OPTION_STYLE}>Wireframe</option>
           <optgroup label="MatCap" style={OPTION_STYLE}>
             {MATCAP_OPTIONS.map((m) => (
               <option key={m.id} value={`${MATCAP_PREFIX}${m.id}`} style={OPTION_STYLE}>
-                MatCap · {m.label}
+                MatCap {m.label}
               </option>
             ))}
           </optgroup>
-        </select>
+        </DockPick>
 
-        {/* Lighting & Environment Presets */}
-        <select
-          className="hud-btn"
+        <DockPick
+          caption="Light"
+          title="Lighting and environment rig"
           value={lightingPreset}
           onChange={(e) => setLightingPreset(e.target.value)}
-          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
-          title="Lighting & Environment Rig"
+          disabled={!lightsAffectShading}
         >
-          <option value="studio" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Studio Softbox</option>
-          <option value="neutral" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Neutral White</option>
-          <option value="high_contrast" style={{ color: '#000000', backgroundColor: '#ffffff' }}>High Contrast Sun</option>
-          <option value="rim_only" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Rim / Silhouette</option>
-        </select>
+          <option value="studio" style={OPTION_STYLE}>Studio</option>
+          <option value="neutral" style={OPTION_STYLE}>Neutral</option>
+          <option value="high_contrast" style={OPTION_STYLE}>Sun</option>
+          <option value="rim_only" style={OPTION_STYLE}>Rim</option>
+        </DockPick>
 
-        {/* Light rig rotation (lights only; MatCap, normals and wireframe do not use them) */}
-        <label
-          className="hud-btn"
-          style={{ cursor: 'default', opacity: lightsAffectShading ? 1 : 0.5 }}
-          title={
-            lightsAffectShading
-              ? `Rotate lights around the model: ${lightAngle}° (double-click to reset)`
-              : 'Light rotation has no effect in this shading mode'
-          }
-        >
-          <Sun size={14} />
-          <span className="hud-label">Light</span>
-          <input
-            type="range"
-            className="scrubber-slider"
-            min="0"
-            max="360"
-            step="1"
-            value={lightAngle}
-            onChange={(e) => setLightAngle(Number(e.target.value))}
-            onDoubleClick={() => setLightAngle(0)}
-            style={{ flex: 'none', width: 70 }}
-          />
-        </label>
+        <span className="v3d-pro v3d-group">
+          <DockPick
+            caption="Camera"
+            title="Camera lens: perspective focal lengths or orthographic (numpad 5 toggles)"
+            value={cameraMode}
+            onChange={(e) => changeCameraMode(e.target.value)}
+          >
+            {cameraMode === 'custom' && (
+              <option value="custom" disabled style={OPTION_STYLE}>Custom lens</option>
+            )}
+            {CAMERA_MODES.map((m) => (
+              <option key={m.id} value={m.id} style={OPTION_STYLE}>{m.label}</option>
+            ))}
+          </DockPick>
+
+        </span>
 
         <div className="hud-divider" />
 
-        {/* Camera lens / projection */}
-        <select
-          className="hud-btn"
-          value={cameraMode}
-          onChange={(e) => changeCameraMode(e.target.value)}
-          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
-          title="Camera lens: perspective focal lengths or orthographic (numpad 5 toggles)"
-        >
-          {cameraMode === 'custom' && (
-            <option value="custom" disabled style={OPTION_STYLE}>Custom lens</option>
-          )}
-          {CAMERA_MODES.map((m) => (
-            <option key={m.id} value={m.id} style={OPTION_STYLE}>{m.label}</option>
-          ))}
-        </select>
-
-        {/* Snap to an axis view (numpad 1 / 3 / 7, Ctrl for the opposite side) */}
-        <select
-          className="hud-btn"
-          value={viewPreset}
-          onChange={(e) => snapView(e.target.value)}
-          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }}
-          title="Snap camera to an axis view (numpad 1 Front, 3 Right, 7 Top; Ctrl for Back / Left)"
-        >
-          <option value="free" style={OPTION_STYLE}>Free view</option>
-          <option value="front" style={OPTION_STYLE}>Front</option>
-          <option value="back" style={OPTION_STYLE}>Back</option>
-          <option value="left" style={OPTION_STYLE}>Left</option>
-          <option value="right" style={OPTION_STYLE}>Right</option>
-          <option value="top" style={OPTION_STYLE}>Top</option>
-        </select>
-
-        <div className="hud-divider" />
-
-        {/* Model outliner: prim tree with visibility toggles (O key) */}
-        <button
-          className={`hud-btn ${outlinerOpen ? 'active' : ''}`}
-          onClick={() => setOutlinerOpen(!outlinerOpen)}
-          title="Model outliner: prim tree with visibility toggles (O key)"
-        >
-          <ListTree size={14} />
-          <span className="hud-label">Outliner</span>
-        </button>
-
-        {/* Focus / Frame Camera */}
-        <button
-          className="hud-btn"
-          onClick={frameCurrentModel}
-          title="Focus / Frame Model (F key)"
-        >
-          <Maximize2 size={14} />
+        <button className="hud-btn" onClick={frameCurrentModel} title="Focus / Frame Model (F key)">
+          <Maximize2 size={16} />
           <span className="hud-label">Focus</span>
         </button>
 
-        {/* Screenshot */}
         <button
           className={`hud-btn ${snapshotFeedback ? 'active' : ''}`}
           onClick={captureSnapshot}
           title="Capture Snapshot PNG"
         >
-          {snapshotFeedback ? <Check size={14} color="#22c55e" /> : <Camera size={14} />}
-          <span className="hud-label">{snapshotFeedback ? 'Saved!' : 'Snapshot'}</span>
+          {snapshotFeedback ? <Check size={16} color="#22c55e" /> : <Camera size={16} />}
+          <span className="hud-label">{snapshotFeedback ? 'Saved' : 'Snapshot'}</span>
         </button>
 
         {onRevealInExplorer && (
-          <button
-            className="hud-btn"
-            onClick={() => onRevealInExplorer(asset.path)}
-            title="Reveal in Windows Explorer"
-          >
-            <ExternalLink size={13} />
-            <span className="hud-label">Explorer</span>
+          <button className="hud-btn" onClick={() => onRevealInExplorer(asset.path)} title="Reveal in Windows Explorer">
+            <FolderSearch size={16} />
+            <span className="hud-label">Reveal</span>
           </button>
         )}
 
+        {onOpenExternal && (
+          <button className="hud-btn accent" onClick={() => onOpenExternal(asset)} title="Open in its default app">
+            <ExternalLink size={16} />
+            <span className="hud-label">Open in app</span>
+          </button>
+        )}
+      </div>
+
+      {/* Top right: Model panel (Pro) and close */}
+      <div className="v3d-corner">
+        <button
+          className={`v3d-corner-btn v3d-pro ${outlinerOpen ? 'active' : ''}`}
+          onClick={() => setOutlinerOpen(!outlinerOpen)}
+          title="Model outliner: prim tree with visibility toggles (O key)"
+          aria-label="Outliner"
+          aria-pressed={outlinerOpen}
+        >
+          <ListTree size={15} />
+        </button>
+        <button
+          className={`v3d-corner-btn v3d-pro ${panelOpen ? 'active' : ''}`}
+          onClick={() => setPanelOpen(!panelOpen)}
+          title={panelOpen ? 'Hide the Model panel' : 'Show the Model panel'}
+          aria-label="Model panel"
+          aria-pressed={panelOpen}
+        >
+          <PanelRight size={15} />
+        </button>
         {onClose && (
-          <button className="hud-btn" onClick={onClose} style={{ marginLeft: 6 }} title="Close View (Esc)">
-            ✕
+          <button className="v3d-corner-btn" onClick={onClose} title="Close View (Esc)" aria-label="Close view">
+            <X size={15} />
           </button>
         )}
       </div>
@@ -1368,48 +1382,129 @@ export default function Viewport3D({
         <UvView root={modelRoot} selected={selectedObject} onClose={() => setUvOpen(false)} />
       )}
 
-      {/* Model Stats HUD (Triangles, Vertices, Meshes, Dimensions) */}
-      {stats && (
-        <div className="viewport-stats-overlay">
-          <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>
-            {asset.name}
+      {/* Model panel (Pro): counts, size, materials and display switches */}
+      {stats && panelOpen && (
+        <aside className="v3d-panel v3d-pro" aria-label="Model">
+          <div className="v3d-panel-head">
+            <span className="v3d-panel-title">Model</span>
+            {asset.extension && <span className="v3d-ext">{asset.extension.replace(/^\./, '').toUpperCase()}</span>}
           </div>
-          <div className="stat-row">
-            <span>Triangles:</span>
-            <span className="stat-value">{stats.triangles.toLocaleString()}</span>
+          <div className="v3d-panel-sub">
+            {[asset.size ? formatBytes(asset.size) : null, asset.modified ? `Modified ${formatDate(asset.modified)}` : null]
+              .filter(Boolean)
+              .join(' · ')}
           </div>
-          <div className="stat-row">
-            <span>Vertices:</span>
-            <span className="stat-value">{stats.vertices.toLocaleString()}</span>
+
+          <div className="v3d-tiles">
+            <div className="v3d-tile" title={stats.triangles.toLocaleString()}>
+              <b>{compactNumber(stats.triangles)}</b>
+              <span>Triangles</span>
+            </div>
+            <div className="v3d-tile" title={stats.vertices.toLocaleString()}>
+              <b>{compactNumber(stats.vertices)}</b>
+              <span>Vertices</span>
+            </div>
+            <div className="v3d-tile">
+              <b>{compactNumber(stats.meshes)}</b>
+              <span>Meshes</span>
+            </div>
+            <div className="v3d-tile">
+              <b>{compactNumber(stats.materials.length)}</b>
+              <span>Materials</span>
+            </div>
           </div>
-          <div className="stat-row">
-            <span>Meshes:</span>
-            <span className="stat-value">{stats.meshes}</span>
-          </div>
-          <div className="stat-row">
-            <span>Materials:</span>
-            <span className="stat-value">{stats.materials.length}</span>
+
+          <div className="v3d-section">Size</div>
+          <div className="v3d-row">
+            <span>Bounds</span>
+            <b>
+              {stats.dimensions.x} × {stats.dimensions.y} × {stats.dimensions.z}
+            </b>
           </div>
           {smoothInfo && (
-            <div className="stat-row">
-              <span>Smooth preview:</span>
-              <span className="stat-value">
-                Lv {smoothInfo.level} · {smoothInfo.triangles.toLocaleString()} tris
-              </span>
+            <div className="v3d-row">
+              <span>Smooth preview</span>
+              <b>
+                Lv {smoothInfo.level} · {compactNumber(smoothInfo.triangles)} tris
+              </b>
             </div>
           )}
-          {smoothNote && (
-            <div className="stat-row">
-              <span>{smoothNote}</span>
-            </div>
+          {smoothNote && <div className="v3d-note">{smoothNote}</div>}
+
+          {stats.materials.length > 0 && (
+            <>
+              <div className="v3d-section">Materials</div>
+              <div className="v3d-materials">
+                {stats.materials.map((name, i) => (
+                  <div key={`${name}-${i}`} className="v3d-row" title={name}>
+                    <span className="v3d-material">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
-          <div className="stat-row">
-            <span>Dimensions:</span>
-            <span className="stat-value">
-              {stats.dimensions.x} × {stats.dimensions.y} × {stats.dimensions.z}
-            </span>
+
+          <div className="v3d-section">View</div>
+          <div className="v3d-views" role="group" aria-label="Snap the camera to a side">
+            {[
+              ['free', 'Free'],
+              ['front', 'Front'],
+              ['back', 'Back'],
+              ['left', 'Left'],
+              ['right', 'Right'],
+              ['top', 'Top']
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                className={viewPreset === id ? 'active' : ''}
+                onClick={() => snapView(id)}
+                title={id === 'free' ? 'Free view' : `${label} view (numpad 1 Front, 3 Right, 7 Top; Ctrl for Back / Left)`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        </div>
+          <label
+            className={`v3d-row v3d-range ${lightsAffectShading ? '' : 'dim'}`}
+            title={
+              lightsAffectShading
+                ? 'Rotate lights around the model (double-click to reset)'
+                : 'Light rotation has no effect in this shading mode'
+            }
+          >
+            <span>Light angle</span>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              step="1"
+              value={lightAngle}
+              onChange={(e) => setLightAngle(Number(e.target.value))}
+              onDoubleClick={() => setLightAngle(0)}
+            />
+            <b>{lightAngle}°</b>
+          </label>
+
+          <div className="v3d-section">Display</div>
+          <PanelToggle label="Smooth preview" on={smoothPreview} onChange={setSmoothPreview} title="Smooth preview (3 key)" />
+          <PanelToggle
+            label="Random mesh colors"
+            on={randomColors}
+            onChange={setRandomColors}
+            dim={!colorsAffectShading}
+            title={
+              colorsAffectShading
+                ? 'Random colour per mesh (C key)'
+                : 'Random colours show in Shaded, Clay and Wireframe Overlay modes'
+            }
+          />
+          <PanelToggle label="Ground grid" on={showGrid} onChange={setShowGrid} />
+
+          <div className="v3d-panel-foot" title={asset.path}>
+            <FolderSearch size={13} />
+            <span>{asset.path}</span>
+          </div>
+        </aside>
       )}
 
       {/* Model outliner (O key); never opened in Quick Look, where the key and button are off */}

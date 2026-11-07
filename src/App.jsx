@@ -1931,6 +1931,7 @@ export default function App() {
               asset={selectedAsset || folderItems.find((i) => i.category === '3d')}
               onClose={() => setViewMode('grid')}
               onRevealInExplorer={handleRevealInExplorer}
+              onOpenExternal={handleOpenExternal}
             />
           )}
 

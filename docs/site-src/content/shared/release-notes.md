@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.22.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.23.0.
 order: 2
 ---
 
-The current version is **1.22.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.23.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -46,6 +46,7 @@ The current version is **1.22.0**. This list groups the changes by what you see 
 
 - Faster and non-freezing thumbnails for large multi-layer EXR files.
 - Grid virtualisation for large folders.
+- The 3D view no longer turns black after the window or a side panel changes size.
 - Thumbnail cache with a clear button in Settings.
 
 ## Looks
@@ -54,5 +55,7 @@ The current version is **1.22.0**. This list groups the changes by what you see 
 - Edge-to-edge tiles with the file name always shown, small pictures from inside each folder, and Compare A/B and stars that stay on the tile.
 - Drives in the Simple side rail, the folder path and free space under the folder name, and the file filters in a dock at the bottom with a tile size slider.
 - A richer Inspector: colour channel buttons, the texture set, colour labels and tags, and Send to apps.
+- Tiles are sized to their pictures, like a photo gallery. Each row is as tall as its pictures and fills the width, so wide renders, videos and HDRs leave no empty space under them. The tile size slider and `Ctrl` + wheel set the row height.
+- A new 3D viewer layout: the controls sit in a dock at the bottom, with Close in the top right. Pro mode adds a Model panel on the right with the counts, size, materials, snap views, light angle and display switches, and the outliner opens on the left.
 - Four colour themes: Obsidian Dark, Dark Gray, True Black and Light.
 - Inspector drawer that can be resized by dragging its edge.

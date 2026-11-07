@@ -31,7 +31,14 @@ import {
   selectedFilePaths,
   startBoxSelect
 } from '../utils/gridSelection';
-import { GRID_GAP, scrollGridRowIntoView, useVirtualGrid } from '../utils/gridVirtual';
+import {
+  GRID_BOTTOM_SPACE,
+  gridHits,
+  gridKeyTarget,
+  scrollGridItemIntoView,
+  useJustifiedGrid
+} from '../utils/gridVirtual';
+import { MAX_ASPECT, MIN_ASPECT, knownAspect, rememberAspect } from '../utils/tileAspects';
 import DetailsView from './DetailsView';
 import FolderIcon from './FolderIcon';
 import { FileLabelPopover } from './LabelPanels';
@@ -42,8 +49,8 @@ const CARD_TAG_LIMIT = 3;
 const EMPTY_SET = new Set();
 const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
 
-// Preview shapes outlive a card. When a card scrolls out of the virtualized grid and back, it keeps its height.
-const previewAspectCache = new Map();
+// Tile height the grid aims for, per pixel of the tile size slider
+const ROW_HEIGHT_PER_SIZE = 0.8;
 
 // Colour and tags of a card (files and folders): a button that shows on hover, a stripe in the colour while the
 // item has one, and the editor that the button opens
@@ -145,7 +152,8 @@ function AssetCard({
   onSetCompareB,
   onOpenExternal,
   peekEnabled,
-  getDragPaths
+  getDragPaths,
+  tileStyle
 }) {
   const { openMenu, assignments } = useFolderIcons();
   // A folder with an icon of its own (picked here or set in Explorer) keeps it; others show pictures from inside
@@ -153,31 +161,26 @@ function AssetCard({
   const peekUrls = useFolderPeek(item.path, item.isDirectory && peekEnabled && !hasCustomIcon);
   // Thumbnails already in memory are shown at once, so a card remounted by scrolling does not flash its placeholder
   const [thumbUrl, setThumbUrl] = useState(() => item.thumbnail || getCachedThumbnail(item.path));
-  const [aspectRatio, setAspectRatio] = useState(() => previewAspectCache.get(item.path) ?? null);
   const [isLoadingThumb, setIsLoadingThumb] = useState(false);
   const cardRef = useRef(null);
   const imgRef = useRef(null);
-
-  const rememberAspect = (ratio) => {
-    previewAspectCache.set(item.path, ratio);
-    setAspectRatio(ratio);
-  };
+  // The tile follows the picture's shape. A very thin or very wide picture gets a clamped tile and is shown whole.
+  const shape = knownAspect(item.path);
+  const showWhole = shape != null && (shape < MIN_ASPECT || shape > MAX_ASPECT);
 
   useEffect(() => {
     setThumbUrl(item.thumbnail || getCachedThumbnail(item.path));
-    setAspectRatio(previewAspectCache.get(item.path) ?? null);
   }, [item.path, item.thumbnail]);
 
+  // A loaded thumbnail tells the grid its real shape, and the row is laid out again to fit it
   const handleImgLoad = (e) => {
     const { naturalWidth, naturalHeight } = e.target;
-    if (naturalWidth && naturalHeight) {
-      rememberAspect(naturalWidth / naturalHeight);
-    }
+    if (naturalWidth && naturalHeight) rememberAspect(item.path, naturalWidth / naturalHeight);
   };
 
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalWidth && imgRef.current?.naturalHeight) {
-      rememberAspect(imgRef.current.naturalWidth / imgRef.current.naturalHeight);
+      rememberAspect(item.path, imgRef.current.naturalWidth / imgRef.current.naturalHeight);
     }
   }, [thumbUrl]);
 
@@ -245,6 +248,7 @@ function AssetCard({
       <div
         ref={cardRef}
         className={`asset-card folder-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
+        style={tileStyle}
         onClick={(e) => onSelect(item, e)}
         onDoubleClick={() => onOpen(item)}
         onContextMenu={(e) => {
@@ -328,6 +332,7 @@ function AssetCard({
     <div
       ref={cardRef}
       className={`asset-card ${isSelected ? 'selected' : ''} ${isCut ? 'cut' : ''}`}
+      style={tileStyle}
       draggable={!item.isDirectory}
       onDragStart={(e) => {
         if (startNativeDragOut(e, item, getDragPaths?.(item))) return;
@@ -345,11 +350,8 @@ function AssetCard({
         openMenu(e, item, true);
       }}
     >
-      {/* Thumbnail / Tone-Mapped Preview Visual (Exact aspect ratio of file, 2:1 placeholder before loaded) */}
-      <div
-        className="card-preview"
-        style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : { aspectRatio: '2 / 1' }}
-      >
+      {/* Thumbnail: fills the tile, which the grid sizes to the picture's shape */}
+      <div className={`card-preview ${showWhole ? 'show-whole' : ''}`}>
         {/* Pro shows the extension; Simple shows a small kind icon on anything that is not a plain picture */}
         <span className={`card-badge card-badge-ext ${badgeClass}`}>{ext || 'FILE'}</span>
         {KindIcon && (
@@ -533,10 +535,11 @@ export default function AssetGrid({
   // A box selection ends with a click on the empty area, which must not clear what the box just selected
   const suppressClickRef = useRef(false);
 
-  // Icon view mounts only the rows near the viewport (see utils/gridVirtual.js); details view is not virtualized
-  const virtual = useVirtualGrid({
+  // Icon view: justified rows sized to each thumbnail, only the rows near the viewport mounted (utils/gridVirtual.js).
+  // Details view is not virtualized.
+  const virtual = useJustifiedGrid({
     items,
-    minWidth: gridSize,
+    rowHeight: Math.round(gridSize * ROW_HEIGHT_PER_SIZE),
     enabled: folderView !== 'details' && !!items && items.length > 0
   });
   const gridLayoutRef = useRef(null);
@@ -594,7 +597,9 @@ export default function AssetGrid({
   const handleBackgroundPointerDown = (event) => {
     suppressClickRef.current = false;
     if (event.button !== 0 || !event.target.matches?.('.grid-container, .details-body')) return;
+    const inGrid = event.target.matches('.grid-container');
     startBoxSelect(event, event.target, {
+      hitTest: inGrid ? (box) => gridHits(gridLayoutRef.current, box) : undefined,
       getItems: () => keyStateRef.current.items,
       baseSelection: event.ctrlKey ? new Set(selected) : new Set(),
       onChange: (paths, focus) => keyStateRef.current.onSelectionChange(paths, focus),
@@ -619,11 +624,6 @@ export default function AssetGrid({
   // Ignored while typing in a box, while a window is open (keyboardEnabled) and with Alt held.
   useEffect(() => {
     if (!keyboardEnabled) return undefined;
-
-    const columnCount = () => {
-      if (folderViewRef.current === 'details') return 1;
-      return gridLayoutRef.current?.columns || 1;
-    };
 
     const onKeyDown = (e) => {
       if (e.altKey || e.metaKey || e.defaultPrevented) return;
@@ -660,7 +660,7 @@ export default function AssetGrid({
       }
 
       const last = list.length - 1;
-      const cols = columnCount();
+      const inGrid = folderViewRef.current !== 'details';
       const current = focused ? list.findIndex((item) => item.path === focused.path) : -1;
 
       if (e.key === 'Enter') {
@@ -672,45 +672,38 @@ export default function AssetGrid({
       }
 
       let next = current;
-      switch (e.key) {
-        case 'ArrowRight':
-          if (cols === 1) return;
-          next = current < 0 ? 0 : Math.min(current + 1, last);
-          break;
-        case 'ArrowLeft':
-          if (cols === 1) return;
-          next = current < 0 ? 0 : Math.max(current - 1, 0);
-          break;
-        case 'ArrowDown':
-          if (current < 0) next = 0;
-          else if (current + cols <= last) next = current + cols;
-          else if (Math.floor(current / cols) < Math.floor(last / cols)) next = last; // short last row
-          break;
-        case 'ArrowUp':
-          next = current < 0 ? 0 : current - cols >= 0 ? current - cols : current;
-          break;
-        case 'PageDown':
-        case 'PageUp': {
-          // Grid rows come from the layout, since most of their cards are not mounted
-          const sampleHeight =
-            folderViewRef.current === 'details'
-              ? getItemElement(0)?.offsetHeight
-              : gridLayoutRef.current?.rowHeights[Math.floor(Math.max(current, 0) / cols)];
-          const rowHeight = sampleHeight ? sampleHeight + GRID_GAP : 100;
-          const view = wrapRef.current?.querySelector('.grid-container, .details-body');
-          const rows = Math.max(1, Math.floor((view?.clientHeight || rowHeight) / rowHeight) - 1);
-          const step = rows * cols;
-          next = current < 0 ? 0 : e.key === 'PageDown' ? Math.min(current + step, last) : Math.max(current - step, 0);
-          break;
+      if (inGrid && NAV_KEYS.includes(e.key) && e.key !== 'Home' && e.key !== 'End') {
+        // Rows hold a different number of tiles, so the layout says which tile is above, below or a page away
+        const view = wrapRef.current?.querySelector('.grid-container');
+        next = gridKeyTarget(gridLayoutRef.current, current, e.key, view?.clientHeight);
+      } else {
+        switch (e.key) {
+          case 'ArrowRight':
+          case 'ArrowLeft':
+            return;
+          case 'ArrowDown':
+            next = current < 0 ? 0 : Math.min(current + 1, last);
+            break;
+          case 'ArrowUp':
+            next = current < 0 ? 0 : Math.max(current - 1, 0);
+            break;
+          case 'PageDown':
+          case 'PageUp': {
+            const rowHeight = getItemElement(0)?.offsetHeight || 24;
+            const view = wrapRef.current?.querySelector('.details-body');
+            const step = Math.max(1, Math.floor((view?.clientHeight || rowHeight) / rowHeight) - 1);
+            next = current < 0 ? 0 : e.key === 'PageDown' ? Math.min(current + step, last) : Math.max(current - step, 0);
+            break;
+          }
+          case 'Home':
+            next = 0;
+            break;
+          case 'End':
+            next = last;
+            break;
+          default:
+            return;
         }
-        case 'Home':
-          next = 0;
-          break;
-        case 'End':
-          next = last;
-          break;
-        default:
-          return;
       }
 
       e.preventDefault();
@@ -742,10 +735,7 @@ export default function AssetGrid({
       getItemElement(index)?.scrollIntoView({ block: 'nearest' });
       return;
     }
-    const layout = gridLayoutRef.current;
-    if (layout) {
-      scrollGridRowIntoView(wrapRef.current?.querySelector('.grid-container'), layout, Math.floor(index / layout.columns));
-    }
+    scrollGridItemIntoView(wrapRef.current?.querySelector('.grid-container'), gridLayoutRef.current, index);
   }, [selectedItem, items, virtual.layout]);
 
   // A wheel turn or a click hands scrolling back to the user
@@ -827,38 +817,42 @@ export default function AssetGrid({
     );
   } else {
     content = (
-      <div
-        ref={virtual.gridRef}
-        className="grid-container"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`
-        }}
-      >
-        {virtual.topSpacer > 0 && <div style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />}
-        {items.slice(virtual.startIndex, virtual.endIndex).map((item) => (
-          <AssetCard
-            key={item.path}
-            item={item}
-            isSelected={selected.has(item.path)}
-            isCut={!!cutPaths?.has(item.path)}
-            isFavorite={isFav(item)}
-            label={labelFor(labels, item.path)}
-            labelActions={labelActions}
-            onSelect={pickItem}
-            getDragPaths={getDragPaths}
-            onOpen={onOpen}
-            onToggleFavorite={onToggleFavorite}
-            onRevealInExplorer={onRevealInExplorer}
-            onAddToCompare={onAddToCompare}
-            compareAssetA={compareAssetA}
-            compareAssetB={compareAssetB}
-            onSetCompareA={onSetCompareA}
-            onSetCompareB={onSetCompareB}
-            onOpenExternal={onOpenExternal}
-            peekEnabled={item.isDirectory && (canPeekFolder ? canPeekFolder(item.path) : true)}
-          />
-        ))}
-        {virtual.bottomSpacer > 0 && <div style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />}
+      <div ref={virtual.gridRef} className="grid-container">
+        {/* Gives the grid its full scroll height; the tiles are placed absolutely from the layout */}
+        <div
+          className="grid-sizer"
+          style={{ top: virtual.layout.total, height: virtual.layout.total ? GRID_BOTTOM_SPACE : 0 }}
+        />
+        {items.slice(virtual.startIndex, virtual.endIndex).map((item, k) => {
+          const index = virtual.startIndex + k;
+          const { layout } = virtual;
+          const row = layout.rows[layout.rowOf[index]];
+          if (!row) return null;
+          return (
+            <AssetCard
+              key={item.path}
+              item={item}
+              tileStyle={{ left: layout.lefts[index], top: row.top, width: layout.widths[index], height: row.height }}
+              isSelected={selected.has(item.path)}
+              isCut={!!cutPaths?.has(item.path)}
+              isFavorite={isFav(item)}
+              label={labelFor(labels, item.path)}
+              labelActions={labelActions}
+              onSelect={pickItem}
+              getDragPaths={getDragPaths}
+              onOpen={onOpen}
+              onToggleFavorite={onToggleFavorite}
+              onRevealInExplorer={onRevealInExplorer}
+              onAddToCompare={onAddToCompare}
+              compareAssetA={compareAssetA}
+              compareAssetB={compareAssetB}
+              onSetCompareA={onSetCompareA}
+              onSetCompareB={onSetCompareB}
+              onOpenExternal={onOpenExternal}
+              peekEnabled={item.isDirectory && (canPeekFolder ? canPeekFolder(item.path) : true)}
+            />
+          );
+        })}
       </div>
     );
   }

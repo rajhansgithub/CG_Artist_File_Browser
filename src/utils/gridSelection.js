@@ -47,7 +47,9 @@ const EDGE_SPEED = 14; // px scrolled per frame in that zone
 // Draws a selection box from the pointer press to the pointer. `list` is the scrolling element whose children are
 // the items in list order. `baseSelection` is kept under the box (Ctrl held at the press). `onChange(paths, focus)`
 // is called as the box covers different items; `onEnd(dragged)` runs on release.
-export function startBoxSelect(event, list, { getItems, baseSelection, onChange, onEnd }) {
+// `hitTest(box)`, when given, returns the indexes of the items under a box in list content coordinates; the icon
+// grid uses it, since most of its tiles are not mounted and its children are not in list order.
+export function startBoxSelect(event, list, { getItems, baseSelection, onChange, onEnd, hitTest }) {
   const startX = event.clientX;
   const startY = event.clientY;
   const startRect = list.getBoundingClientRect();
@@ -96,11 +98,19 @@ export function startBoxSelect(event, list, { getItems, baseSelection, onChange,
     const box = currentBox();
     drawBox(box);
     const items = getItems();
-    const hits = [];
-    const children = list.children;
-    for (let i = 0; i < children.length && i < items.length; i++) {
-      const r = children[i].getBoundingClientRect();
-      if (r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top) hits.push(i);
+    let hits = [];
+    if (hitTest) {
+      const dx = list.scrollLeft - box.list.left;
+      const dy = list.scrollTop - box.list.top;
+      hits = hitTest({ left: box.left + dx, right: box.right + dx, top: box.top + dy, bottom: box.bottom + dy }).filter(
+        (i) => i < items.length
+      );
+    } else {
+      const children = list.children;
+      for (let i = 0; i < children.length && i < items.length; i++) {
+        const r = children[i].getBoundingClientRect();
+        if (r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top) hits.push(i);
+      }
     }
 
     const key = hits.join(',');
