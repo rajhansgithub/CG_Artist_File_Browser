@@ -18,12 +18,8 @@ export default function RecentFolders({ paths, currentPath, onNavigate, onClear 
   return (
     <div>
       <div className="sidebar-section-title">
-        <span>RECENT FOLDERS</span>
-        <button
-          onClick={onClear}
-          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-          title="Clear recent folders"
-        >
+        <span>Recent</span>
+        <button className="section-action" onClick={onClear} title="Clear recent folders">
           <X size={11} />
         </button>
       </div>
@@ -34,9 +30,8 @@ export default function RecentFolders({ paths, currentPath, onNavigate, onClear 
             className={`nav-item ${currentPath && currentPath.toLowerCase() === path.toLowerCase() ? 'active' : ''}`}
             onClick={() => onNavigate(path)}
             title={path}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <History size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
+            <History size={14} className="nav-icon" />
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {recentFolderName(path)}
             </span>

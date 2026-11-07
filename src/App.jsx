@@ -80,7 +80,7 @@ import {
   FolderIconPicker,
   PasteConflictModal
 } from './components/lazyViewers';
-import { FolderOpen, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List, Info } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List, Info } from 'lucide-react';
 
 // How long the search box waits after the last keystroke before the folder is searched again
 const SEARCH_DEBOUNCE_MS = 250;
@@ -158,7 +158,22 @@ export default function App() {
   const externalApps = useExternalApps();
   const [isLoadingDir, setIsLoadingDir] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Interface mode: 'simple' (slim rail, clean toolbar) or 'pro' (full sidebar, every filter with counts). Remembered.
+  const [uiMode, setUiMode] = useState(() => {
+    try {
+      return localStorage.getItem('cg_artist_ui_mode') === 'pro' ? 'pro' : 'simple';
+    } catch {
+      return 'simple';
+    }
+  });
+  const changeUiMode = (mode) => {
+    setUiMode(mode);
+    try {
+      localStorage.setItem('cg_artist_ui_mode', mode);
+    } catch {
+      /* storage unavailable: the choice just won't be remembered */
+    }
+  };
 
   // Interactive Grid Sizing (Ctrl + Mouse Scroll Wheel). Each folder keeps its own size; see utils/folderGridSize.js
   const [gridSize, setGridSize] = useState(loadGlobalGridSize);
@@ -1252,6 +1267,17 @@ export default function App() {
   const sequenceFor = (item) => sequenceContaining(sequenceGroups, item);
 
   // Filter and sort items for display
+  // How many files of each kind the open folder holds. A filtered listing only knows the kind it is filtered to.
+  const kindCounts = useMemo(() => {
+    const files = folderItems.filter((item) => !item.isDirectory);
+    if (filterType !== 'all') return { [filterType]: files.length };
+    const counts = { all: files.length, '3d': 0, hdr: 0, image: 0, texture: 0, video: 0, audio: 0, pdf: 0, markdown: 0 };
+    for (const item of files) {
+      if (item.category in counts) counts[item.category] += 1;
+    }
+    return counts;
+  }, [folderItems, filterType]);
+
   const displayedItems = useMemo(() => {
     const favoritesOnly = showFavoritesOnly ? folderItems.filter((item) => favorites.some((f) => f.path === item.path)) : folderItems;
     // Folders always stay in view so the label filter never hides the way to the files
@@ -1397,32 +1423,7 @@ export default function App() {
 
   return (
     <FolderIconsContext.Provider value={folderIconsValue}>
-    <div className="app-container">
-      {/* Top Header */}
-      <Header
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        filterType={filterType}
-        setFilterType={setFilterType}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        showFavoritesOnly={showFavoritesOnly}
-        setShowFavoritesOnly={setShowFavoritesOnly}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        labelFilter={labelFilter}
-        setLabelFilter={setLabelFilter}
-        labelTags={labelTags}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenGuide={handleOpenGuide}
-        onOpenFolderPicker={handleOpenFolderPicker}
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onRefreshFolder={refreshFolder}
-        isRefreshing={isRefreshing}
-        searchInputRef={searchInputRef}
-      />
-
+    <div className="app-container" data-ui={uiMode}>
       {/* Main Workspace */}
       <div className="main-workspace">
         {/* Sidebar */}
@@ -1441,14 +1442,33 @@ export default function App() {
           onConnectNetwork={() => setConnectDialog({ path: '' })}
           recentFolders={recentFolders}
           onClearRecentFolders={handleClearRecentFolders}
-          collapsed={sidebarCollapsed}
+          onOpenGuide={handleOpenGuide}
+          onOpenFolderPicker={handleOpenFolderPicker}
+          uiMode={uiMode}
         />
 
 
         {/* Content Area */}
         <div className="content-area">
-          {/* Breadcrumbs Navigation Bar */}
-          <div className="breadcrumbs-bar">
+          {/* Toolbar: navigation, filters, tools and search in one floating bar */}
+          <Header
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterType={filterType}
+            setFilterType={setFilterType}
+            showFavoritesOnly={showFavoritesOnly}
+            setShowFavoritesOnly={setShowFavoritesOnly}
+            labelFilter={labelFilter}
+            setLabelFilter={setLabelFilter}
+            labelTags={labelTags}
+            onRefreshFolder={refreshFolder}
+            isRefreshing={isRefreshing}
+            searchInputRef={searchInputRef}
+            uiMode={uiMode}
+            onChangeUiMode={changeUiMode}
+            kindCounts={kindCounts}
+            navNode={
+              <>
             <button
               className="icon-btn"
               style={{ width: 28, height: 28 }}
@@ -1487,8 +1507,6 @@ export default function App() {
               </button>
             )}
 
-            <FolderOpen size={15} color="#ffffff" />
-
             {isEditingPath && (
               <PathInput
                 initialValue={currentPath}
@@ -1523,7 +1541,7 @@ export default function App() {
             {!isEditingPath && viewMode !== 'grid' && selectedAsset && (
               <span
                 className="breadcrumb-crumb active"
-                style={{ cursor: 'default', color: '#ffffff', fontWeight: 600 }}
+                style={{ cursor: 'default', color: 'var(--text-main)', fontWeight: 600 }}
                 title={selectedAsset.name}
               >
                 {selectedAsset.name}
@@ -1556,11 +1574,15 @@ export default function App() {
             })()}
 
             {isLoadingDir && (
-              <span style={{ fontSize: 11, color: '#ffffff', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
                 Scanning directory...
               </span>
             )}
 
+              </>
+            }
+            toolsNode={
+              <>
             {viewMode === 'grid' && <SortMenu sort={sort} onChange={handleSortChange} />}
 
             {viewMode === 'grid' && (
@@ -1610,7 +1632,9 @@ export default function App() {
                 <TextCursorInput size={13} />
               </button>
             )}
-          </div>
+              </>
+            }
+          />
 
           {/* Dynamic Views */}
           {viewMode === 'grid' && (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   HardDrive,
   Network,
@@ -7,11 +7,12 @@ import {
   Star,
   ChevronRight,
   RefreshCw,
-  Box,
-  SunMedium,
-  Image as ImageIcon,
-  Film,
-  Volume2
+  FolderOpen,
+  FolderTree,
+  History,
+  CircleHelp,
+  SlidersHorizontal,
+  Layers
 } from 'lucide-react';
 import FolderIcon from './FolderIcon';
 import RecentFolders from './RecentFolders';
@@ -24,6 +25,17 @@ function networkDriveName(drive) {
   return share ? `${letter} ${share}` : letter;
 }
 
+const ellipsis = { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+// What the side rail's pop-out panels hold
+const FLYOUTS = {
+  locations: { title: 'Drives and network', icon: HardDrive },
+  folders: { title: 'Folders', icon: FolderTree },
+  recent: { title: 'Recent folders', icon: History },
+  starred: { title: 'Starred assets', icon: Star }
+};
+
+// Simple mode shows a slim icon rail whose buttons open the same lists as pop-outs. Pro mode shows the full sidebar.
 export default function Sidebar({
   drives,
   currentPath,
@@ -32,8 +44,10 @@ export default function Sidebar({
   folderItems,
   blenderStatus,
   onOpenSettings,
+  onOpenGuide,
+  onOpenFolderPicker,
   onRefresh,
-  collapsed,
+  uiMode,
   onToggleFavorite,
   networkLocations,
   onRemoveNetworkLocation,
@@ -42,323 +56,295 @@ export default function Sidebar({
   onClearRecentFolders
 }) {
   const { openMenu } = useFolderIcons();
+  const [flyout, setFlyout] = useState(null);
+  const flyoutRef = useRef(null);
+  const railRef = useRef(null);
+
   const folders = (folderItems || []).filter((item) => item.isDirectory);
   const starredFolders = (favorites || []).filter((item) => item.isDirectory);
   const favoriteFiles = (favorites || []).filter((item) => !item.isDirectory);
-  const modelCount = (folderItems || []).filter((i) => i.category === '3d').length;
-  const hdrCount = (folderItems || []).filter((i) => i.category === 'hdr').length;
-  const imageCount = (folderItems || []).filter((i) => i.category === 'image').length;
-  const textureCount = (folderItems || []).filter((i) => i.category === 'texture').length;
-  const videoCount = (folderItems || []).filter((i) => i.category === 'video').length;
-  const audioCount = (folderItems || []).filter((i) => i.category === 'audio').length;
+  const pro = uiMode === 'pro';
 
-  if (collapsed) {
-    return null;
-  }
+  // The pop-out closes on a click elsewhere, on Escape, and when switching to Pro
+  useEffect(() => {
+    if (!flyout) return undefined;
+    const close = (e) => {
+      if (e.type === 'keydown') {
+        if (e.key === 'Escape') setFlyout(null);
+        return;
+      }
+      if (flyoutRef.current?.contains(e.target) || railRef.current?.contains(e.target)) return;
+      setFlyout(null);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [flyout]);
 
-  return (
-    <aside className="sidebar">
-      {/* Drives Section */}
-      <div>
-        <div className="sidebar-section-title">
-          <span>DRIVES & VOLUMES</span>
-          <button
-            onClick={onRefresh}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-            title="Refresh drives"
-          >
-            <RefreshCw size={11} />
-          </button>
-        </div>
-        <div className="drives-grid">
-          {drives.map((d) => {
-            const isSelected =
-              currentPath &&
-              (currentPath.toUpperCase().startsWith(d.mount.toUpperCase()) ||
-                (d.isNetwork && currentPath.toUpperCase().startsWith(d.name.toUpperCase())));
-            return (
-              <div
-                key={d.mount}
-                className={`drive-card ${isSelected ? 'active' : ''}`}
-                onClick={() => onNavigate(d.name)}
-                title={`${d.label} (${d.mount})`}
-              >
-                <div className="drive-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, width: '100%' }}>
-                    {d.isNetwork ? (
-                      <Network size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                    ) : (
-                      <HardDrive size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                    )}
-                    <span className="drive-name">{d.isNetwork ? networkDriveName(d) : d.mount}</span>
-                  </div>
-                </div>
-                {d.freeGB && d.totalGB ? (
-                  <span className="drive-free">{d.freeGB} GB free</span>
-                ) : (
-                  <span className="drive-free">{d.isNetwork ? (d.offline ? 'Offline' : 'Network Drive') : 'Local Disk'}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+  useEffect(() => {
+    if (pro) setFlyout(null);
+  }, [pro]);
+
+  const go = (path, isFile) => {
+    onNavigate(path, isFile);
+    setFlyout(null);
+  };
+
+  const drivesSection = () => (
+    <div>
+      <div className="sidebar-section-title">
+        <span>Drives</span>
+        <button className="section-action" onClick={onRefresh} title="Refresh drives">
+          <RefreshCw size={11} />
+        </button>
       </div>
+      <div className="nav-list">
+        {drives.map((d) => {
+          const isSelected =
+            currentPath &&
+            (currentPath.toUpperCase().startsWith(d.mount.toUpperCase()) ||
+              (d.isNetwork && currentPath.toUpperCase().startsWith(d.name.toUpperCase())));
+          const Icon = d.isNetwork ? Network : HardDrive;
+          return (
+            <div
+              key={d.mount}
+              className={`nav-item ${isSelected ? 'active' : ''}`}
+              onClick={() => go(d.name)}
+              title={`${d.label} (${d.mount})`}
+            >
+              <Icon size={14} className="nav-icon" />
+              <span style={ellipsis}>{d.isNetwork ? networkDriveName(d) : d.mount}</span>
+              <span className="nav-trail">
+                {d.freeGB && d.totalGB ? `${d.freeGB} GB free` : d.isNetwork ? (d.offline ? 'Offline' : 'Network') : ''}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-      {/* Network locations: shares opened by typing a path, signed in with a password, or saved in Explorer */}
+  // Network locations: shares opened by typing a path, signed in with a password, or saved in Explorer
+  const networkSection = () => (
+    <div>
+      <div className="sidebar-section-title">
+        <span>Network</span>
+        <button
+          className="section-action"
+          onClick={onConnectNetwork}
+          title="Connect to network folder (sign in with a username and password)"
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+      <div className="nav-list">
+        {(!networkLocations || networkLocations.length === 0) && <div className="nav-empty">No network folders</div>}
+        {(networkLocations || []).map((loc) => (
+          <div
+            key={loc.path}
+            className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.path.toLowerCase()) ? 'active' : ''}`}
+            onClick={() => go(loc.path)}
+            title={
+              (loc.name ? `${loc.name} (${loc.path})` : loc.path) +
+              (loc.username ? `\nSigned in as ${loc.username}, reconnects automatically` : '')
+            }
+          >
+            <Network size={14} className="nav-icon" />
+            <span style={ellipsis}>{loc.name || loc.path.replace(/\\$/, '')}</span>
+            {loc.removable && (
+              <button
+                className="nav-remove"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveNetworkLocation(loc.path);
+                }}
+                title={loc.username ? 'Remove from list and forget the saved password' : 'Remove from list'}
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const recentSection = () => (
+    <RecentFolders paths={recentFolders} currentPath={currentPath} onNavigate={go} onClear={onClearRecentFolders} />
+  );
+
+  const pinnedSection = () =>
+    starredFolders.length > 0 && (
       <div>
         <div className="sidebar-section-title">
-          <span>NETWORK LOCATIONS</span>
-          <button
-            onClick={onConnectNetwork}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-            title="Connect to network folder (sign in with a username and password)"
-          >
-            <Plus size={12} />
-          </button>
+          <span>Pinned</span>
+          <span className="section-count">{starredFolders.length}</span>
         </div>
         <div className="nav-list">
-          {(!networkLocations || networkLocations.length === 0) && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px', fontStyle: 'italic' }}>
-              No network folders
-            </div>
-          )}
-          {(networkLocations || []).map((loc) => (
+          {starredFolders.map((sf) => (
             <div
-              key={loc.path}
-              className={`nav-item ${currentPath && currentPath.toLowerCase().startsWith(loc.path.toLowerCase()) ? 'active' : ''}`}
-              onClick={() => onNavigate(loc.path)}
-              title={
-                (loc.name ? `${loc.name} (${loc.path})` : loc.path) +
-                (loc.username ? `\nSigned in as ${loc.username}, reconnects automatically` : '')
-              }
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              key={sf.path}
+              className="nav-item"
+              onClick={() => go(sf.path, false)}
+              onContextMenu={(e) => openMenu(e, sf)}
+              title={sf.path}
             >
-              <Network size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {loc.name || loc.path.replace(/\\$/, '')}
-              </span>
-              {loc.removable && (
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveNetworkLocation(loc.path);
-                  }}
-                  title={loc.username ? 'Remove from list and forget the saved password' : 'Remove from list'}
-                >
-                  <X size={11} />
-                </button>
-              )}
+              <FolderIcon item={sf} size={14} className="nav-icon" style={{ flexShrink: 0 }} />
+              <span style={ellipsis}>{sf.name}</span>
+              <button
+                className="nav-remove pinned"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(sf);
+                }}
+                title="Unpin folder"
+              >
+                <Star size={11} fill="currentColor" />
+              </button>
             </div>
           ))}
         </div>
       </div>
+    );
 
-      {/* Recently opened folders, newest first */}
-      <RecentFolders
-        paths={recentFolders}
-        currentPath={currentPath}
-        onNavigate={onNavigate}
-        onClear={onClearRecentFolders}
-      />
-
-      {/* Pinned Folders Section */}
-      {starredFolders.length > 0 && (
-        <div>
-          <div className="sidebar-section-title">
-            <span>PINNED FOLDERS</span>
-            <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{starredFolders.length}</span>
-          </div>
-          <div className="nav-list">
-            {starredFolders.map((sf) => (
-              <div
-                key={sf.path}
-                className="nav-item"
-                onClick={() => onNavigate(sf.path, false)}
-                onContextMenu={(e) => openMenu(e, sf)}
-                title={sf.path}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <FolderIcon item={sf} size={13} color="#ffffff" strokeWidth={2} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {sf.name}
-                </span>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite(sf);
-                  }}
-                  title="Unpin folder"
-                >
-                  <Star size={11} fill="#ffffff" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Favorite Assets Section */}
-      {favoriteFiles.length > 0 && (
-        <div>
-          <div className="sidebar-section-title">
-            <span>STARRED ASSETS</span>
-            <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{favoriteFiles.length}</span>
-          </div>
-          <div className="nav-list">
-            {favoriteFiles.slice(0, 10).map((fav) => (
-              <div
-                key={fav.path}
-                className="nav-item"
-                onClick={() => onNavigate(fav.path, true)}
-                title={fav.path}
-              >
-                <Star size={12} fill="#ffffff" color="#ffffff" />
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {fav.name}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Current Folder Subdirectories */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+  const starredSection = () =>
+    favoriteFiles.length > 0 && (
+      <div>
         <div className="sidebar-section-title">
-          <span>SUBFOLDERS</span>
-          <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{folders.length}</span>
+          <span>Starred</span>
+          <span className="section-count">{favoriteFiles.length}</span>
         </div>
-        <div className="nav-list" style={{ overflowY: 'auto', flex: 1 }}>
-          {folders.length === 0 ? (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px', fontStyle: 'italic' }}>
-              No subfolders
+        <div className="nav-list">
+          {favoriteFiles.slice(0, 10).map((fav) => (
+            <div key={fav.path} className="nav-item" onClick={() => go(fav.path, true)} title={fav.path}>
+              <Star size={13} className="nav-icon" />
+              <span style={ellipsis}>{fav.name}</span>
             </div>
-          ) : (
-            folders.map((f) => (
-              <div
-                key={f.path}
-                className="nav-item"
-                onClick={() => onNavigate(f.path)}
-                onContextMenu={(e) => openMenu(e, f)}
-                title={f.path}
-              >
-                <FolderIcon item={f} size={13} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                <ChevronRight size={11} style={{ opacity: 0.3 }} />
-              </div>
-            ))
+          ))}
+        </div>
+      </div>
+    );
+
+  // Subfolders of the open folder. Hidden when there are none.
+  const subfoldersSection = () =>
+    folders.length > 0 && (
+      <div>
+        <div className="sidebar-section-title">
+          <span>Subfolders</span>
+          <span className="section-count">{folders.length}</span>
+        </div>
+        <div className="nav-list">
+          {folders.map((f) => (
+            <div key={f.path} className="nav-item" onClick={() => go(f.path)} onContextMenu={(e) => openMenu(e, f)} title={f.path}>
+              <FolderIcon item={f} size={14} className="nav-icon" style={{ flexShrink: 0 }} />
+              <span style={ellipsis}>{f.name}</span>
+              <ChevronRight size={11} style={{ opacity: 0.3 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+  const blenderReady = !!blenderStatus?.available;
+  const blenderTitle = blenderReady
+    ? 'Blender converter is ready (for ABC and USD). Click to configure.'
+    : 'Blender converter is not set up. Click to configure (needed for ABC and USD).';
+
+  if (pro) {
+    return (
+      <aside className="sidebar sidebar-pro">
+        <div className="sidebar-brand">
+          <div className="brand-mark">
+            <Layers size={13} />
+          </div>
+          <span>CG Artist File Browser</span>
+        </div>
+        <div className="sidebar-scroll">
+          {drivesSection()}
+          {networkSection()}
+          {recentSection()}
+          {pinnedSection()}
+          {starredSection()}
+          {subfoldersSection()}
+        </div>
+        <div className="sidebar-foot">
+          <button className="foot-btn" onClick={onOpenFolderPicker} title="Open Folder...">
+            <FolderOpen size={14} />
+            <span>Open</span>
+          </button>
+          <button className="foot-btn icon" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
+            <CircleHelp size={14} />
+          </button>
+          <button className="foot-btn icon" onClick={onOpenSettings} title="Studio Preferences & Configuration" aria-label="Settings">
+            <SlidersHorizontal size={14} />
+          </button>
+          <button className="foot-blender" onClick={onOpenSettings} title={blenderTitle} aria-label={blenderTitle}>
+            <span className={`blender-dot ${blenderReady ? 'ready' : ''}`} />
+            <span>Blender {blenderReady ? 'ready' : 'setup'}</span>
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  const railButton = (key, label, Icon) => (
+    <button
+      key={key}
+      className={`rail-btn ${flyout === key ? 'active' : ''}`}
+      onClick={() => setFlyout((open) => (open === key ? null : key))}
+      title={label}
+      aria-label={label}
+      aria-expanded={flyout === key}
+    >
+      <Icon size={19} strokeWidth={1.7} />
+    </button>
+  );
+
+  return (
+    <>
+      <nav className="sidebar sidebar-rail" ref={railRef} aria-label="Places">
+        <div className="brand-mark rail-brand" title="CG Artist File Browser">
+          <Layers size={14} />
+        </div>
+        <button className="rail-btn" onClick={onOpenFolderPicker} title="Open Folder..." aria-label="Open Folder">
+          <FolderOpen size={19} strokeWidth={1.7} />
+        </button>
+        {railButton('locations', 'Drives and network', FLYOUTS.locations.icon)}
+        {railButton('folders', 'Subfolders and pinned folders', FLYOUTS.folders.icon)}
+        {railButton('recent', 'Recent folders', FLYOUTS.recent.icon)}
+        {railButton('starred', 'Starred assets', FLYOUTS.starred.icon)}
+        <div className="rail-spacer" />
+        <button className="rail-btn" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
+          <CircleHelp size={19} strokeWidth={1.7} />
+        </button>
+        <button className="rail-btn" onClick={onOpenSettings} title={`Studio Preferences & Configuration. ${blenderTitle}`} aria-label="Settings">
+          <SlidersHorizontal size={19} strokeWidth={1.7} />
+          <span className={`blender-dot rail ${blenderReady ? 'ready' : ''}`} />
+        </button>
+      </nav>
+
+      {flyout && (
+        <div className="rail-flyout" ref={flyoutRef} role="dialog" aria-label={FLYOUTS[flyout].title}>
+          {flyout === 'locations' && (
+            <>
+              {drivesSection()}
+              {networkSection()}
+            </>
           )}
+          {flyout === 'folders' && (
+            <>
+              {pinnedSection()}
+              {subfoldersSection()}
+              {!starredFolders.length && !folders.length && <div className="nav-empty">No subfolders or pinned folders</div>}
+            </>
+          )}
+          {flyout === 'recent' && (recentFolders?.length ? recentSection() : <div className="nav-empty">No recent folders yet</div>)}
+          {flyout === 'starred' && (favoriteFiles.length ? starredSection() : <div className="nav-empty">Star a file to find it here</div>)}
         </div>
-      </div>
-
-      {/* Directory Asset Summary */}
-      <div
-        style={{
-          background: 'var(--bg-tertiary)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '10px'
-        }}
-      >
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, letterSpacing: 0.5 }}>
-          CURRENT FOLDER ASSETS
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', textAlign: 'center', gap: '8px 4px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <Box size={11} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{modelCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>3D</div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <SunMedium size={11} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{hdrCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>HDR</div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <ImageIcon size={11} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{imageCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>Images</div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.7 }}>TIF</span>
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{textureCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>Textures</div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <Film size={11} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{videoCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>Videos</div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--text-main)' }}>
-              <Volume2 size={11} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{audioCount}</span>
-            </div>
-            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>Audio</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Blender Bridge Status */}
-      <div
-        style={{
-          background: 'var(--bg-tertiary)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '8px 10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer'
-        }}
-        onClick={onOpenSettings}
-        title="Click to configure Blender converter"
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: blenderStatus?.available ? '#ffffff' : '#666666'
-            }}
-          />
-          <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>
-            Blender ABC/USD
-          </div>
-        </div>
-        <span style={{ fontSize: 9.5, color: blenderStatus?.available ? '#ffffff' : 'var(--text-muted)' }}>
-          {blenderStatus?.available ? 'Ready' : 'Setup'}
-        </span>
-      </div>
-    </aside>
+      )}
+    </>
   );
 }

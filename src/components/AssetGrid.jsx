@@ -200,12 +200,10 @@ function AssetCard({
       >
         <div
           className="card-preview folder-preview"
-          style={{ background: '#161616', cursor: 'pointer' }}
+          style={{ cursor: 'pointer' }}
         >
-          <FolderIcon item={item} size={40} color="var(--text-secondary)" strokeWidth={1.5} />
-          <span className="card-badge" style={{ background: '#222222', borderColor: '#444444' }}>
-            FOLDER
-          </span>
+          <FolderIcon item={item} size={52} color="var(--accent)" strokeWidth={1.25} />
+          <span className="card-badge">FOLDER</span>
 
           {/* Star button on Folders! */}
           <button
@@ -216,7 +214,7 @@ function AssetCard({
             }}
             title={isFavorite ? 'Unstar folder' : 'Star folder'}
           >
-            <Star size={13} fill={isFavorite ? '#ffffff' : 'none'} />
+            <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
 
           <CardLabel path={item.path} label={label} labelActions={labelActions} />
@@ -228,7 +226,6 @@ function AssetCard({
           </span>
           <div className="card-sub">
             <span>Folder</span>
-            <span style={{ opacity: 0.6 }}>Double click to open</span>
           </div>
           <CardTags tags={label?.tags || []} />
         </div>
@@ -287,7 +284,7 @@ function AssetCard({
           }}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
-          <Star size={13} fill={isFavorite ? '#ffffff' : 'none'} />
+          <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
         </button>
 
         <CardLabel path={item.path} label={label} labelActions={labelActions} />
@@ -403,80 +400,55 @@ function AssetCard({
           </div>
         )}
 
-        {/* Hover Quick Actions */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 6,
-            right: 6,
-            display: 'flex',
-            gap: 4,
-            zIndex: 8
-          }}
-        >
+        {/* Hover Quick Actions: Open, set as A or B for Compare, reveal in Explorer */}
+        <div className="card-actions">
           <button
-            className="icon-btn"
-            style={{ width: 26, height: 26, background: 'rgba(15, 15, 15, 0.85)', backdropFilter: 'blur(4px)' }}
+            className="card-act"
             onClick={(e) => {
               e.stopPropagation();
               onOpen(item);
             }}
             title="Open in Viewer"
+            aria-label="Open in Viewer"
           >
-            <Eye size={12} />
+            <Eye size={14} />
           </button>
           {isComparableItem(item) && (
             <>
               <button
-                className={`icon-btn ${compareAssetA?.path === item.path ? 'active' : ''}`}
-                style={{
-                  width: 26,
-                  height: 26,
-                  background: compareAssetA?.path === item.path ? '#ffffff' : 'rgba(15, 15, 15, 0.85)',
-                  color: compareAssetA?.path === item.path ? '#000000' : '#ffffff',
-                  fontWeight: 800,
-                  fontSize: 10,
-                  backdropFilter: 'blur(4px)'
-                }}
+                className={`card-act letter ${compareAssetA?.path === item.path ? 'active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onSetCompareA) onSetCompareA(item);
                 }}
                 title={compareAssetA?.path === item.path ? 'Assigned as A' : 'Set as A (Compare)'}
+                aria-label="Set as A for Compare"
               >
                 A
               </button>
               <button
-                className={`icon-btn ${compareAssetB?.path === item.path ? 'active' : ''}`}
-                style={{
-                  width: 26,
-                  height: 26,
-                  background: compareAssetB?.path === item.path ? '#888888' : 'rgba(15, 15, 15, 0.85)',
-                  color: compareAssetB?.path === item.path ? '#000000' : '#ffffff',
-                  fontWeight: 800,
-                  fontSize: 10,
-                  backdropFilter: 'blur(4px)'
-                }}
+                className={`card-act letter ${compareAssetB?.path === item.path ? 'active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onSetCompareB) onSetCompareB(item);
                 }}
                 title={compareAssetB?.path === item.path ? 'Assigned as B' : 'Set as B (Compare)'}
+                aria-label="Set as B for Compare"
               >
                 B
               </button>
             </>
           )}
           <button
-            className="icon-btn"
-            style={{ width: 26, height: 26, background: 'rgba(15, 15, 15, 0.85)', backdropFilter: 'blur(4px)' }}
+            className="card-act"
             onClick={(e) => {
               e.stopPropagation();
               onRevealInExplorer(item.path);
             }}
             title="Reveal in Windows Explorer"
+            aria-label="Reveal in Windows Explorer"
           >
-            <ExternalLink size={12} />
+            <ExternalLink size={14} />
           </button>
         </div>
       </div>
