@@ -80,8 +80,10 @@ import {
   DuplicateFinderModal,
   TextureSetModal,
   FolderIconPicker,
-  PasteConflictModal
+  PasteConflictModal,
+  AchievementsScreen
 } from './components/lazyViewers';
+import { track as trackAchievement } from './achievements/observer.js';
 import { ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ArrowLeftRight, Split, TextCursorInput, LayoutGrid, List, Info } from 'lucide-react';
 
 // How long the search box waits after the last keystroke before the folder is searched again
@@ -151,6 +153,7 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false); // the file details drawer beside the grid, toggled with I
   const [theme, setTheme] = useState(loadSavedTheme); // colour scheme, see src/utils/themes.js
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   // The settings screen is only loaded once it has been opened, and stays mounted after that
   const settingsSeenRef = useRef(false);
   if (isSettingsOpen) settingsSeenRef.current = true;
@@ -1263,7 +1266,7 @@ export default function App() {
 
   // Any window or menu on top of the folder view: the keyboard shortcuts for the folder stay out of its way
   const isWindowOpen = isSettingsOpen || !!connectDialog || !!dropError || !!iconPickerItem || !!itemMenu || !!itemAction || !!convertItems || !!duplicateFolder || !!labelEditor || !!textureSet || !!guideError || !!pasteConflict;
-  windowOpenRef.current = isWindowOpen;
+  windowOpenRef.current = isWindowOpen || achievementsOpen;
 
   // Every file is shown on its own. A numbered series is folded into one item only for "Play as sequence" (and the player's
   // previous / next, which step through the sequences in the folder)
@@ -1308,6 +1311,27 @@ export default function App() {
 
   // Only a selection that is in the folder on screen is shown in the status bar
   const selectionInFolder = selectedAsset ? displayedItems.find((item) => item.path === selectedAsset.path) || null : null;
+
+  // Achievements (docs/ACHIEVEMENTS.md), watch only: their pop-ups wait while a viewer, window or file job is up, and a few
+  // real moments here count (a file looked at in Quick Look, a compare with both sides, a texture set, a drop it can't open)
+  const achBusy = viewMode !== 'grid' || isWindowOpen || previewOpen || transfers.jobs.some((job) => !job.summary);
+  useEffect(() => {
+    document.documentElement.dataset.achBusy = achBusy ? '1' : '0';
+  }, [achBusy]);
+  const quickLookPath = viewMode === 'grid' && previewOpen && selectionInFolder && !selectionInFolder.isDirectory ? selectionInFolder.path : '';
+  useEffect(() => {
+    if (quickLookPath) trackAchievement('quicklook', { key: 'ql:' + quickLookPath });
+  }, [quickLookPath]);
+  const comparePair = viewMode === 'compare' && compareAssetA && compareAssetB ? `${compareAssetA.path}|${compareAssetB.path}` : '';
+  useEffect(() => {
+    if (comparePair) trackAchievement('compare', { key: 'cmp:' + comparePair });
+  }, [comparePair]);
+  useEffect(() => {
+    if (textureSet) trackAchievement('texset');
+  }, [textureSet]);
+  useEffect(() => {
+    if (dropError) trackAchievement('drop_bad');
+  }, [dropError]);
 
   // Counts, size, selection and free space for the toolbar's subtitle
   const folderStatus = useFolderStatus({
@@ -1467,6 +1491,7 @@ export default function App() {
           recentFolders={recentFolders}
           onClearRecentFolders={handleClearRecentFolders}
           onOpenGuide={handleOpenGuide}
+          onOpenAchievements={() => setAchievementsOpen(true)}
           onOpenFolderPicker={handleOpenFolderPicker}
           uiMode={uiMode}
         />
@@ -1982,7 +2007,18 @@ export default function App() {
             theme={theme}
             onThemeChange={changeTheme}
             onOpenGuide={handleOpenGuide}
+            onOpenAchievements={() => {
+              setIsSettingsOpen(false);
+              setAchievementsOpen(true);
+            }}
           />
+        </Suspense>
+      )}
+
+      {/* Achievements: level, certified showreels, the Emulsion gate and every badge */}
+      {achievementsOpen && (
+        <Suspense fallback={null}>
+          <AchievementsScreen onClose={() => setAchievementsOpen(false)} />
         </Suspense>
       )}
 

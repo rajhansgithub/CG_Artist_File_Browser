@@ -54,6 +54,7 @@ import {
   X
 } from 'lucide-react';
 import { formatBytes, formatDate } from '../utils/formatHelpers';
+import { opened, openFailed } from '../achievements/observer.js';
 
 // Every triangle edge, for very dense models and as the fallback.
 // Pre-allocates a contiguous Uint32Array (no V8 array reallocations / 1.5GB heap spikes).
@@ -726,12 +727,14 @@ export default function Viewport3D({
         }
 
         setLoading(false);
+        opened('3d', asset.path);
       })
       .catch((err) => {
         if (!isMounted) return;
         console.error('Error loading 3D asset:', err);
         setLoadError(err.message || 'Failed to load 3D file.');
         setLoading(false);
+        openFailed('3d', err.message);
       });
 
     return () => {

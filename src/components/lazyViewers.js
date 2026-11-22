@@ -20,3 +20,4 @@ export const DuplicateFinderModal = lazy(() => import('./DuplicateFinderModal'))
 export const TextureSetModal = lazy(() => import('./TextureSetModal'));
 export const FolderIconPicker = lazy(() => import('./FolderIconPicker'));
 export const PasteConflictModal = lazy(() => import('./PasteConflictModal'));
+export const AchievementsScreen = lazy(() => import('./AchievementsScreen'));

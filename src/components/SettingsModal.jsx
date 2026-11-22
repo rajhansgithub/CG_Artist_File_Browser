@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Settings, CheckCircle2, AlertCircle, Trash2, RefreshCw, CircleHelp } from 'lucide-react';
 import { APP_VERSION } from '../version.js';
 import { THEMES } from '../utils/themes.js';
+import { AchievementSettings } from './AchievementsScreen.jsx';
 import { useExternalApps, addExternalApp, removeExternalApp, scanExternalApps } from '../utils/externalAppStore.js';
 
-export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, onOpenGuide }) {
+export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, onOpenGuide, onOpenAchievements }) {
   const [blenderPath, setBlenderPath] = useState('');
   const [blenderStatus, setBlenderStatus] = useState(null);
   const [cacheStats, setCacheStats] = useState(null);
@@ -166,6 +167,26 @@ export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, o
                 </button>
               ))}
             </div>
+          </div>
+
+          <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+          {/* Achievements: pop-ups and the Emulsion bubble's look (docs/ACHIEVEMENTS.md) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>
+              Achievements
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Badges for real work. Nothing is sent anywhere; they are saved on this PC.
+            </div>
+            <AchievementSettings />
+            {onOpenAchievements && (
+              <div>
+                <button className="btn-secondary" onClick={onOpenAchievements}>
+                  Open achievements
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ height: 1, background: 'var(--border-subtle)' }} />

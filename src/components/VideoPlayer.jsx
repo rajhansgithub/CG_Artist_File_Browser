@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatDuration, formatTimecode } from '../utils/formatHelpers';
+import { opened, watched } from '../achievements/observer.js';
 
 // Color Matrix computation for Channel soloing (RGB, R, G, B, Alpha, Lum) and Exposure EV
 function getVideoColorMatrix(channel, exposure) {
@@ -217,6 +218,7 @@ export default function VideoPlayer({
 
   // Video event handlers
   const handleLoadedMetadata = () => {
+    opened('video', asset?.path);
     if (videoRef.current) {
       const dur = videoRef.current.duration;
       setDuration(isFinite(dur) && dur > 0 ? dur : 0);
@@ -978,6 +980,7 @@ export default function VideoPlayer({
               videoRef.current.play().catch(() => {});
             } else {
               setIsPlaying(false);
+              watched('video', asset?.path);
             }
           }}
           playsInline

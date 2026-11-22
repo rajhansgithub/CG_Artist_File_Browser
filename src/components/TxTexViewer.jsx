@@ -33,6 +33,7 @@ import {
   buildChart
 } from '../utils/txTexAnalysis';
 import { CHANNEL_MODES, applyChannel, paintRenderPreview } from '../utils/txTexPreview';
+import { opened, openFailed } from '../achievements/observer.js';
 
 const TONE_COLORS = {
   soft: '#ef4444',
@@ -179,11 +180,13 @@ export default function TxTexViewer({
         if (cancelled) return;
         setModel({ parsed, reader: new TxTexReader(buf, parsed) });
         setStatus('ready');
+        opened('txtex', asset.path);
       } catch (err) {
         if (cancelled) return;
         console.warn('TX/TEX load failed:', err);
         setError(err instanceof TxTexError ? err.message : `The file could not be read (${err?.message || 'unknown error'}).`);
         setStatus('error');
+        openFailed('txtex', err?.message);
       }
     })();
 

@@ -13,6 +13,7 @@ import {
 import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, isTxTexFormat } from '../utils/formatHelpers';
 import { decodeTiffToRGBA } from '../utils/tiffDecoder';
+import { opened, openFailed } from '../achievements/observer.js';
 
 export default function ImageViewer({
   asset,
@@ -178,6 +179,7 @@ export default function ImageViewer({
           console.error('Failed to decode texture in viewer:', e);
           if (isMounted) {
             setDecodeError(e.message || 'Unable to decode texture');
+            openFailed('image', e.message);
           }
         } finally {
           if (isMounted) setIsDecoding(false);
@@ -354,6 +356,7 @@ export default function ImageViewer({
   };
 
   const handleImageLoad = (e) => {
+    opened('image', asset?.path);
     setDimensions({
       width: e.target.naturalWidth,
       height: e.target.naturalHeight

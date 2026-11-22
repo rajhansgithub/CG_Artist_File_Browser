@@ -22,6 +22,7 @@ import {
   sequenceRangeLabel
 } from '../utils/imageSequence';
 import { SequenceFrameLoader } from '../utils/sequenceFrameLoader';
+import { watched } from '../achievements/observer.js';
 
 // Color Matrix for channel soloing (RGB, R, G, B, Alpha, Lum) and exposure EV (same maths as the video player)
 function getColorMatrix(channel, exposure) {
@@ -79,6 +80,9 @@ export default function ImageSequencePlayer({
 
   const seq = asset?.sequence || null;
   const seqRef = useRef(seq);
+  const achPathRef = useRef('');
+  achPathRef.current = asset?.path || '';
+  const achWatched = () => watched('sequence', achPathRef.current, seqRef.current?.numbers?.length || 0);
   seqRef.current = seq;
 
   // present[i] = frame i exists on disk; holdOf[i] = the frame to show at slot i (a missing frame holds the one before it)
@@ -420,9 +424,13 @@ export default function ImageSequencePlayer({
       if (best >= 0) {
         clock = owed > limit ? now : clock + owed * slotMs;
         show(best);
-        if (ended && best === getRange().hi) pausePlayback();
+        if (ended && best === getRange().hi) {
+          pausePlayback();
+          achWatched();
+        }
       } else if (ended) {
         pausePlayback();
+        achWatched();
       } else {
         setBufferingFlag(true);
       }

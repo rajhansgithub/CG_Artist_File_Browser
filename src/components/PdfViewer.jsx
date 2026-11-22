@@ -14,6 +14,7 @@ import {
 import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes } from '../utils/formatHelpers';
 import { openPdfDocument } from '../utils/pdfLoader';
+import { opened } from '../achievements/observer.js';
 
 // PDF points are 1/72 in, CSS pixels 1/96 in, so a "100%" page is 96/72 of the PDF scale.
 const CSS_PER_POINT = 96 / 72;
@@ -172,6 +173,7 @@ export default function PdfViewer({
         setPdf(doc);
         setPageSizes(sizes.slice());
         setIsLoading(false);
+        opened('pdf', asset.path);
 
         // Fetch exact dimensions for remaining pages in background batches if needed
         if (doc.numPages > 1) {

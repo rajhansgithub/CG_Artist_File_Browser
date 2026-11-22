@@ -19,7 +19,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsDir: 'assets',
-    chunkSizeWarningLimit: 3000
+    chunkSizeWarningLimit: 3000,
+    // The app runs in WebView2 (Chromium) on Windows. Without this the CSS minifier keeps only -webkit-backdrop-filter,
+    // which Chromium ignores, so every frosted-glass blur was lost in the built app
+    cssTarget: 'chrome120'
   },
   resolve: {
     alias: {
