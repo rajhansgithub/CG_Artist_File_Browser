@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.23.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.24.0.
 order: 2
 ---
 
-The current version is **1.23.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.24.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -49,7 +49,16 @@ The current version is **1.23.0**. This list groups the changes by what you see 
 - The 3D view no longer turns black after the window or a side panel changes size.
 - Thumbnail cache with a clear button in Settings.
 
+## Achievements
+
+- Achievements: badges for real work, like opening models and HDRs, organising files and finishing batch jobs. Each badge climbs from Bronze to Ruby as lens iris medals, with Diamond and Ruby as real cut stones. Sets of four make certified showreels.
+- Levels and ranks, a pop-up when you earn something (it waits until no viewer, window or job is open), and a full view where you can tilt a medal and turn it over to its certificate.
+- Emulsion, the rarest tier, opens only after a long stretch of real work. Nothing can be bought, nothing is sent anywhere, and idle time never counts.
+- The trophy button in the side rail (or the Pro sidebar) opens it. Settings has an Achievements section for the pop-ups and the Emulsion bubble's look.
+
 ## Looks
+
+- The frosted-glass blur behind toolbars, docks and windows works again in the built app.
 
 - A new cleaner look with a Simple and Pro mode.
 - Edge-to-edge tiles with the file name always shown, small pictures from inside each folder, and Compare A/B and stars that stay on the tile.

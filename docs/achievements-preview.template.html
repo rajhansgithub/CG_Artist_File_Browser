@@ -1,0 +1,164 @@
+<title>CG Artist File Browser Achievements</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* App tokens (src/styles/index.css + mac-shell.css): dark first, light under [data-theme="light"] */
+/*APP_TOKENS*/
+/* Page layout: one column, the app's own look; the live screen sits in an app-like window frame. */
+:root { color-scheme: dark; --ok: #3fbf7f; --fix: #e0a35a; --pc: #8ab4ff; --na: #8a8a8a;
+  --page-font: 'Inter', 'Segoe UI', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace; }
+:root[data-theme="light"] { color-scheme: light; --ok: #1f8a55; --fix: #a5641c; --pc: #2c5fbf; --na: #6d6d6d; }
+html { background: var(--bg-primary); }
+body { background: var(--bg-primary); color: var(--text-main); font-family: var(--page-font); font-size: 14px; line-height: 1.5; }
+.pg { max-width: 1240px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; line-height: 1.2; }
+h1 { font-size: clamp(24px, 3.4vw, 34px); font-weight: 800; letter-spacing: -.01em; }
+h2 { font-size: 19px; font-weight: 700; }
+h3 { font-size: 14px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; color: var(--text-secondary); }
+.hd { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border-subtle); background: var(--bg-tertiary); color: var(--text-main); cursor: pointer; }
+.chip:hover { border-color: var(--border-medium); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ver { cursor: default; }
+.ver b { font-family: var(--mono); font-weight: 600; margin-right: 4px; }
+.btn { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-secondary); color: var(--text-main); cursor: pointer; }
+.btn:hover { background: var(--bg-hover); border-color: var(--border-medium); }
+.sec { display: flex; flex-direction: column; gap: 14px; }
+.note { font-size: 12.5px; color: var(--text-muted); min-height: 1.5em; }
+/* gap map */
+.gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 8px; }
+.gap { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); min-width: 0; }
+.gap b { display: block; font-weight: 600; font-size: 13px; }
+.gap span { font-size: 12.5px; color: var(--text-secondary); }
+.st { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; margin-top: 1px;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.st.ok { --c: var(--ok); } .st.fix { --c: var(--fix); } .st.pc { --c: var(--pc); } .st.na { --c: var(--na); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-muted); }
+.legend .st { margin-right: 6px; }
+/* the app window frame round the live screen */
+.win { border-radius: 14px; border: 1px solid var(--border-medium); background: var(--bg-primary); overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+.win-bar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-secondary); flex-wrap: wrap; }
+.win-bar strong { font-size: 15px; }
+.win-bar span { font-size: 12px; color: var(--text-muted); }
+.win-body { padding: 20px; }
+@media (max-width: 600px) { .win-body { padding: 12px; } }
+.panel { padding: 16px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); max-width: 560px; }
+.tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+.tests li { display: flex; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.tests li::before { content: '✓'; color: var(--ok); font-weight: 800; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.opt { padding: 14px 16px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 6px; }
+.opt.picked { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.opt .st { align-self: flex-start; }
+num, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .win { box-shadow: none; } }
+/* the app's achievements styles (src/achievements/*.css), built */
+/*ACH_CSS*/
+</style>
+
+<div class="pg">
+  <header class="hd">
+    <span class="eyebrow">Emulsion Labs · Free mode · Lens iris theme</span>
+    <h1>CG Artist File Browser Achievements</h1>
+    <p>This page runs the app's real achievements code: the same badges, rules, pop-ups and live shaders that ship in version 1.24.0. Switch the sample, tilt a medal, turn it over, and trigger each pop-up.</p>
+    <div class="row" aria-label="Versions">
+      <span class="eyebrow" style="margin-right:4px">Versions</span>
+      <span class="chip ver" aria-pressed="true"><b>v1</b>1.24.0 · built in the app</span>
+      <a class="chip ver" href="#options" style="text-decoration:none"><b>v0</b>Theme picked: lens iris</a>
+    </div>
+  </header>
+
+  <section class="sec" aria-labelledby="gap-h">
+    <h2 id="gap-h">What the achievements standard asks for, and where each part stands</h2>
+    <div class="legend"><span><span class="st ok">Done</span>built and checked</span><span><span class="st fix">Filled now</span>was missing, added today</span><span><span class="st pc">On your PC</span>Antigravity checks it in the Windows build</span><span><span class="st na">Not needed</span>does not apply here</span></div>
+    <div class="gaps">
+      <div class="gap"><span class="st ok">Done</span><div><b>Rules and scoring</b><span>Shared XP curve, flat XP cap of 40 a day, 7 tiers, ranks Bronze to Emulsion, titles Intern to VFX Legend.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>45 badges, 3 sets</b><span>Reviewing, Organising, Pipeline, Mastery, Loyalty, Happy accidents and Secrets. Certified showreels for The Reviewer, The Wrangler and The Pipeline.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Free mode and the Emulsion gate</b><span>No paid tags. Emulsion needs level 30, 180 days in 6 months, 3 badges at Ruby, 50,000 files organised and 1,000 models and HDRs reviewed.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Real shaders</b><span>Live soap bubble with the app's layers mark, real cut Diamond and Ruby, metal lens iris medals for Bronze to Platinum.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Watch only, real work only</b><span>Counts files that loaded and jobs that finished. Re-opening a file counts nothing. Never blocks or slows the app.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Saved on the PC, never lost</b><span>Two copies (local and roaming app data) merged on every start. No login, no network, no new permissions.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Screen, pop-up, level-up, full view</b><span>One pop-up per batch that waits while a viewer, window or file job is open. Full view tilts and turns to a certificate.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Settings and the side rail</b><span>Trophy button with the level in the rail and the Pro sidebar. Settings has pop-up switches and the bubble's look.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Fallbacks and motion</b><span>Still frames with reduced motion. CSS and drawn stones where there is no WebGL. Light and dark themes.</span></div></div>
+      <div class="gap"><span class="st ok">Done</span><div><b>Docs and version</b><span>docs/ACHIEVEMENTS.md (catalog, theme and why, gate numbers), release notes, version 1.24.0 in every file.</span></div></div>
+      <div class="gap"><span class="st fix">Filled now</span><div><b>One live page for everything</b><span>This page. Earlier the results were screenshots; now every check runs live here, with a Versions bar.</span></div></div>
+      <div class="gap"><span class="st fix">Filled now</span><div><b>Frosted glass in the built app</b><span>Found while testing: the build dropped every blur behind toolbars, docks and windows. Fixed, so pop-ups blur the app as designed.</span></div></div>
+      <div class="gap"><span class="st pc">On your PC</span><div><b>60 fps on a real GPU</b><span>Checked here in software rendering. Antigravity's Windows build confirms speed on your graphics card.</span></div></div>
+      <div class="gap"><span class="st pc">On your PC</span><div><b>Release</b><span>Patch, local build, GitHub release. Only Antigravity publishes.</span></div></div>
+      <div class="gap"><span class="st na">Not needed</span><div><b>Migration</b><span>The app had no achievements before, so there is nothing to carry over.</span></div></div>
+      <div class="gap"><span class="st na">Not needed</span><div><b>Second language</b><span>The app ships in English only. Every string sits in one table, ready for a translation.</span></div></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="live-h">
+    <h2 id="live-h">Live: the Achievements screen</h2>
+    <div class="row" aria-label="Sample">
+      <span class="eyebrow" style="margin-right:4px">Sample</span>
+      <button type="button" class="chip" data-sample="week" aria-pressed="false">First week</button>
+      <button type="button" class="chip" data-sample="year" aria-pressed="true">A year in · Diamond rank</button>
+      <button type="button" class="chip" data-sample="gate" aria-pressed="false">Emulsion gate open</button>
+      <span class="eyebrow" style="margin:0 4px 0 12px">Theme</span>
+      <button type="button" class="chip" data-theme-pick="dark" aria-pressed="true">Obsidian Dark</button>
+      <button type="button" class="chip" data-theme-pick="light" aria-pressed="false">Light</button>
+    </div>
+    <div class="row" aria-label="Moments">
+      <span class="eyebrow" style="margin-right:4px">Try</span>
+      <button type="button" class="btn" id="m-badge">Badge pop-up</button>
+      <button type="button" class="btn" id="m-ruby">Ruby pop-up</button>
+      <button type="button" class="btn" id="m-set">Showreel pop-up</button>
+      <button type="button" class="btn" id="m-gate">Emulsion gate moment</button>
+      <button type="button" class="btn" id="m-level">Level-up</button>
+      <button type="button" class="btn" id="m-view">Full view of a medal</button>
+    </div>
+    <span class="note" id="ach-moment-note">Sample data, not your progress. Click any earned badge (open a card with Show all) to see it big; click the medal to turn it over.</span>
+    <div class="win">
+      <div class="win-bar"><strong>Achievements</strong><span>Badges for real work. Only files that loaded and jobs that finished count.</span></div>
+      <div class="win-body" id="ach-live"></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="set-h">
+    <h2 id="set-h">Live: Settings › Achievements</h2>
+    <div class="panel"><div id="ach-settings"></div></div>
+  </section>
+
+  <section class="sec" aria-labelledby="test-h">
+    <h2 id="test-h">Checks that passed</h2>
+    <ul class="tests">
+      <li>18 logic tests: curve, titles, ranks, every threshold, tier skips, flat cap, loyalty, merge, size under 4 KB</li>
+      <li>Emulsion gate stays shut while any one condition is missing; idle time never counts</li>
+      <li>No paid tags or Welcome badge anywhere (free mode)</li>
+      <li>3 storage tests in Rust: round trip, oversized and broken files ignored</li>
+      <li>Medals, stones and the bubble draw through the real shaders and change between frames</li>
+      <li>No WebGL: drawn fallbacks show for every live badge</li>
+      <li>One pop-up per batch, the highest wins, the rest in one line</li>
+      <li>Pop-ups wait while Settings, a viewer or a file job is open</li>
+      <li>Full view: arrows step through badges, Esc closes, focus returns to the row, the rest of the page holds still</li>
+      <li>Level-up burst shows and skips on click; reduced motion respected</li>
+      <li>Light theme, dark theme and phone width</li>
+      <li>App build passes; version 1.24.0 agrees in every file</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="options" aria-labelledby="opt-h">
+    <h2 id="opt-h">Theme: lens iris medals</h2>
+    <p>CG and VFX artists are proud of what comes out of the camera and the screening room. So each medal's face is a camera iris, six aperture blades round the badge icon, and each set is a certified showreel framed on a wall. Diamond and Ruby set a real cut stone in the opening. Emulsion is the live soap bubble with the app's mark.</p>
+    <div class="cols">
+      <div class="opt picked"><span class="st ok">Picked</span><h3>Lens iris medal</h3><span class="note">Round metal medal with six aperture blades round the icon. Sets become framed showreels.</span></div>
+      <div class="opt"><span class="st na">Earlier option</span><h3>Clapperboard plaque</h3><span class="note">Standing slate plaque with clapper stripes on top, icon in a mirror pocket.</span></div>
+      <div class="opt"><span class="st na">Earlier option</span><h3>Film plate</h3><span class="note">A metal film frame with sprocket holes, icon in the frame. Wider, fewer per row.</span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/*ACH_JS*/
+</script>

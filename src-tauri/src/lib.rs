@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod achievements;
 mod batch_convert;
 mod drag_out;
 mod duplicates;
@@ -1771,7 +1772,9 @@ pub fn run() {
             file_ops::get_clipboard_files,
             file_ops::clear_clipboard_files,
             user_guide::open_user_guide,
-            open_url::open_url
+            open_url::open_url,
+            achievements::load_achievements,
+            achievements::save_achievements
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

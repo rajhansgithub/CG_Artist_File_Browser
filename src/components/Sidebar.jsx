@@ -12,8 +12,10 @@ import {
   History,
   CircleHelp,
   SlidersHorizontal,
-  Layers
+  Layers,
+  Trophy
 } from 'lucide-react';
+import { useAchievementLevel } from '../achievements/level.js';
 import FolderIcon from './FolderIcon';
 import RecentFolders from './RecentFolders';
 import { useFolderIcons } from '../utils/folderIconStore';
@@ -70,6 +72,7 @@ export default function Sidebar({
   blenderStatus,
   onOpenSettings,
   onOpenGuide,
+  onOpenAchievements,
   onOpenFolderPicker,
   onRefresh,
   uiMode,
@@ -81,6 +84,8 @@ export default function Sidebar({
   onClearRecentFolders
 }) {
   const { openMenu } = useFolderIcons();
+  const ach = useAchievementLevel();
+  const achTitle = `Achievements · Level ${ach.level} ${ach.title} (${ach.metal})`;
   const [flyout, setFlyout] = useState(null);
   const flyoutRef = useRef(null);
   const railRef = useRef(null);
@@ -302,6 +307,10 @@ export default function Sidebar({
             <FolderOpen size={14} />
             <span>Open</span>
           </button>
+          <button className={`foot-btn ach-foot is-m${ach.rank.m}`} onClick={onOpenAchievements} title={achTitle} aria-label={achTitle}>
+            <Trophy size={14} />
+            <span className="ach-nav-lv">Lv {ach.level}</span>
+          </button>
           <button className="foot-btn icon" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
             <CircleHelp size={14} />
           </button>
@@ -365,6 +374,10 @@ export default function Sidebar({
           })}
         </div>
         <div className="rail-spacer" />
+        <button className={`rail-btn ach-rail-btn is-m${ach.rank.m}`} onClick={onOpenAchievements} title={achTitle} aria-label={achTitle}>
+          <Trophy size={19} strokeWidth={1.7} />
+          <span className="ach-rail-lv">{ach.level}</span>
+        </button>
         <button className="rail-btn" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
           <CircleHelp size={19} strokeWidth={1.7} />
         </button>

@@ -1,0 +1,17 @@
+/* Achievements level pill on the side rail and the Pro sidebar foot (src/achievements/level.js). Loaded with the app;
+   the rest (achievements.css) loads with the screen. Rank metal colours are defined here and shared. */
+:root { --ach-m1: #c07f45; --ach-m2: #c9cfd8; --ach-m3: #eac35e; --ach-m4: #a9e4e1; --ach-m5: #cbe7ff; --ach-m6: #ff4757; --ach-m7: #e2b8ff;
+  --ach-d1: #9fd7ff; --ach-d2: #a3ecf1; --ach-d3: #c5c7ff; --ach-d4: #bb97c9; --ach-m-ink: #151413; }
+html[data-theme="light"] { --ach-m1: #8a5a2e; --ach-m2: #606875; --ach-m3: #9b771c; --ach-m4: #308682; --ach-m5: #2c6aa8; --ach-m6: #c41f30; --ach-m7: #7b3fa6;
+  --ach-d1: #2c6aa8; --ach-d2: #1f8a91; --ach-d3: #4a4fb0; --ach-d4: #7d4f8f; --ach-m-ink: #f4f3f0; }
+.ach-rail-btn.is-m1, .ach-foot.is-m1 { --ach-c: var(--ach-m1); } .ach-rail-btn.is-m2, .ach-foot.is-m2 { --ach-c: var(--ach-m2); } .ach-rail-btn.is-m3, .ach-foot.is-m3 { --ach-c: var(--ach-m3); }
+.ach-rail-btn.is-m4, .ach-foot.is-m4 { --ach-c: var(--ach-m4); } .ach-rail-btn.is-m5, .ach-foot.is-m5 { --ach-c: var(--ach-m5); } .ach-rail-btn.is-m6, .ach-foot.is-m6 { --ach-c: var(--ach-m6); }
+.ach-rail-btn.is-m7, .ach-foot.is-m7 { --ach-c: var(--ach-m7); }
+/* ---------- sidebar level pill: rank metal, filled ---------- */
+.ach-nav-lv { margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--ach-c, var(--accent-soft)); color: var(--ach-m-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ach-foot .ach-nav-lv { margin-left: 0; }
+/* rail button + level pill */
+.ach-rail-lv { position: absolute; right: -2px; bottom: -2px; min-width: 16px; height: 14px; padding: 0 3px; border-radius: 999px; font-size: 9px; font-weight: 800; line-height: 14px; text-align: center;
+  background: var(--ach-c, var(--accent)); color: var(--ach-m-ink); font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 0 0 2px var(--bg-secondary); }
+.ach-rail-btn { position: relative; }

@@ -388,7 +388,7 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
 
-**Current release version:** `1.23.0`
+**Current release version:** `1.24.0`
 
 `npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 

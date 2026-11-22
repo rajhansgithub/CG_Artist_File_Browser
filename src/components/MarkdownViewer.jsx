@@ -5,6 +5,7 @@ import { getParentDir } from '../utils/pathHelpers';
 import { isMarkdownPath } from '../utils/markdownPaths';
 import { renderMarkdown } from '../utils/markdownRender';
 import '../styles/markdown-viewer.css';
+import { opened } from '../achievements/observer.js';
 
 // A very large file is cut here so the window stays responsive; the page says so at the top.
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -154,6 +155,7 @@ export default function MarkdownViewer({
         if (cancelled) return;
         setDoc({ ...rendered, text, truncated });
         setIsLoading(false);
+        opened('md', asset.path);
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to open Markdown file:', err);

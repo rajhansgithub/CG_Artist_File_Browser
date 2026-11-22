@@ -30,6 +30,7 @@ import {
   ChevronLeft,
   ChevronUp
 } from 'lucide-react';
+import { opened, openFailed } from '../achievements/observer.js';
 
 const SPHERE_SIZES = {
   big_bada: { id: 'big_bada', name: 'Big bada sphere = 300 meters', radius: 150, meters: 300 },
@@ -669,12 +670,14 @@ export default function HdrExrInspector({
         }
 
         setLoading(false);
+        opened('hdr', asset.path);
       })
       .catch((err) => {
         if (!isMounted) return;
         console.error('Error loading HDR/EXR:', err);
         setLoadError(err.message || 'Failed to load HDR/EXR file.');
         setLoading(false);
+        openFailed('hdr', err.message);
       });
 
     return () => {

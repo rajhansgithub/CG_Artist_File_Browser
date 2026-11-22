@@ -17,6 +17,7 @@ import {
 import { isQuickLookNavKey } from '../utils/quickLook';
 import { formatBytes, formatDuration } from '../utils/formatHelpers';
 import pitchShifterWorkletUrl from '../utils/pitchShifterWorklet.js?url';
+import { opened, watched } from '../achievements/observer.js';
 
 const MAX_PITCH_SEMITONES = 12;
 
@@ -510,6 +511,7 @@ export default function AudioPlayer({
           if (audioRef.current) {
             const dur = audioRef.current.duration;
             if (isFinite(dur) && dur > 0) setDuration(dur);
+            opened('audio', asset?.path);
             applyOutputLevel(volume, isMuted);
             audioRef.current.playbackRate = playbackRate;
           }
@@ -519,6 +521,7 @@ export default function AudioPlayer({
         }}
         onEnded={() => {
           if (!isLooping) setIsPlaying(false);
+          watched('audio', asset?.path);
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
