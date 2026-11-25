@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.24.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.25.0.
 order: 2
 ---
 
-The current version is **1.24.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.25.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -48,6 +48,12 @@ The current version is **1.24.0**. This list groups the changes by what you see 
 - Grid virtualisation for large folders.
 - The 3D view no longer turns black after the window or a side panel changes size.
 - Thumbnail cache with a clear button in Settings.
+
+## Updates
+
+- Check for updates from inside the app: Settings > Updates shows what is new and installs it with one click. The installed app updates itself and opens again; the portable exe replaces itself where it is.
+- Every update is checked against our signature first, so a broken, changed or older file is never installed. If the new portable version does not start, the old one is put back.
+- A quiet check once a day (can be turned off) puts a small blue dot on the Settings button when a new version is out. Nothing installs without a click.
 
 ## Achievements
 

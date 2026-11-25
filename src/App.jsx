@@ -16,6 +16,8 @@ import FileTransferPanel from './components/FileTransferPanel';
 import { useFileTransfers } from './hooks/useFileTransfers';
 import { copyText, isRootLocation } from './utils/itemMenu';
 import SortMenu from './components/SortMenu';
+import UpdateNotice from './components/UpdateNotice';
+import { startUpdates } from './utils/updateStore';
 import FilterDock from './components/FilterDock';
 import { useFolderStatus } from './utils/folderStatus';
 import { forgetFolderPeek } from './utils/folderPeek';
@@ -232,6 +234,11 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  // In-app updates: says how the last update went, then checks once a day (src/utils/updateStore.js)
+  useEffect(() => {
+    startUpdates();
+  }, []);
 
   const changeTheme = (nextTheme) => {
     setTheme(nextTheme);
@@ -2014,6 +2021,9 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {/* Update notices in the corner: updated, update failed, or a new version found by the daily check */}
+      <UpdateNotice onOpenSettings={() => setIsSettingsOpen(true)} />
 
       {/* Achievements: level, certified showreels, the Emulsion gate and every badge */}
       {achievementsOpen && (

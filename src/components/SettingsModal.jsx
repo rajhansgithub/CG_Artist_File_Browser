@@ -3,6 +3,7 @@ import { Settings, CheckCircle2, AlertCircle, Trash2, RefreshCw, CircleHelp } fr
 import { APP_VERSION } from '../version.js';
 import { THEMES } from '../utils/themes.js';
 import { AchievementSettings } from './AchievementsScreen.jsx';
+import UpdateSection from './UpdateSection.jsx';
 import { useExternalApps, addExternalApp, removeExternalApp, scanExternalApps } from '../utils/externalAppStore.js';
 
 export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, onOpenGuide, onOpenAchievements }) {
@@ -168,6 +169,11 @@ export default function SettingsModal({ isOpen, onClose, theme, onThemeChange, o
               ))}
             </div>
           </div>
+
+          <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+          {/* Updates: check, see what's new, download and install (docs/UPDATES.md) */}
+          <UpdateSection />
 
           <div style={{ height: 1, background: 'var(--border-subtle)' }} />
 

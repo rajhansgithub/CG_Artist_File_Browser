@@ -238,12 +238,14 @@ Local_WebFileBrowser_Tauri/
 ├── docs/
 │   ├── ARCHITECTURE.md            # This document
 │   ├── ROADMAP.md                 # Feature ideas and prioritized roadmap
+│   ├── UPDATES.md                 # In-app updates: signing key, release steps, private-repo setups
 │   ├── site/                      # Built user guide (plain HTML), embedded in the app and opened by the Help button
 │   └── site-src/                  # Guide sources (Markdown) and build.mjs: `node docs/site-src/build.mjs`
 ├── release/                       # Output folder for compiled .exe and installers
 ├── scripts/
 │   ├── blender_convert.py         # Headless Blender 3D conversion & render script
-│   ├── release.js                 # Release orchestrator (bumps versions, builds, tags, uploads to GitHub Releases)
+│   ├── release.js                 # Release orchestrator (bumps versions, builds, signs, tags, uploads to GitHub Releases)
+│   ├── updater.js                 # In-app updates: makes the signing key once, signs a release and writes latest.json
 │   └── version-check.js           # Fails if package.json, tauri.conf.json, Cargo.toml and ARCHITECTURE.md disagree
 ├── src/
 │   ├── components/
@@ -262,7 +264,9 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── ImageViewer.jsx        # 2D pan/zoom image & texture viewer
 │   │   ├── PdfViewer.jsx          # Continuous-scroll PDF viewer (pdf.js)
 │   │   ├── MarkdownViewer.jsx     # Markdown reading page: images/GIFs, tables, code, outline, links
-│   │   ├── SettingsModal.jsx      # Appearance (colour scheme), Blender path settings & cache management
+│   │   ├── SettingsModal.jsx      # Appearance (colour scheme), updates, Blender path settings & cache management
+│   │   ├── UpdateSection.jsx      # Settings > Updates: check, what's new, download and install
+│   │   ├── UpdateNotice.jsx       # Corner notice: updated, update failed, or a new version is out
 │   │   ├── TxTexViewer.jsx        # Arnold .tx / RenderMan .tex viewer: mip levels, "will it be sharp enough?" check
 │   │   ├── ConnectNetworkModal.jsx # "Connect to network folder" window (path, username, password, stay connected)
 │   │   ├── PathInput.jsx          # Address-bar text box for typed folder / network paths
@@ -275,6 +279,7 @@ Local_WebFileBrowser_Tauri/
 │   ├── hooks/
 │   │   └── useQuickLook.js        # Space / Esc for the Quick Look floating window
 │   ├── utils/
+│   │   ├── updateStore.js         # In-app update state, daily check, skip version (shared by Settings and the sidebar dot)
 │   │   ├── assetLoader.js         # Three.js loaders (OBJ, FBX, GLTF, STL, PLY, USDZ, HDR)
 │   │   ├── exrLoaderExtended.js   # Multilayer OpenEXR loader
 │   │   ├── halfFloat.js           # Half-float lookup table and rawSample() for decoded EXR pixels
@@ -307,6 +312,7 @@ Local_WebFileBrowser_Tauri/
 │   │   ├── folder_icons.rs        # Folder icon store (portable-aware) and Windows desktop.ini icon export
 │   │   ├── exr_view.rs            # Native multi-core EXR decode for the viewer
 │   │   ├── lib.rs                 # Rust IPC commands, drive scan, config storage
+│   │   ├── app_update.rs          # In-app updates: signed check/download, installer run, portable exe swap with rollback
 │   │   ├── main.rs                # Windows entrypoint (#![windows_subsystem = "windows"])
 │   │   ├── network_login.rs       # Share sign-in (WNetAddConnection2) and Credential Manager password storage
 │   │   ├── recent_folders.rs      # Recent folders for the sidebar: read back (existing ones only) and clear
@@ -388,7 +394,7 @@ git remote set-url origin https://github.com/rajhansgithub/CG_Artist_File_Browse
 
 All agents (**Antigravity**, **Claude Code**) and human contributors must strictly adhere to **Semantic Versioning (`MAJOR.MINOR.PATCH`)** when determining the next release version.
 
-**Current release version:** `1.24.0`
+**Current release version:** `1.25.0`
 
 `npm run version:check` (also run in CI) fails unless `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the line above all carry the same plain `MAJOR.MINOR.PATCH` version.
 

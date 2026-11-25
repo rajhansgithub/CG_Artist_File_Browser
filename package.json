@@ -1,6 +1,6 @@
 {
   "name": "cg-artist-file-browser",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "description": "High-Performance 3D & HDR/EXR File Browser and Inspector for CG & VFX Artists",
   "type": "module",
   "repository": {
@@ -21,6 +21,8 @@
     "tauri:build": "tauri build",
     "release": "node scripts/release.js",
     "version:check": "node scripts/version-check.js",
+    "updater:keygen": "node scripts/updater.js keygen",
+    "updater:sign": "node scripts/updater.js sign",
     "test:achievements": "node --test test/achievements.test.mjs"
   },
   "keywords": [

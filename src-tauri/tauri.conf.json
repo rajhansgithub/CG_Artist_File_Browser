@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "CG Artist File Browser",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "identifier": "com.cg.artistfilebrowser",
   "build": {
     "frontendDist": "../dist",
@@ -49,6 +49,18 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ3NkNGMkE0QzM2RDhDRTMKUldUampHM0RwUEpzUjMzSmFNa3RSdmhzMUw5MVBwTk9CTDlxNmJ5OHJZZ3NzSG1XZDc1dzByeHoK",
+      "endpoints": [
+        "https://github.com/rajhansgithub/CG_Artist_File_Browser/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }
