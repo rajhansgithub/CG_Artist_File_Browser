@@ -1,38 +1,27 @@
-/* Emulsion badge (tier 7): a live soap bubble with the CG Artist File Browser mark inside.
-   Ported line by line from the Emulsion Labs reference (achievements plugin, reference/bubble.js): same shader, same look
-   numbers. The only change is the mark in the middle: the app's stacked-layers mark in place of the Playlist Pro mark.
-   Same light shader as the Emulsion Apps soap bubble he picked (his saved look: edge 0.59, film 497 nm, swirl 2, ...), with our mark
-   in the middle in place of the dot rings. One shared WebGL context draws every <canvas class="ach-bubble">.
-   - Thin-film interference: 8 wavelengths, water film n = 1.33, thickness flows (domain-warped noise) and drains (thinner at the top).
-   - Schlick Fresnel: a broad, uneven rainbow edge band; nearly clear in the middle.
-   - Reflections: a soft window top-left and a floor light lift the film colour.
-   - Refraction: the mark and its light are seen through the film; faint copies sway at the left and right edges and round the rim.
-   - The mark is lit like the reference: warm at the bottom, white in the middle, blue at the top; it breathes very slightly.
-   Watching only. No network. Pauses when off screen or the tab is hidden; still frame with "reduce motion".
-   No WebGL: the canvas gets class "nogl" and CSS shows the old Emulsion look. */
-const root = typeof window !== 'undefined' ? window : globalThis;
+/* Emulsion badge: a live soap bubble with the app's mark inside (swap `logo()` / `pulseD()` per app; the example mark is a pulse line). One shared WebGL context draws every <canvas class="ach-bubble">.
+   Thin-film interference (8 wavelengths, water film n = 1.33), Schlick Fresnel edge band, studio window + floor light, the mark seen through
+   the film with refraction copies at the rim. Look params are the tuned reference (unchanged). Watching only. No network.
+   Pauses off screen or in a hidden tab; one still frame with "reduce motion". ACHBubble.only(canvas) = the full view draws only that one.
+   No WebGL: the canvas gets class "nogl". */
+(function (root) {
+  'use strict';
+  /* The bubble's look, shared by the flat badge and the 3D bubble and set by the tuner (v4). Defaults = Rajhans's saved values
+     (tuning/bubble, saved 2026-11-22 04:43 UTC). */
+  const LOOK_DEFAULTS = { edgeWidth: 0.61, edgeVary: 1, edgeColour: 0.61, rimLine: 1, saturation: 1.1, filmInside: 1, filmThick: 540, flowSpeed: 2, reflection: 0.51, dotRefr: 0.1, dotRing: 0.75, refrPeriod: 20, glow: 0, breath: 4, motionAmt: 1, motionTime: 30, lqRefr: 0, lqRefl: 0, lqFilm: 0.5, lqTint: 1, lqWobble: 0.56, lqDrops: 0, lqDropSize: 0.4, lqMove: 0.2, turn: 0 };
+  root.ACHLookDefaults = Object.freeze(Object.assign({}, LOOK_DEFAULTS));
+  root.ACHLook = Object.assign({}, LOOK_DEFAULTS);
+  const LOOK_U = { edgeWidth: 'uEdgeW', edgeVary: 'uEdgeVary', edgeColour: 'uEdgeCol', rimLine: 'uRim', saturation: 'uSat', filmInside: 'uFilmIn', filmThick: 'uThick', flowSpeed: 'uFlow', reflection: 'uRefl',
+    dotRefr: 'uDotRefr', dotRing: 'uDotRing', refrPeriod: 'uRefrT', glow: 'uGlow', breath: 'uBreath', motionAmt: 'uMotAmt', motionTime: 'uMotT',
+    lqRefr: 'uLqRefr', lqRefl: 'uLqRefl', lqFilm: 'uLqFilm', lqTint: 'uLqTint', lqWobble: 'uLqWob', lqDrops: 'uLqDrops', lqDropSize: 'uLqDropS', lqMove: 'uLqMove' };
+  let LU = {};
 
   const VS = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
   const FS = `
 precision highp float;
 uniform vec2 uRes; uniform float uTime; uniform float uSeed;
 uniform sampler2D uEnv; uniform float uEnvOn; uniform vec4 uEnvR; uniform vec4 uEnvK; uniform float uSee;   // uEnvK: front, back, distance, film tint; uSee: how see-through the bubble is   // the page behind, for a faint mirror reflection
-#define uEdgeW 0.59
-#define uEdgeVary 0.85
-#define uEdgeCol 1.13
-#define uSat 0.8
-#define uFilmIn 1.0
-#define uRefl 0.6
-#define uFlow 2.0
-#define uThick 497.0
-#define uRim 0.3
-#define uDotRefr 0.3
-#define uDotRing 0.3
-#define uRefrT 20.0
-#define uGlow 0.43
-#define uBreath 15.0
-#define uMotAmt 1.0
-#define uMotT 10.5
+uniform float uEdgeW, uEdgeVary, uEdgeCol, uSat, uFilmIn, uRefl, uFlow, uThick, uRim, uDotRefr, uDotRing, uRefrT, uGlow, uBreath, uMotAmt, uMotT;   // the look (ACHLook, the tuner)
+uniform float uLqRefr, uLqRefl, uLqFilm, uLqTint, uLqWob, uLqDrops, uLqDropS, uLqMove;   // the liquid pulse
 #define uVar 2.0
 float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
@@ -48,20 +37,29 @@ vec3 film(float d, float cosT){
   return mix(vec3(y),f,uSat);
 }
 const float TAU=6.2831853;
-// CG Artist File Browser mark (icon units, 24 box, y down): the stacked layers. The top sheet is solid, the two under it are
-// chevron strokes, like the app's own brand mark. It breathes very slightly.
+// mark helpers: segment and triangle distances (icon units, 24 box)
 float seg(vec2 p, vec2 a, vec2 b){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.); return length(pa-ba*h); }
-float ndot(vec2 a, vec2 b){ return a.x*b.x-a.y*b.y; }
-float rhombus(vec2 p, vec2 b){ p=abs(p); float h=clamp(ndot(b-2.*p,b)/dot(b,b),-1.,1.); float d=length(p-.5*b*vec2(1.-h,1.+h)); return d*sign(p.x*b.y+p.y*b.x-b.x*b.y); }
+float tri(vec2 p, vec2 a, vec2 b, vec2 c){
+  vec2 e0=b-a, e1=c-b, e2=a-c, v0=p-a, v1=p-b, v2=p-c;
+  vec2 pq0=v0-e0*clamp(dot(v0,e0)/dot(e0,e0),0.,1.), pq1=v1-e1*clamp(dot(v1,e1)/dot(e1,e1),0.,1.), pq2=v2-e2*clamp(dot(v2,e2)/dot(e2,e2),0.,1.);
+  float s=sign(e0.x*e2.y-e0.y*e2.x);
+  vec2 d=min(min(vec2(dot(pq0,pq0), s*(v0.x*e0.y-v0.y*e0.x)), vec2(dot(pq1,pq1), s*(v1.x*e1.y-v1.y*e1.x))), vec2(dot(pq2,pq2), s*(v2.x*e2.y-v2.y*e2.x)));
+  return -sqrt(d.x)*sign(d.y);
+}
+// CG Artist File Browser mark: the Layers icon (a rhombus over two chevrons), distance to its lines in icon units (24 box)
+float markD(vec2 p){
+  float d=min(min(seg(p,vec2(12.,3.2),vec2(19.4,6.2)),seg(p,vec2(19.4,6.2),vec2(12.,9.2))),min(seg(p,vec2(12.,9.2),vec2(4.6,6.2)),seg(p,vec2(4.6,6.2),vec2(12.,3.2))));
+  d=min(d,min(seg(p,vec2(4.6,9.6),vec2(12.,12.6)),seg(p,vec2(12.,12.6),vec2(19.4,9.6))));
+  return min(d,min(seg(p,vec2(4.6,12.6),vec2(12.,15.6)),seg(p,vec2(12.,15.6),vec2(19.4,12.6))));
+}
+// the app's mark (icon units, 24 box). This app: the Layers mark, centred; breathes very slightly.
 vec4 logo(vec2 q, float aa){
   float cs=1.+uMotAmt*.05*sin(uTime*TAU/uMotT);
   q/=cs;
-  vec2 p=vec2(12.+q.x*12., 12.-q.y*12.);
-  float a=aa*12.;
-  float top=rhombus(p-vec2(12.,7.),vec2(9.6,4.4))-.45;
-  float c1=min(seg(p,vec2(2.6,12.2),vec2(12.,16.6)), seg(p,vec2(12.,16.6),vec2(21.4,12.2)))-1.05;
-  float c2=min(seg(p,vec2(2.6,17.2),vec2(12.,21.6)), seg(p,vec2(12.,21.6),vec2(21.4,17.2)))-1.05;
-  float m=smoothstep(a,-a,min(top,min(c1,c2)));
+  vec2 p=vec2(12.+q.x*9., 9.4-q.y*9.);
+  float a=aa*9.;
+  float pl=markD(p)-.95;
+  float m=smoothstep(a,-a,pl);
   return vec4(m,m,m,m);
 }
 vec3 glow(vec2 q, float k){
@@ -74,6 +72,61 @@ vec3 glow(vec2 q, float k){
   g+=vec3(1.,.36,.16)*exp(-dot((q-vec2(.45,-.2))*vec2(2.4,3.4),(q-vec2(.45,-.2))*vec2(2.4,3.4)))*.55;
   return g*k*uGlow;
 }
+// the pulse as a tube of liquid seen from the front (same look as the 3D bubble's): distance to its centre line in icon units
+float pulseD(vec2 p){
+  return markD(p);
+}
+// shading of clear water at normal n (view straight on), over what is behind it (the glow, sampled bent by refraction)
+vec3 water(vec3 n, vec2 q, vec3 dc, float k){
+  float ndv=n.z;
+  float Fl=.02+.98*pow(1.-ndv,5.);
+  vec3 Rr=reflect(vec3(0.,0.,-1.),n);
+  vec3 behind=glow(q-n.xy*.22*uLqRefr,k)*.9+vec3(.012);
+  float edge=mix(1.,smoothstep(.05,.55,ndv),clamp(uLqRefr*1.6,0.,1.));
+  vec3 trans=behind*(1.-Fl)*edge;
+  float spec=(Fl*(.4+uRefl)*1.4+pow(max(dot(Rr,normalize(vec3(-.45,.55,.7))),0.),120.)*2.4+pow(max(dot(Rr,normalize(vec3(.6,.35,.72))),0.),400.)*2.)*uLqRefl*2.;
+  vec3 fl=film(uThick*.5+220.*n.y+60.*sin(q.x*5.6+uTime*.4),ndv)*(Fl*2.2+.03)*uLqFilm*1.6;
+  vec3 tint=dc*(.08+.5*pow(ndv,2.))*uLqTint*(.85+.25*k);
+  return trans+vec3(spec)+fl+tint;
+}
+// rgb = the water pulse with its tiny bubbles (already over the glow behind it), a = coverage. dc = the logo colour here.
+vec4 liquid(vec2 q, float aa, vec3 dc, float k){
+  float t=uTime;
+  vec2 w=q*.62;                                     // bubble units, as in the 3D pulse
+  w.y-=.012*uLqMove*sin(t*.6);
+  w=rot(.035*uLqMove*sin(t*.37))*w;
+  float cs=1.+uMotAmt*.05*sin(t*TAU/uMotT);
+  w/=cs;
+  vec2 p=vec2(12.+w.x/.62*9., 9.4-w.y/.62*9.);
+  float R=.95*(1.+(.006*sin(w.x*14.-t*2.1)+.003*sin(w.x*33.+w.y*9.+t*3.3))*uLqWob*2./.062);
+  float d0=pulseD(p);
+  float a=aa*9.;
+  float m=smoothstep(a,-a,d0-R);
+  vec3 n=vec3(0.,0.,1.);
+  if(m>0.){
+    float e=.06;
+    vec2 gr=vec2(pulseD(p+vec2(e,0.))-pulseD(p-vec2(e,0.)), pulseD(p-vec2(0.,e))-pulseD(p+vec2(0.,e)))/(2.*e);
+    float x=clamp(d0/R,0.,.999);
+    n=normalize(vec3(gr*x,sqrt(1.-x*x)));
+  }
+  // tiny bubbles (spheres): the one in front wins
+  for(int i=0;i<12;i++){
+    float fi=float(i);
+    if(fi>=12.*uLqDrops) break;
+    vec3 c=vec3(-.6+fi*.105+.03*sin(fi*7.3), .30*sin(fi*2.39+.5)-.03, 0.);
+    c.xy+=.014*uLqMove*vec2(sin(t*.5+fi), sin(t*.43+fi*2.));
+    float r=(.013+.026*fract(fi*.618))*uLqDropS;
+    vec2 v=(w-c.xy)/r; float l2=dot(v,v);
+    float md=smoothstep(1.+aa*.62/r,1.-aa*.62/r,sqrt(l2));
+    if(md>0.){
+      vec3 nd=vec3(v,sqrt(max(1.-l2,0.)));
+      if(md>=m || nd.z>n.z){ n=nd; }
+      m=max(m,md);
+    }
+  }
+  if(m<=0.) return vec4(0.);
+  return vec4(water(n,q,dc,k),m);
+}
 vec3 content(vec2 q, float k, float aa){
   vec4 L=logo(q,aa);
   vec3 dotc=vec3(.95);
@@ -85,6 +138,10 @@ vec3 content(vec2 q, float k, float aa){
   } else if(uVar>2.5){
     g=(vec3(1.)*exp(-dot(q,q)*9.)*1.1 + vec3(1.,.82,.3)*exp(-dot(q,q)*3.5)*.55 + vec3(.2,.7,1.)*exp(-dot(q,q)*1.4)*.25)*k*uGlow;
     dotc=vec3(1.)*(.45+.55*exp(-dot(q,q)*1.6));
+  }
+  if(uVar>1.5 && uVar<2.5){
+    vec4 lq=liquid(q,aa,dotc,k);
+    return g*(1.-lq.a)+lq.rgb*lq.a;
   }
   return g + L.a*dotc*(1.-.15*k);
 }
@@ -177,9 +234,11 @@ void main(){
   gl_FragColor=vec4(col*inside, inside*a);
 }`;
 
+  let rr = 0; const BUDGET = 4;   // ms of drawing per frame (the owner 11-24: no lags or freezes)
   let gl = null, gc = null, off = false, uRes, uTime, uSeed, uEnvOn, uEnvR, uEnvK, uSee, env = null, envArea = null, envSkip = null, items = [], maxPx = 1, raf = 0, last = 0, io = null, t0 = 0, broken = false;
   // amount = overall, front = upright image (outer surface), back = upside-down image (inner back wall), distance = how far the app
   // is behind the bubble (in bubble radii), tint = film colour on it, blur = softness, see = how see-through the bubble is
+  let solo = null;
   const RK = { amount: 4, front: 2, back: 1, distance: 3, tint: 0.1, blur: 0.5, see: 0.1 };   // the owner's tuned look, 2026-11-21
   const still = () => !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -198,13 +257,14 @@ void main(){
     const v = sh(gl.VERTEX_SHADER, VS), f = sh(gl.FRAGMENT_SHADER, FS);
     const pr = v && f && gl.createProgram();
     if (pr) { gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr); }
-    if (!pr || !gl.getProgramParameter(pr, gl.LINK_STATUS)) { console.info('[achievements] bubble: shader unavailable, using the plain look'); gl = null; broken = true; return false; }
+    if (!pr || !gl.getProgramParameter(pr, gl.LINK_STATUS)) { console.info('[ACH] bubble: shader unavailable, using the plain look'); gl = null; broken = true; return false; }
     gl.useProgram(pr);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(pr, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     uRes = gl.getUniformLocation(pr, 'uRes'); uTime = gl.getUniformLocation(pr, 'uTime'); uSeed = gl.getUniformLocation(pr, 'uSeed');
     uEnvOn = gl.getUniformLocation(pr, 'uEnvOn'); uEnvR = gl.getUniformLocation(pr, 'uEnvR'); uEnvK = gl.getUniformLocation(pr, 'uEnvK'); uSee = gl.getUniformLocation(pr, 'uSee');
+    LU = {}; for (const k in LOOK_U) LU[k] = gl.getUniformLocation(pr, LOOK_U[k]);
     gl.uniform1i(gl.getUniformLocation(pr, 'uEnv'), 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
@@ -218,18 +278,24 @@ void main(){
 
   function draw(now) {
     const t = still() ? 14 : (now - t0) / 1000;
-    for (const it of items) {
+    const n = items.length, tA = performance.now(), budget = still() ? 1e9 : BUDGET;
+    let drew = 0;
+    for (let j = 0; j < n; j++) {
+      const it = items[(rr + j) % n];
+      if (solo && it.c !== solo) continue;
+      if (drew && !it.fresh && performance.now() - tA > budget) { rr = (rr + j) % n; return; }   // out of time: the rest go next frame
       if (!it.vis && !it.fresh) continue;
       it.fresh = false;
       if (off && (gc.width !== it.px || gc.height !== it.px)) { gc.width = it.px; gc.height = it.px; }
       gl.viewport(0, 0, it.px, it.px);
       gl.uniform2f(uRes, it.px, it.px); gl.uniform1f(uTime, t); gl.uniform1f(uSeed, it.seed);
+      for (const k in LU) gl.uniform1f(LU[k], +root.ACHLook[k]);
       const er = it.reflect && env && envRect(it.c);
       gl.uniform1f(uEnvOn, er ? RK.amount : 0);
       gl.uniform1f(uSee, it.reflect ? RK.see : 0);
       if (er) { gl.uniform4f(uEnvR, er[0], er[1], er[2], er[3]); gl.uniform4f(uEnvK, RK.front, RK.back, Math.max(1.05, RK.distance), RK.tint); }
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); drew++;
       if (off) { it.ctx.transferFromImageBitmap(gc.transferToImageBitmap()); continue; }
       it.ctx.clearRect(0, 0, it.px, it.px);
       it.ctx.drawImage(gc, 0, maxPx - it.px, it.px, it.px, 0, 0, it.px, it.px);
@@ -240,7 +306,7 @@ void main(){
     items = items.filter((it) => it.c.isConnected);
     if (!items.length) return;
     // 60 fps (the owner 11-21: 30 felt laggy); holds still while a full plaque view is open (data-ach-hold on <html>)
-    if (!document.hidden && !document.documentElement.hasAttribute('data-ach-hold') && now - last > 12) { draw(now); last = now; }
+    if (!document.hidden && (!document.documentElement.hasAttribute('data-ach-hold') || solo) && now - last > 12) { draw(now); last = now; }
     if (!still()) raf = requestAnimationFrame(loop);
   }
 
@@ -258,6 +324,7 @@ void main(){
       items.push({ c, ctx: c.getContext(off ? 'bitmaprenderer' : '2d'), px, seed: (items.length % 5) * 7.3, vis: true, fresh: true, reflect: c.hasAttribute('data-reflect') });
       if (io) io.observe(c);
     }
+    items.sort((a, b) => a.px - b.px); rr = 0;
     if (!off && (gc.width !== maxPx || gc.height !== maxPx)) { gc.width = maxPx; gc.height = maxPx; }
     if (still()) draw(performance.now());
     else if (!raf) raf = requestAnimationFrame(loop);
@@ -333,5 +400,15 @@ void main(){
     return Object.assign({}, RK);
   }
 
-  const api = { mount, reflect, setReflect, supported: () => setup() };
-export default api;
+  /** Draw only this canvas (the full view); null = back to all. */
+  function only(c) { solo = c || null; items.forEach((it) => { it.fresh = true; }); if (still()) draw(performance.now()); else if (!raf && items.length) raf = requestAnimationFrame(loop); }
+  /** Draw every bubble again now (after a look change, when motion is reduced and nothing animates). */
+  function redraw() { items.forEach((it) => { it.fresh = true; }); if (gl && still()) draw(performance.now()); }
+  const api = { mount, reflect, setReflect, only, redraw, supported: () => setup() };
+  root.ACHBubble = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+
+// ES module entry for the app (the file above is the Achievements Lab source, unchanged)
+export default (typeof window !== 'undefined' ? window : globalThis).ACHBubble;

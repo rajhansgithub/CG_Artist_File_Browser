@@ -102,7 +102,21 @@ Picked by the owner on 2026-11-21 (options: lens iris medal, clapperboard plaque
 - Tiers 5-6 (Diamond, Ruby): the same iris on a dark gunmetal plate, the rim carved from the stone, a real cut stone seen
   through the opening (refraction, dispersion, Fresnel, absorption).
 - Tier 7 (Emulsion): the live soap bubble with the app's mark (the layers icon) inside. Same shader as every Emulsion Labs tool.
-- Full view: the medal as a real slab you can tilt; a click turns it over to its certificate (number `CGB-xxxx`).
+- Full view (1.26.0): the medal as a real 3D object in its Iris housing (the owner's pick, 2026-11-24). Real geometry,
+  ray marched: the blades, rim and stone keep their depth at every angle, never a flat picture. Drag turns it any way
+  (a flick keeps it turning, then it slows), the pointer tilts it, click / Enter / Space turns it over to its certificate
+  (number `CGB-xxxx`). Diamond and Ruby are real cut stones seated in the ring; Emulsion is the live bubble held in the ring.
+- Smooth by design: one shared WebGL context, programs compiled in the background while the cards show, then one 1 px
+  draw each so the first full view frame never pays the compile; the flat medal shows until the first 3D frame is ready;
+  no layout reads inside the frame loop; the cards' medals hold still while the full view is open; resolution adapts
+  to keep 60 fps (it never removes geometry).
+
+## Dust and cobwebs (1.26.0)
+
+An earned medal slowly gathers dust on the shelf, and after about 20 days a cobweb, in real time. Polish in the full
+view takes the cobweb off at once and some of the dust each rub. Only the look changes: no XP, nothing taken away. The
+Emulsion bubble never ages. Kept per badge in this browser only, key `cgabAchWearV1` (`src/achievements/wear.js`):
+`{ d: dust after the last polish, t: last polished, n: polishes }`. Same maths as the Achievements Lab, real days.
 
 Theme contract: `shape: 'iris'` (gem.js shape 3), `metalLabel: 'Certified'`, `back: 'certificate'`, `pocketIcon: true`.
 
@@ -112,6 +126,8 @@ Theme contract: `shape: 'iris'` (gem.js shape 3), `metalLabel: 'Certified'`, `ba
 - `src/achievements/observer.js`: watches the bridge calls and job events, saves; the viewers call `opened` / `watched`.
 - `src/achievements/level.js` + `pill.css`: the small level pill in the side rail (loads with the app).
 - `src/achievements/ui.js` + `achievements.css`: screen, pop-ups, level-up, full view, settings (loads a moment after start).
+- `src/achievements/medal3d.js` + `view3d.js`: the 3D medal in the full view (engine from the Achievements Lab, and its
+  drag, flick, tilt and turn-over). `wear.js`: dust and cobwebs.
 - `src/achievements/bubble.js`, `gem.js`: the live shaders (one shared WebGL context each, 60 fps, still frame with reduced motion,
   CSS / SVG fallback only where there is no WebGL).
 - `src/components/AchievementsScreen.jsx`: React host for the screen and the Settings section.

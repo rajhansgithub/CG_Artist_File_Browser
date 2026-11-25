@@ -2,11 +2,11 @@
 title: Release notes
 layer: shared
 nav: Release notes
-summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.25.0.
+summary: What has been added and fixed, grouped by area, in plain words. The current version is 1.26.0.
 order: 2
 ---
 
-The current version is **1.25.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
+The current version is **1.26.0**. This list groups the changes by what you see in the app. Version numbers for each release are in the project's history on GitHub.
 
 ## Folders, network and navigation
 
@@ -60,6 +60,8 @@ The current version is **1.25.0**. This list groups the changes by what you see 
 - Achievements: badges for real work, like opening models and HDRs, organising files and finishing batch jobs. Each badge climbs from Bronze to Ruby as lens iris medals, with Diamond and Ruby as real cut stones. Sets of four make certified showreels.
 - Levels and ranks, a pop-up when you earn something (it waits until no viewer, window or job is open), and a full view where you can tilt a medal and turn it over to its certificate.
 - Emulsion, the rarest tier, opens only after a long stretch of real work. Nothing can be bought, nothing is sent anywhere, and idle time never counts.
+- Open an earned medal to see it as a real 3D object in its iris housing. Drag to turn it any way, flick to spin it, click to turn it over to its certificate. Diamond and Ruby are real cut stones, and the Emulsion bubble sits in the ring.
+- Medals gather dust and, after a few weeks, a cobweb on the shelf. Polish them in the full view. It is only a look: no XP is ever taken away.
 - The trophy button in the side rail (or the Pro sidebar) opens it. Settings has an Achievements section for the pop-ups and the Emulsion bubble's look.
 
 ## Looks
