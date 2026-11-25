@@ -14,10 +14,14 @@ import * as Obs from './observer.js';
 import Bubble from './bubble.js';
 import Gem from './gem.js';
 import { levelInfo } from './level.js';
+import * as View3D from './view3d.js';
+import * as Wear from './wear.js';
+const { wearOf, wearVec } = Wear;
 import './achievements.css';
 
 const APP = 'CG Artist File Browser';
 const STUDIO = 'Emulsion Labs';
+if (typeof window !== 'undefined') window.ACHApp = APP;   // engraved on the medals' backs and rims
 const CFG_KEY = 'cgabAchCfgV1';
 const doc = typeof document !== 'undefined' ? document : null;
 const root = typeof window !== 'undefined' ? window : globalThis;
@@ -86,6 +90,11 @@ const T = {
   backNote: `Earned by using ${APP}, never bought. Only files that loaded and jobs that finished are counted.`,
   byLine: `${APP} by ${STUDIO}`,
   turnOver: 'Click the medal to turn it over',
+  turn3d: 'Drag to turn it any way. Click, Enter or Space turns it over.',
+  cond: 'Condition',
+  polish: 'Polish',
+  polishHelp: 'Dust and cobwebs gather on the shelf over time. A rub takes the cobweb and some dust off.',
+  spotless: 'Spotless',
   of: (a, b) => `${a}/${b}`,
   setToasts: 'Show a pop-up when you earn a badge',
   setLevel: 'Show the level-up moment',
@@ -206,9 +215,19 @@ const GL_KIND = ['', 'bronze', 'silver', 'gold', 'platinum', 'dia', 'ruby'];
 const material = (tier, icon, size, key, px, info) => {
   const sz = sizeCls[size] || (size === 'lg' ? ' ach-lg' : size === 'xl' ? ' ach-xl' : '');
   const xl = px ? `--ach-xl:${px}px;` : '';
-  if (tier >= 7) return `<span class="ach-badge is-real ach-emu is-m7${sz}" style="${xl}"><canvas class="ach-bubble" data-size="${px || PX[size] || 40}" aria-hidden="true"></canvas>${svg(icon)}</span>`;
+  const real = Core.CATALOG.some((d) => d.id === key);   // a badge (not the gate orb or the Settings preview)
+  if (tier >= 7) {
+    const n = px || PX[size] || 40;
+    // an earned Emulsion badge: the live bubble held inside the Iris housing's pearl ring (the bubble's width = the ring's opening)
+    if (real && size !== 'xs') {
+      const k = (((root.ACHHole && root.ACHHole[View3D.SHAPE]) || 0.835) + 0.015) / (1.04 * 0.95);
+      return `<span class="ach-badge is-real ach-emu is-house is-m7${sz}" style="${xl}"><span class="emu-h" style="--bw:${(k * 100).toFixed(2)}%"><canvas class="ach-bubble" data-size="${Math.round(n * k)}" aria-hidden="true"></canvas><canvas class="ach-gemgl" data-kind="emu" data-shape="${View3D.SHAPE}" data-icon="" data-size="${n}" aria-hidden="true"></canvas></span>${svg(icon)}</span>`;
+    }
+    return `<span class="ach-badge is-real ach-emu is-m7${sz}" style="${xl}"><canvas class="ach-bubble" data-size="${n}" aria-hidden="true"></canvas>${svg(icon)}</span>`;
+  }
   const txt = info ? ['title', 'sub'].map((k) => (info[k] ? ` data-${k}="${esc(info[k])}"` : '')).join('') + (info.dpr ? ` data-dpr="${info.dpr}"` : '') : '';
-  const gl = size === 'xs' ? '' : `<canvas class="ach-gemgl" data-shape="iris" data-kind="${GL_KIND[tier]}" data-icon="${P[icon] ? icon : 'star'}" data-size="${px || PX[size] || 40}"${txt} aria-hidden="true"></canvas>`;
+  const wid = real ? ` data-wid="${esc(key)}"` : '';   // its dust and cobwebs
+  const gl = size === 'xs' ? '' : `<canvas class="ach-gemgl" data-shape="${View3D.SHAPE}" data-kind="${GL_KIND[tier]}" data-icon="${P[icon] ? icon : 'star'}" data-size="${px || PX[size] || 40}"${wid}${txt} aria-hidden="true"></canvas>`;
   if (tier >= 5) return `<span class="ach-badge is-real ach-gem is-iris is-m${tier}${sz}" style="${xl}">${gemSvg(tier === 6 ? 'ruby' : 'dia', icon)}${gl}</span>`;
   return `<span class="ach-badge is-real ach-medal is-iris is-m${tier}${sz}" style="${xl}--dl2:-${dl(key) * 3}s"><span class="ach-face">${svg(icon)}</span>${size !== 'xs' ? shine(key) : ''}${gl}</span>`;
 };
@@ -216,6 +235,20 @@ const material = (tier, icon, size, key, px, info) => {
 const live = (scope) => {
   Bubble.mount(scope);
   Gem.mount(scope);
+  applyWear(scope);
+};
+/** Each earned medal's dust and cobwebs, from how long it has sat on the shelf since it was earned or last polished. */
+const applyWear = (scope) => {
+  if (!scope) return;
+  const st = state();
+  scope.querySelectorAll('canvas.ach-gemgl[data-wid]').forEach((c) => {
+    const id = c.dataset.wid;
+    try {
+      Gem.set(c, { wear: wearVec(wearOf(id, st.u[id])) });
+    } catch {
+      /* ignore */
+    }
+  });
 };
 const badge = (def, got, size, tierArg) => {
   const tier = def.ladder && got ? tierArg || Core.tierOf(state(), def.id) || 1 : 0;
@@ -332,6 +365,7 @@ export function renderScreen(pane) {
       <div class="ach-grid">${cards}</div>
     </div>`;
     live(pane);
+    View3D.warm();   // the 3D full view's programs compile in the background now, so it opens without a hitch
   };
   if (!pane.__achBound) {
     pane.__achBound = true;
@@ -580,6 +614,8 @@ export function startMoments() {
 let viewKey = null;
 const closeView = () => {
   stopMedal();
+  View3D.stop();
+  applyWear(doc);   // a polish shows on the screen's medals too
   const v = doc.querySelector('.ach-view');
   if (viewKey) {
     doc.removeEventListener('keydown', viewKey, true);
@@ -633,20 +669,72 @@ export function openView(id) {
       doc.addEventListener('keydown', viewKey, true);
     }
     v.setAttribute('aria-label', d.title);
+    const aged = tier && tier < 7;
+    const wearRow = aged ? `<div class="ach-wear"><div class="ach-k"><span>${esc(T.cond)}</span><b class="ach-cond"></b></div><div class="ach-bar ach-wear-bar"><i></i></div>
+      <button type="button" class="ach-btn ach-polish">${esc(T.polish)}</button><span class="ach-wear-help">${esc(T.polishHelp)}</span></div>` : '';
     v.innerHTML = `<button type="button" class="ach-view-x" aria-label="${esc(T.close)}">✕</button>
       ${earned.length > 1 ? `<button type="button" class="ach-view-nav ach-view-prev" aria-label="${esc(T.prevBadge)}">‹</button><button type="button" class="ach-view-nav ach-view-next" aria-label="${esc(T.nextBadge)}">›</button>` : ''}
-      <div class="ach-view-art">${art}</div>
-      <div class="ach-view-side${tier ? ` is-m${tier}` : ''}">${metal}<strong class="ach-view-title">${esc(d.title)}</strong><span class="ach-view-desc">${esc(d.desc)}</span>${pips}${notes(d)}</div>`;
+      <div class="ach-view-art"></div>
+      <div class="ach-view-side${tier ? ` is-m${tier}` : ''}">${metal}<strong class="ach-view-title">${esc(d.title)}</strong><span class="ach-view-desc">${esc(d.desc)}</span>${pips}${notes(d)}${wearRow}<span class="ach-view-hint"></span></div>`;
     const x = v.querySelector('.ach-view-x');
     if (x) x.focus({ preventScroll: true });
-    const c = v.querySelector('canvas.ach-bubble');
-    if (c) {
-      c.setAttribute('data-reflect', '');
-      Bubble.reflect(doc.body, v);
-    }
     stopMedal();
-    live(v);
-    medal3d(v);
+    View3D.stop();
+    const box = v.querySelector('.ach-view-art');
+    // tiers 1-7: the real 3D medal (Iris housing; Emulsion's bubble held in its ring). Without WebGL: the flat medal as before.
+    let m3 = null;
+    if (tier) {
+      const S = Math.max(240, Math.round(Math.min(w * (w < 700 ? 0.9 : 0.5), h * (w < 700 ? 0.5 : 0.86), 760)));
+      const info = medalInfo(d, tier, 1);
+      m3 = View3D.start(box, {
+        id: d.id, tier, icon: P[d.icon] ? d.icon : 'star', title: info.title, sub: info.sub, since: st.u[d.id], px: S, reduced: reduced(), view: v,
+        label: `${d.title}, ${metalOf(tier)}. ${T.turn3d}`,
+        standIn: material(tier, d.icon, 'xl', d.id, Math.round(S / 1.22), tier < 7 ? medalInfo(d, tier, 1) : null),
+      });
+    }
+    const hint = v.querySelector('.ach-view-hint');
+    if (m3) {
+      m3.stage.focus({ preventScroll: true });   // Enter or Space turns it at once; Esc still closes
+      if (hint) hint.textContent = T.turn3d;
+    } else {
+      box.innerHTML = art;
+      if (hint) hint.textContent = tier && tier < 7 ? T.turnOver : '';
+      const c = v.querySelector('canvas.ach-bubble');
+      if (c) {
+        c.setAttribute('data-reflect', '');
+        Bubble.reflect(doc.body, v);
+      }
+      live(v);
+      medal3d(v);
+    }
+    // the medal's condition and the polish cloth
+    const showWear = (wr) => {
+      const cEl = v.querySelector('.ach-cond'), bar = v.querySelector('.ach-wear-bar > i');
+      if (cEl) cEl.textContent = wr.clean ? T.spotless : `${wr.cond}%`;
+      if (bar) bar.style.width = `${wr.cond}%`;
+    };
+    if (aged) {
+      showWear(m3 ? m3.wear() : wearOf(d.id, st.u[d.id]));
+      const pb = v.querySelector('.ach-polish');
+      if (pb) {
+        pb.addEventListener('click', (e) => {
+          e.stopPropagation();
+          let wr;
+          if (m3) wr = m3.polish();
+          else {
+            wr = Wear.polish(d.id);
+            applyWear(v);
+          }
+          showWear(wr);
+          const art2 = v.querySelector('.ach-3d-stage, .ach-plq');
+          if (art2 && !reduced()) {
+            art2.classList.remove('is-shine');
+            void art2.offsetWidth;
+            art2.classList.add('is-shine');
+          }
+        });
+      }
+    }
   };
   show();
 }

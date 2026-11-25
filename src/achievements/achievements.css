@@ -399,3 +399,35 @@ html[data-ach-hold] .ach-wrap *, html[data-ach-hold] .ach-wrap *::before, html[d
 html[data-theme="light"] .ach-moment { color: #f2eee8; }
 /* a badge's full view over the screen: one ✕ only */
 body:has(.ach-view) .ach-screen-x { visibility: hidden; }
+
+/* ---- 1.25.0: the Iris housing (Achievements Lab v21) ---------------------------------------------------------------- */
+/* Emulsion, earned: the live bubble held inside the housing's pearl ring (two canvases stacked; the bubble's width is the
+   ring's opening, --bw) */
+.ach-emu.is-house { border-radius: 50%; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .45)); }
+.ach-emu.is-house .emu-h { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
+.ach-emu.is-house .emu-h > canvas { grid-area: 1 / 1; position: static; inset: auto; width: 100%; height: 100%; display: block; }
+.ach-emu.is-house .emu-h > canvas.ach-bubble { width: var(--bw); height: auto; aspect-ratio: 1; }
+.ach-emu.is-house:has(canvas.nogl) { background: conic-gradient(from 0deg, #ff9ad5, #8be9ff, #ffe48a, #b49cff, #8dffc7, #ff9ad5) !important; animation: achOil 6s linear infinite; }
+.ach-emu.is-house:has(canvas.nogl) .emu-h { display: none; }
+.ach-emu.is-house:has(canvas.nogl) > svg { display: block; width: 55%; height: 55%; position: relative; z-index: 1; color: #fff; }
+
+/* the full view's medal in real 3D: the canvas fills the stage (the medal is 1/1.22 of it, room to turn); the flat medal
+   stands in until the first 3D frame */
+.ach-3d-stage { position: relative; width: var(--S); height: var(--S); flex: none; cursor: grab; touch-action: none; outline: none; border-radius: 50%; }
+.ach-3d-stage:active { cursor: grabbing; }
+.ach-3d-stage:focus-visible { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 40%, transparent); }
+.ach-3d-stage > canvas.ach-3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
+.ach-3d-ph { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2; }
+.ach-3d-floor { position: absolute; left: 22%; right: 22%; bottom: 3%; height: 7%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .42), transparent); filter: blur(4px); z-index: 0; }
+.ach-3d-stage::after, .ach-plq::after { content: ''; position: absolute; inset: 12%; border-radius: 50%; pointer-events: none; z-index: 3; opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, .5), rgba(255, 255, 255, .12) 40%, transparent 70%); }
+.ach-3d-stage.is-shine::after, .ach-plq.is-shine::after { animation: achPolish .7s ease-out; }
+@keyframes achPolish { 0% { opacity: 0; transform: scale(.7); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.1); } }
+
+/* condition and the polish cloth (full view side card) */
+.ach-wear { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.ach-wear .ach-k { border-bottom: 0; }
+.ach-wear .ach-polish { justify-self: start; }
+.ach-wear-help, .ach-view-hint { font-size: 11.5px; color: var(--text-secondary); }
+.ach-view-hint:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .ach-3d-stage::after, .ach-plq::after { animation: none !important; } }
