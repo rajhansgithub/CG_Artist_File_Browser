@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { checkKey, githubRepoOf } from './updater.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,9 @@ if (fs.existsSync(nodeBin) && !process.env.PATH.includes(nodeBin)) {
 }
 
 const targetVersion = process.argv[2];
+// Optional: npm run release 1.25.0 -- --notes "What changed" (shown in the app's update screen and on GitHub)
+const notesIdx = process.argv.indexOf('--notes');
+const releaseNotes = notesIdx > 0 ? (process.argv[notesIdx + 1] || '').trim() : '';
 
 if (!targetVersion) {
   console.error('Usage: npm run release <version>');
@@ -44,6 +48,9 @@ if (!ARCH_VERSION_LINE.test(archContent)) {
   console.error('❌ No "Current release version" line found in docs/ARCHITECTURE.md. Nothing was changed.');
   process.exit(1);
 }
+
+// In-app updates: the release must be signed with the update key (docs/UPDATES.md). Checked before any file changes.
+checkKey();
 
 console.log(`\n🚀 Preparing release ${tag}...\n`);
 
@@ -114,15 +121,23 @@ try {
 }
 
 // Check the built files before anything is committed or pushed.
-const releaseAssets = [
-  path.join(rootDir, 'release', `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`),
-  path.join(rootDir, 'release', `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`),
-  path.join(rootDir, 'release', 'CG-Artist-File-Browser-Portable.exe'),
-].filter(fs.existsSync);
-if (releaseAssets.length === 0) {
-  console.error(`\n❌ No installer or portable exe was found in release/. Nothing was committed or pushed.`);
+const setupAsset = path.join(rootDir, 'release', `CG-Artist-File-Browser-Setup-v${cleanVersion}.exe`);
+const portableAsset = path.join(rootDir, 'release', `CG-Artist-File-Browser-v${cleanVersion}-Portable.exe`);
+const manifestAsset = path.join(rootDir, 'release', 'latest.json');
+if (!fs.existsSync(setupAsset) || !fs.existsSync(portableAsset)) {
+  console.error(`\n❌ The installer or the portable exe is missing in release/. Nothing was committed or pushed.`);
   process.exit(1);
 }
+
+// Sign both for the in-app updater and write release/latest.json
+if (fs.existsSync(manifestAsset)) fs.rmSync(manifestAsset);
+execSync(`node scripts/updater.js sign ${cleanVersion}${releaseNotes ? ` --notes ${JSON.stringify(releaseNotes)}` : ''}`, { cwd: rootDir, stdio: 'inherit' });
+const releaseAssets = [
+  setupAsset,
+  portableAsset,
+  path.join(rootDir, 'release', 'CG-Artist-File-Browser-Portable.exe'),
+  manifestAsset,
+].filter(fs.existsSync);
 
 // 5. Git Commit, Tag & Push
 console.log(`\n📤 Publishing to GitHub...`);
@@ -144,12 +159,26 @@ try {
 
   // 6. Create the GitHub Release and upload the locally built files with the gh CLI (not GitHub Actions)
   console.log(`\n🚀 Uploading locally built binaries directly to GitHub Releases...`);
-  const assetArgs = releaseAssets.map(p => `"${p}"`).join(' ');
-  execSync(
-    `gh release create ${tag} ${assetArgs} --title "CG Artist File Browser ${tag} (Installer & Portable)" --notes "Automated local production release for ${tag}."`,
-    { cwd: rootDir, stdio: 'inherit' }
-  );
-  console.log(`✓ Published ${tag} to GitHub Releases immediately!`);
+  // Created as a draft, then published once every file is up, so the app never sees a release without latest.json
+  const notesFile = path.join(rootDir, 'release', 'release-notes.md');
+  fs.writeFileSync(notesFile, releaseNotes || `Release ${tag}.`);
+  const title = `CG Artist File Browser ${tag} (Installer & Portable)`;
+  const publish = (assets, repoArg) => {
+    const assetArgs = assets.map(p => `"${p}"`).join(' ');
+    execSync(`gh release create ${tag} ${assetArgs} ${repoArg} --draft --title "${title}" --notes-file "${notesFile}"`, { cwd: rootDir, stdio: 'inherit' });
+    execSync(`gh release edit ${tag} ${repoArg} --draft=false --latest`, { cwd: rootDir, stdio: 'inherit' });
+  };
+  publish(releaseAssets, '');
+  console.log(`✓ Published ${tag} to GitHub Releases`);
+
+  // A private app reads its updates from a public mirror repo (docs/UPDATES.md): publish the same files there
+  const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
+  const updateRepo = (tauriConf.plugins?.updater?.endpoints || []).map(githubRepoOf).find(Boolean);
+  const sourceRepo = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(pkg.repository?.url || '');
+  if (updateRepo && sourceRepo && `${updateRepo.owner}/${updateRepo.repo}`.toLowerCase() !== `${sourceRepo[1]}/${sourceRepo[2]}`.toLowerCase()) {
+    publish([setupAsset, portableAsset, manifestAsset], `--repo ${updateRepo.owner}/${updateRepo.repo}`);
+    console.log(`✓ Published the update files to ${updateRepo.owner}/${updateRepo.repo}`);
+  }
 
   console.log(`\n🎉 Successfully published release ${tag} to GitHub!`);
   console.log(`🔗 Releases: https://github.com/rajhansgithub/CG_Artist_File_Browser/releases\n`);

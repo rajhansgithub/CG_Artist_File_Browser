@@ -26,6 +26,9 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+# Update signing keys (kept outside the repo, see docs/UPDATES.md; never commit one)
+*.key
+*.key.pub
 
 # Logs
 logs/

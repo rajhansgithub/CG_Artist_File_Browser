@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 mod achievements;
+mod app_update;
 mod batch_convert;
 mod drag_out;
 mod duplicates;
@@ -1699,8 +1700,11 @@ async fn start_drag_out(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    app_update::init_from_args();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(app_update::UpdateState::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -1774,7 +1778,11 @@ pub fn run() {
             user_guide::open_user_guide,
             open_url::open_url,
             achievements::load_achievements,
-            achievements::save_achievements
+            achievements::save_achievements,
+            app_update::update_info,
+            app_update::update_check,
+            app_update::update_install,
+            app_update::update_startup
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

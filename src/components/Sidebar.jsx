@@ -19,6 +19,7 @@ import { useAchievementLevel } from '../achievements/level.js';
 import FolderIcon from './FolderIcon';
 import RecentFolders from './RecentFolders';
 import { useFolderIcons } from '../utils/folderIconStore';
+import { useUpdates, hasNewVersion } from '../utils/updateStore';
 
 // "Z:" plus the share name, e.g. "Z: library" for Z:\ -> \\mypc\library
 function networkDriveName(drive) {
@@ -85,6 +86,8 @@ export default function Sidebar({
 }) {
   const { openMenu } = useFolderIcons();
   const ach = useAchievementLevel();
+  const updates = useUpdates();
+  const updateTitle = hasNewVersion(updates) ? `Update available: v${updates.found.version}` : '';
   const achTitle = `Achievements · Level ${ach.level} ${ach.title} (${ach.metal})`;
   const [flyout, setFlyout] = useState(null);
   const flyoutRef = useRef(null);
@@ -314,8 +317,9 @@ export default function Sidebar({
           <button className="foot-btn icon" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
             <CircleHelp size={14} />
           </button>
-          <button className="foot-btn icon" onClick={onOpenSettings} title="Studio Preferences & Configuration" aria-label="Settings">
+          <button className="foot-btn icon" onClick={onOpenSettings} title={updateTitle || 'Studio Preferences & Configuration'} aria-label="Settings">
             <SlidersHorizontal size={14} />
+            {updateTitle && <span className="update-dot" />}
           </button>
           <button className="foot-blender" onClick={onOpenSettings} title={blenderTitle} aria-label={blenderTitle}>
             <span className={`blender-dot ${blenderReady ? 'ready' : ''}`} />
@@ -381,9 +385,10 @@ export default function Sidebar({
         <button className="rail-btn" onClick={onOpenGuide} title="Help: open the user guide in your browser" aria-label="Help">
           <CircleHelp size={19} strokeWidth={1.7} />
         </button>
-        <button className="rail-btn" onClick={onOpenSettings} title={`Studio Preferences & Configuration. ${blenderTitle}`} aria-label="Settings">
+        <button className="rail-btn" onClick={onOpenSettings} title={`${updateTitle ? `${updateTitle}. ` : ''}Studio Preferences & Configuration. ${blenderTitle}`} aria-label="Settings">
           <SlidersHorizontal size={19} strokeWidth={1.7} />
           <span className={`blender-dot rail ${blenderReady ? 'ready' : ''}`} />
+          {updateTitle && <span className="update-dot" />}
         </button>
       </nav>
 
